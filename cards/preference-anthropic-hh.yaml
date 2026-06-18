@@ -1,0 +1,80 @@
+id: preference-anthropic-hh
+title: Preference Collection — Anthropic HH-RLHF
+modality: text
+task_structure: preference_ranking
+annotator_structure: crowd
+lineage: anthropic / HH-RLHF (Bai et al. 2022)
+qa_mechanism: [order_randomization, agreement]
+failure_signatures: [drift, sampling_frame, inflation]
+uses_patterns: [order-randomization, model-in-the-loop-adversarial, human-gold-anchor]
+
+provenance_meta:
+  source: "Bai et al., Training a Helpful and Harmless Assistant with RLHF, arXiv:2204.05862 + the released Anthropic/hh-rlhf dataset"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "same task as text-preference-rlhf; this is the ANTHROPIC house-style variant — separate helpful/harmless axes + online iteration"
+
+distinctive: >
+  Helpful and harmless collected as SEPARATE axes (not one blended 'better'); ONLINE-iterated —
+  preference data is periodically re-collected with the latest model so the reward model stays in
+  distribution. Crowdworkers pick the more-helpful (helpfulness task) or the more-harmful (red-team
+  / harmlessness task) of two model responses.
+
+decision: >
+  Collect chosen/rejected response pairs to train SEPARATE helpfulness and harmlessness reward
+  models, kept current via online iteration.
+
+inputs:
+  - source: open-ended dialogues; crowdworker picks one of two model responses
+    provenance: helpful split (base / rejection-sampled / online) + harmless (base)
+    assumption: a relative pairwise choice captures the intended axis (helpful OR harmless, not both at once)
+
+actors:
+  - role: crowdworkers
+    does: choose the better (helpful task) or more-harmful (red-team task) of two responses
+    type: human
+  - role: model in the loop
+    does: generate the two candidate responses (and improve across online rounds)
+    type: model
+
+steps:
+  - run the helpful task (pick more helpful) and the harmless task (pick more harmful) as separate collections
+  - randomize which response is A/B
+  - train separate helpful + harmless preference models
+  - ONLINE: periodically re-collect preferences with the latest model, repeat
+
+quality_gates:
+  - gate: separate helpful / harmless collection
+    checks: each axis is its own task, not a blended judgment
+    catches: confounded (don't average two objectives into one score) [REPORTED]
+  - gate: online re-collection
+    checks: refresh preference data against the current policy each round
+    catches: drift (keeps the reward model in-distribution) [REPORTED]
+
+output:
+  shape: chosen/rejected pairs by split → helpfulness + harmlessness reward models
+  consumed_by: RLHF
+
+failure_modes:
+  - signature: drift
+    evidence: REPORTED
+    description: A static reward model drifts out of distribution as the policy improves; online iterated collection counters it.
+    caught_by: online re-collection
+  - signature: sampling_frame
+    evidence: INFERRED
+    description: Crowdworker-initiated dialogues may not cover the deployment distribution. (Inferred.)
+    caught_by: UNGUARDED
+  - signature: inflation
+    evidence: INFERRED
+    description: Relative pairwise choice without absolute anchors can drift in stringency over a long campaign. (Inferred.)
+    caught_by: UNGUARDED
+
+cost_profile:
+  throughput: crowd-scalable
+  bottleneck: the online re-collection cadence (must keep pace with model iterations)
+  human_cost: standard crowd; the harmless/red-team task carries some exposure (welfare protocol advisable)
+
+provenance: >
+  Extracted from arXiv:2204.05862 + the hh-rlhf dataset. ANTHROPIC house-style preference variant.
+  Distinctive vs peers: separate helpful/harmless axes + ONLINE iteration. lineage facet + the
+  compare operator contrast it against the OpenAI / Meta / DeepMind / Constitutional-AI ways.

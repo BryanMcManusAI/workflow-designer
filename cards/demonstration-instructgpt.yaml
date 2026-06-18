@@ -1,0 +1,86 @@
+id: demonstration-instructgpt
+title: Screened-Contractor Demonstrations + Comparisons (InstructGPT)
+modality: text
+task_structure: demonstration          # + preference_ranking + rubric_rating
+annotator_structure: expert            # ~40 screened contractors (Upwork/ScaleAI)
+lineage: openai / InstructGPT (Ouyang et al. 2022)
+qa_mechanism: [qualification_calibration, agreement]
+failure_signatures: [under_specification, sampling_frame, underpowered]
+uses_patterns: [qualification-calibration, inter-annotator-agreement, split-isolation, human-gold-anchor]
+
+provenance_meta:
+  source: "Ouyang et al., Training language models to follow instructions with human feedback, arXiv:2203.02155"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "shares the qualified-rater + IAA skeleton with text-preference-rlhf; distinct in producing demonstrations and in the held-out-labeler design"
+
+decision: >
+  Produce demonstrations of desired behavior + preference comparisons to align a model via SFT + RLHF,
+  reflecting the labelers' (and researchers') preferences.
+
+inputs:
+  - source: prompts (plain / few-shot / use-case based)
+    provenance: from the API + labeler-written
+    assumption: prompts represent real use (acknowledged partial)
+  - source: labeler outputs (demonstrations, K=4-9 rankings, 1-7 quality ratings)
+    provenance: ~40 contractors screened for sensitivity + agreement-with-researchers
+    assumption: screened labelers' preferences are the right target (explicitly questioned by authors)
+
+actors:
+  - role: training labelers (screened)
+    does: write demonstrations, rank outputs, rate quality + flag harms
+    type: human (expert)
+  - role: held-out labelers (unscreened)
+    does: judge outputs WITHOUT producing any training data — a generalization test
+    type: human
+  - role: researchers
+    does: author detailed guidelines; calibrate via a shared chat room + screening test
+    type: human
+
+steps:
+  - screen labelers on a sensitivity test + agreement-with-researchers
+  - onboard with detailed per-task guidelines + shared chat room
+  - labelers write demonstrations and rank K=4-9 outputs into pairwise comparisons
+  - hold out a separate, unscreened labeler set to evaluate preference generalization
+  - measure inter-labeler agreement (train 72.6%, held-out 77.3%)
+
+quality_gates:
+  - gate: screening + qualification
+    checks: select labelers by sensitivity-test performance + agreement-with-researchers
+    catches: under_specification [REPORTED] — but INDUCES sampling_frame (homogenizes to researcher views)
+  - gate: held-out labeler generalization
+    checks: unscreened raters who produced no training data confirm the model isn't overfit to training labelers
+    catches: sampling_frame (partial — tests, doesn't broaden the pool) [REPORTED]
+  - gate: inter-labeler agreement
+    checks: report IAA as a health metric
+    catches: under_specification [REPORTED]
+
+output:
+  shape: demonstrations + pairwise comparisons + quality ratings (+ held-out validation)
+  consumed_by: SFT + reward-model + RLHF training
+
+failure_modes:
+  - signature: sampling_frame
+    evidence: REPORTED
+    description: >
+      Labelers are mostly English-speaking US/SE-Asia, college-educated; authors state the model aligns
+      to THEIR labelers' and researchers' preferences, "not representative of the full spectrum" of users.
+    caught_by: held-out labeler generalization (tests overfit, does not broaden representation)
+  - signature: under_specification
+    evidence: REPORTED
+    description: 'Inter-labeler agreement ~73%; value judgments depend on labeler identity/background; persistent disagreement.'
+    caught_by: screening + IAA (raises floor, doesn't close it)
+  - signature: underpowered
+    evidence: REPORTED
+    description: '"Most comparisons labeled by 1 contractor for cost reasons" — no redundancy to even measure per-item disagreement.'
+    caught_by: UNGUARDED (authors note multi-labeling would help)
+
+cost_profile:
+  throughput: tens of thousands of demos/comparisons from ~40 contractors
+  bottleneck: screening + the close researcher-labeler collaboration
+  human_cost: skilled contractors; single-labeling chosen to control cost
+
+provenance: >
+  Extracted from arXiv:2203.02155 via EXTRACTION_PROMPT, audited. KEY finding: the held-out-labeler
+  design is split-isolation with the ANNOTATOR as the partition entity — independently validating and
+  extending the pattern from the Common Voice pilot. Also surfaced gates that INDUCE a signature.

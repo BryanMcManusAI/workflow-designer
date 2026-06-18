@@ -1,0 +1,74 @@
+id: clinical-annotation-guidelines
+title: Clinical Text Annotation with Iterative Guidelines + Adjudication
+modality: text
+task_structure: extraction
+annotator_structure: tiered_review     # expert annotators → third-expert adjudication
+qa_mechanism: [agreement, adjudication]
+failure_signatures: [under_specification, bottleneck]
+uses_patterns: [edge-case-guidelines, tiered-adjudication, inter-annotator-agreement]
+
+provenance_meta:
+  source: "i2b2/VA-style clinical NLP annotation practice (iterative guidelines + double-annotation + physician adjudication)"
+  extraction_confidence: medium-high (grounded via the clinical-annotation literature)
+  provenance: extracted-then-audited (canonical practice synthesized from i2b2-style projects)
+  dedup_hint: "expert tiered annotation like image-bbox/nuScenes; this card is specifically the ITERATIVE-GUIDELINE-on-edge-cases workflow — 2nd edge-case-guidelines exemplar"
+
+decision: >
+  Produce a gold-standard annotated clinical corpus (entities/events) by iteratively refining guidelines until
+  expert annotators agree, then adjudicating the rest.
+
+inputs:
+  - source: clinical notes (de-identified)
+    provenance: hospital records
+    assumption: the phenomena of interest are consistently identifiable (only after guideline refinement)
+  - source: an annotation guideline + rule book
+    provenance: drafted by domain experts, revised each iteration
+    assumption: edge cases can be resolved into consistent rules (the iterative bet)
+
+actors:
+  - role: expert annotators (medical)
+    does: double-annotate each note against the current guidelines
+    type: human (expert)
+  - role: adjudicator (third expert)
+    does: resolve disagreements into the gold label; update the rule book on edge cases
+    type: human (expert)
+
+steps:
+  - draft guidelines; two experts annotate a batch
+  - compute IAA; discuss disagreements
+  - update guidelines/rule book with edge-case rules; re-annotate
+  - repeat until IAA is consistently high over the latest iterations
+  - third expert adjudicates remaining disagreements → gold corpus
+
+quality_gates:
+  - gate: edge-case guidelines (iterative)
+    checks: discuss disagreements, add edge-case rules, re-annotate until IAA stable
+    catches: under_specification [REPORTED]
+  - gate: double-annotation + adjudication
+    checks: two annotators + a third-expert adjudicator
+    catches: under_specification, label noise [REPORTED]
+
+output:
+  shape: gold-standard clinical annotations + a matured rule book
+  consumed_by: clinical NLP model training/eval
+
+failure_modes:
+  - signature: under_specification
+    evidence: REPORTED
+    description: >
+      Clinical language is ambiguous; early IAA is low until guidelines are iteratively refined on the edge cases
+      ("continually updated during adjudication; new rules created to arrive at one consistent label").
+    caught_by: edge-case guidelines (iterative) + adjudication
+  - signature: bottleneck
+    evidence: REPORTED
+    description: Physician annotator + adjudicator time is scarce and expensive; the gold corpus is slow to build.
+    caught_by: UNGUARDED
+
+cost_profile:
+  throughput: low — expert-bound, multiple iterations
+  bottleneck: physician annotation + adjudication + guideline iterations
+  human_cost: scarce medical experts; the iterative process is the cost
+
+provenance: >
+  Grounded in i2b2/VA-style clinical-annotation practice via search. 2nd `edge-case-guidelines` exemplar
+  (iterative guideline refinement on edge cases + adjudication until IAA stable) → promoting the pattern.

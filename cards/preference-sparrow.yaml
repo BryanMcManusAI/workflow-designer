@@ -1,0 +1,87 @@
+id: preference-sparrow
+title: Preference Collection — DeepMind Sparrow (Rule-Conditional)
+modality: text
+task_structure: preference_ranking
+annotator_structure: crowd
+lineage: deepmind / Sparrow (Glaese et al. 2022)
+qa_mechanism: [order_randomization, agreement]
+failure_signatures: [under_specification, sampling_frame, confounded]
+uses_patterns: [model-in-the-loop-adversarial, edge-case-guidelines, order-randomization]
+
+provenance_meta:
+  source: "Glaese et al., Improving alignment of dialogue agents via targeted human judgements, arXiv:2209.14375"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "same task; the DEEPMIND house-style variant — decompose behavior into explicit RULES + targeted per-rule probing alongside preference"
+
+distinctive: >
+  Decompose good behavior into ~23 short, standalone RULES (helpful / correct / harmless). Collect TWO
+  kinds of judgment: (1) per-rule ADVERSARIAL PROBING — a participant is told a specific rule and tries
+  to make the model break it, then judges whether it did; (2) per-response PREFERENCE — pick the best of
+  several responses, with separate evidence/plausibility ratings. Train a Rule RM (rule-violation
+  classifier) AND a Preference RM.
+
+inputs:
+  - source: dialogues, evidence-grounded responses
+    provenance: participants probe specific rules + rate preferences
+    assumption: behavior decomposes cleanly into standalone rules (the central design bet)
+
+actors:
+  - role: participants (adversarial)
+    does: try to make the model break a TARGETED rule, then judge rule-followed yes/no
+    type: human
+  - role: participants (preference)
+    does: pick the best of several responses + rate evidence support / plausibility
+    type: human
+  - role: two reward models
+    does: Rule RM (P[breaks rule]) + Preference RM
+    type: model
+
+decision: >
+  Collect targeted per-rule violation judgments AND per-response preferences to train a rule-violation
+  model plus a preference model — turning vague 'harmless' into specific, checkable rules.
+
+steps:
+  - write ~23 standalone rules across helpful / correct / harmless
+  - per-rule adversarial probing: target one rule, try to break it, label followed/broke
+  - per-response preference: choose best response; rate evidence support + plausibility
+  - train a Rule RM (conditional violation classifier) and a Preference RM
+
+quality_gates:
+  - gate: rule decomposition (standalone rules)
+    checks: split fuzzy goals into specific, individually-understandable rules
+    catches: under_specification (turns 'harmless' into checkable rules) [REPORTED]
+  - gate: per-rule targeted probing
+    checks: probe each specific failure mode rather than relying on general harm judgments
+    catches: sampling_frame (deliberately surfaces each rule's failures) [REPORTED]
+  - gate: evidence-grounded judgments
+    checks: rate whether claims are supported by provided evidence
+    catches: confounded (plausible-but-unsupported answers) [REPORTED]
+
+output:
+  shape: per-rule violation labels + per-response preferences (+ evidence ratings) → Rule RM + Preference RM
+  consumed_by: rule-conditional RL + preference RL
+
+failure_modes:
+  - signature: under_specification
+    evidence: REPORTED
+    description: The goal "harmless" is too vague to judge consistently; Sparrow decomposes it into ~23 standalone rules.
+    caught_by: rule decomposition
+  - signature: sampling_frame
+    evidence: REPORTED
+    description: General harm judgments miss specific failure modes; per-rule targeted probing deliberately seeks each one.
+    caught_by: per-rule probing
+  - signature: confounded
+    evidence: REPORTED
+    description: Plausible answers unsupported by evidence; evidence-grounded judgments separate plausibility from support.
+    caught_by: evidence-grounded judgments
+
+cost_profile:
+  throughput: moderate — two judgment pipelines (probing + preference)
+  bottleneck: authoring + maintaining the rule set; running targeted probing per rule
+  human_cost: standard crowd; adversarial probing of harm rules carries some exposure
+
+provenance: >
+  Extracted from arXiv:2209.14375. DEEPMIND's house-style variant — the rule-decomposition approach.
+  Distinctive vs peers: explicit rules + per-rule adversarial probing + a Rule RM. The compare operator
+  contrasts it with HH (axes), Constitutional-AI (principles via AI), Llama 2 (margins), OpenAI (contractors).

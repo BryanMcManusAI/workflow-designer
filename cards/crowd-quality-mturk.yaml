@@ -1,0 +1,77 @@
+id: crowd-quality-mturk
+title: Crowd Data Collection Under the MTurk Quality Crisis
+modality: text
+task_structure: classification        # survey/labeling responses; generalizes to any crowd collection
+annotator_structure: crowd
+qa_mechanism: [gold_honeypots, qualification_calibration]
+failure_signatures: [gaming, sampling_frame, inflation]
+uses_patterns: [gold-honeypots, qualification-calibration, engagement-gate]  # attention checks / reverse-coded traps
+
+provenance_meta:
+  source: "Kennedy et al., The Shape of and Solutions to the MTurk Quality Crisis (PSRM 2020); Chmielewski & Kucker 2020; Ryan 2020"
+  extraction_confidence: medium-high (grounded via the cited papers' reported findings, not full-text fetch)
+  provenance: extracted-then-audited
+  dedup_hint: "crowd skeleton like text-preference-rlhf/commonvoice; this card is specifically the GAMING/fraud profile — 2nd gaming exemplar after red-team"
+
+decision: >
+  Collect labels/survey responses from an anonymous paid crowd, reliably enough to use — despite workers
+  who optimize pay over quality.
+
+inputs:
+  - source: paid crowd responses (MTurk)
+    provenance: anonymous workers, location-restricted (US) but circumventable
+    assumption: workers are who they claim and try in good faith (the assumption that broke)
+
+actors:
+  - role: crowd workers
+    does: complete tasks for pay
+    type: human
+  - role: requester
+    does: screen with attention checks + qualifications; filter bad responses post hoc
+    type: human
+
+steps:
+  - post task with location/qualification restrictions
+  - embed attention checks + reverse-coded items + free-text traps
+  - collect responses; screen out failures
+  - (the crisis) discover much fraud survives the screens
+
+quality_gates:
+  - gate: attention checks / honeypots
+    checks: trap items + reverse-coded questions catch inattentive/gaming workers
+    catches: gaming (PARTIAL — reported INSUFFICIENT) [REPORTED]
+  - gate: qualification / location restriction
+    checks: restrict to qualified US workers
+    catches: sampling_frame (PARTIAL — circumvented by VPNs) [REPORTED]
+
+output:
+  shape: labels/responses + screening flags
+  consumed_by: model training / research analysis
+
+failure_modes:
+  - signature: gaming
+    evidence: REPORTED
+    description: >
+      Workers "click through surveys as fast as possible," give nonsense free-text, fail reverse-coded items,
+      attenuating effects ~10-30%. Crucially, "common attention checks alone are insufficient" — the gate is in an
+      arms race with the gaming. (2nd gaming exemplar, a domain distinct from red-team template-farming.)
+    caught_by: attention checks + qualifications (reported insufficient)
+  - signature: sampling_frame
+    evidence: REPORTED
+    description: >
+      Much fraud comes from "non-US respondents who use VPNs to circumvent location requirements" — the sample
+      isn't the intended population, and the location gate is bypassed.
+    caught_by: qualification/location (bypassed)
+  - signature: inflation
+    evidence: INFERRED
+    description: Speed-clickers default to easy/midpoint responses, compressing signal. (Plausible; not the papers' focus.)
+    caught_by: UNGUARDED
+
+cost_profile:
+  throughput: high/cheap — the appeal that created the crisis
+  bottleneck: post-hoc quality screening + replacement of bad responses
+  human_cost: low welfare risk; the cost is silent data corruption
+
+provenance: >
+  Grounded in the MTurk quality-crisis literature via search of the cited papers. 2nd `gaming` exemplar —
+  shows gaming as cross-domain (survey/behavioral data, not just red-team) and surfaces the gate-vs-gaming arms race.

@@ -1,0 +1,98 @@
+id: redteam-adversarial-dialogue
+title: Crowdsourced Adversarial Red-Team Dialogue Collection
+modality: text
+task_structure: red_team
+annotator_structure: crowd            # + model-in-the-loop (worker picks the more-harmful of 2 responses)
+lineage: anthropic / Ganguli et al. 2022
+distinctive: >
+  CROWDSOURCED manual red-teaming — humans hold open-ended adversarial dialogues to elicit harm, with a
+  model-in-the-loop (pick the more-harmful of two) + welfare protocols. Human-driven, broad, expensive,
+  with explicit worker-wellbeing care.
+qa_mechanism: [agreement, audit_sampling]
+failure_signatures: [under_specification, sampling_frame, confounded, gaming, unanchored]
+uses_patterns: [inter-annotator-agreement, human-audit-sample, multi-annotator-aggregate, annotator-welfare-protocol, model-in-the-loop-adversarial]
+# the `gaming` signature was a candidate surfaced by this pilot (now in the schema vocab);
+# annotator-welfare-protocol + model-in-the-loop-adversarial (was adversarial-pairing) now promoted to the library
+
+provenance_meta:
+  source: "Ganguli et al., Red Teaming Language Models to Reduce Harms, arXiv:2209.07858"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "no close existing skeleton — crowd adversarial elicitation with model-in-the-loop is new; nearest is text-preference-rlhf (pairs), but the task is offense not preference"
+
+decision: >
+  Elicit a dataset of adversarial attacks (38,961) that make an AI assistant behave harmfully, to
+  measure and reduce harmful outputs.
+
+inputs:
+  - source: open-ended worker-authored attacks via multi-turn dialogue with the model
+    provenance: 324 US crowdworkers (307 MTurk, 17 Upwork); model generates 2 responses/turn, worker picks the more harmful
+    assumption: workers can find the harms that matter (the space of harms is unbounded — central risk)
+
+actors:
+  - role: red teamers (crowd)
+    does: attack the model in open-ended dialogue; self-rate success 0-4 Likert
+    type: human
+  - role: harmlessness preference model
+    does: auto-score each assistant utterance for harm (secondary metric)
+    type: model
+  - role: review-task annotators (3)
+    does: re-rate success + tag 500 attacks post-hoc
+    type: human
+
+steps:
+  - recruit + brief workers ("make the AI behave badly"); welfare protocols on (warnings, breaks, PANAS surveys, time-based pay)
+  - workers run ~4-turn attacks, selecting the more-harmful of two model responses each turn (→ preference pairs)
+  - workers self-rate attack success (0-4)
+  - automated harmlessness PM scores utterances (min-harmlessness as a lower bound)
+  - 3 annotators re-review a 500-attack sample for agreement + categorical tags
+
+quality_gates:
+  - gate: post-hoc multi-rater review + IAA
+    checks: 3-4 raters re-rate a sample; Fleiss κ computed
+    catches: under_specification (measures it; κ=0.32 raw, 0.49 binarized — poor/fair) [REPORTED]
+  - gate: prolific-worker statistical control
+    checks: linear mixed models control for the ~50 workers who produced ~80% of attacks
+    catches: confounded [REPORTED]
+  - gate: annotator-welfare-protocol
+    checks: warnings, opt-out, breaks, well-being surveys, time-based (not quota) pay
+    catches: (no data-quality signature — guards the HUMANS) [REPORTED]
+
+output:
+  shape: attack transcripts + success self-ratings + harmlessness scores + (sample) tags + preference pairs
+  consumed_by: harm measurement; RLHF/harmlessness PM training
+
+failure_modes:
+  - signature: under_specification
+    evidence: REPORTED
+    description: '"Successful attack" is subjective — raw Fleiss κ=0.32 (poor-to-fair agreement on what counts).'
+    caught_by: post-hoc IAA (measures, does not fix)
+  - signature: sampling_frame
+    evidence: REPORTED
+    description: >
+      Coverage is incomplete and unbounded — no code attacks despite code in training; roleplay attacks
+      absent; red-teamer pool skews White/college-educated vs census; demographic impact unanalyzable (anon).
+    caught_by: UNGUARDED
+  - signature: confounded
+    evidence: REPORTED
+    description: '~80% of attacks come from ~50 of ~300 workers; prolific-worker identity confounds results.'
+    caught_by: prolific-worker statistical control
+  - signature: gaming           # CANDIDATE NEW SIGNATURE
+    evidence: REPORTED
+    description: >
+      Workers iterated template attacks ("insulting term for X starting with Y") to maximize earnings,
+      producing redundant low-value data — Goodhart on the pay structure.
+    caught_by: UNGUARDED
+  - signature: unanchored
+    evidence: REPORTED
+    description: 'The harmlessness PM is noisy and out-of-distribution on task descriptions; self-report vs PM correlation imperfect.'
+    caught_by: UNGUARDED (two noisy metrics, no gold)
+
+cost_profile:
+  throughput: 38,961 attacks; >$60K crowd cost (full cost an order of magnitude more)
+  bottleneck: annotation cost + harm coverage + worker well-being
+  human_cost: HIGH and SENSITIVE — exposure to harmful content; welfare protocol is part of the design, not optional
+
+provenance: >
+  Extracted from arXiv:2209.07858 via EXTRACTION_PROMPT, audited. Promoted on multiple REPORTED modes.
+  The structurally-odd cell that surfaced the most schema feedback (welfare, gaming, gates-that-only-measure).

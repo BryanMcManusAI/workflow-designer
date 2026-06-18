@@ -1,0 +1,72 @@
+id: speech-librispeech
+title: Speech Data by Forced Alignment to Existing Text (LibriSpeech)
+modality: audio
+task_structure: transcription_translation
+annotator_structure: model_as_annotator
+lineage: panayotov et al. 2015 (LibriSpeech)
+qa_mechanism: [agreement]
+failure_signatures: [sampling_frame, unanchored, under_specification]
+uses_patterns: [dedup-merge]
+# candidate pattern surfaced here: `align-to-existing-labels` (reuse pre-existing text as labels via forced alignment)
+distinctive: >
+  No human transcription at all — derived from public-domain LibriVox AUDIOBOOKS whose text ALREADY EXISTS.
+  Forced alignment (LM + two-pass decoding) automatically segments the audio to the book text, then filters
+  by alignment confidence. ~1000h for near-zero labeling cost — the opposite of Common Voice's crowd record+vote.
+
+provenance_meta:
+  source: "Panayotov et al., LibriSpeech: an ASR corpus based on public domain audio books, ICASSP 2015"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "2nd SPEECH recipe (after audio-transcription-commonvoice); distinct — reuse existing book text via automated forced alignment, vs crowd record + vote"
+
+decision: >
+  Build a large read-speech ASR corpus cheaply by aligning existing audiobook recordings to their known text,
+  rather than collecting and validating new human transcriptions.
+
+inputs:
+  - source: LibriVox public-domain audiobook recordings + the books' existing text
+    provenance: volunteer audiobook readers; text from the published books
+    assumption: forced alignment correctly segments audio to text (alignment errors go uncaught without human review)
+
+actors:
+  - role: forced-alignment pipeline
+    does: align audio to book text (LM + two-pass decoding), segment, filter by confidence
+    type: model
+
+steps:
+  - collect LibriVox recordings + matching book text
+  - build LMs; two-pass decode to time-align audio with text
+  - segment into utterances; drop low-confidence / mis-aligned segments
+  - split by speaker/book into train/dev/test
+
+quality_gates:
+  - gate: alignment-confidence filtering
+    checks: discard segments where forced alignment is low-confidence
+    catches: mis-aligned (bad) labels [REPORTED]
+
+output:
+  shape: <audio segment, transcript> pairs (~1000h), speaker-split
+  consumed_by: ASR training/eval
+
+failure_modes:
+  - signature: sampling_frame
+    evidence: REPORTED
+    description: READ speech from audiobooks ≠ spontaneous/conversational speech; reader + accent + book selection skew the distribution.
+    caught_by: UNGUARDED
+  - signature: unanchored
+    evidence: INFERRED
+    description: Labels come from automated alignment with no per-utterance human check; alignment errors survive the confidence filter. (Inferred.)
+    caught_by: alignment-confidence filtering (partial)
+  - signature: under_specification
+    evidence: INFERRED
+    description: Text normalization (numbers, punctuation, disfluencies) is ambiguous when reusing book text. (Inferred.)
+    caught_by: UNGUARDED
+
+cost_profile:
+  throughput: very high — automated alignment, no human transcription
+  bottleneck: alignment quality + sourcing public-domain audio+text pairs
+  human_cost: near-zero (volunteers already read the books); the trade is read-speech bias
+
+provenance: >
+  Extracted from Panayotov et al. 2015. 2nd speech recipe — the automated-alignment 'reuse existing labels' way.
+  Contrast with Common Voice (crowd record + 2-of-3 vote) via the cookbook speech index.

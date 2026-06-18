@@ -1,0 +1,79 @@
+id: pointcloud-detection-nuscenes
+title: Multi-Sensor 3D Bounding-Box Annotation (nuScenes)
+modality: 3d_pointcloud
+task_structure: structured_output
+annotator_structure: tiered_review        # expert annotators + multiple validation rounds
+qa_mechanism: [adjudication, consensus_threshold]
+failure_signatures: [class_imbalance, sampling_frame, under_specification]
+uses_patterns: [tiered-adjudication, multi-annotator-aggregate, coverage-routing]  # scene selection emphasizing rare classes
+
+provenance_meta:
+  source: "Caesar et al., nuScenes: A multimodal dataset for autonomous driving, arXiv:1903.11027"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "structured_output + tiered review like image-bbox; distinct in 3D + multi-sensor fusion + severe class imbalance"
+
+decision: >
+  Produce accurate 3D bounding boxes (class + attributes + velocity) over fused LiDAR/camera/radar at
+  2Hz keyframes, to train/eval autonomous-driving perception.
+
+inputs:
+  - source: 1000 scenes (20s) from 6 cameras + 32-beam LiDAR + 5 radars
+    provenance: manually selected "interesting" scenes (high traffic, rare classes, dangerous situations)
+    assumption: the curated scenes represent deployment (scope is Boston + Singapore only)
+
+actors:
+  - role: expert annotators (Scale.ai)
+    does: place 3D boxes (x,y,z,w,l,h,yaw) + attributes for objects with ≥1 lidar/radar point
+    type: human (expert)
+  - role: validators
+    does: multiple validation rounds over annotations
+    type: human
+
+steps:
+  - manually select 1000 diverse/interesting scenes from 84 logs
+  - expert annotators place 3D boxes at 2Hz keyframes using fused lidar+camera+radar
+  - multiple validation rounds verify correctness
+  - 3D boxes initialize semantic point labels; further validation for segmentation
+  - merge 23 classes → 10 for detection (drop classes with <10k instances)
+
+quality_gates:
+  - gate: multi-round expert validation
+    checks: each annotation passes multiple review rounds
+    catches: under_specification, label noise [REPORTED — "multiple validation steps"]
+  - gate: sensor-coverage rule
+    checks: annotate only objects with ≥1 lidar/radar point
+    catches: hallucinated / unsupported boxes [REPORTED]
+
+output:
+  shape: ~1.4M 3D boxes (class, attrs, velocity) over 40k keyframes
+  consumed_by: 3D detection/tracking training + eval (importance sampling for rare classes)
+
+failure_modes:
+  - signature: class_imbalance
+    evidence: REPORTED
+    description: >
+      "Severe class imbalance with a ratio of 1:10k for the least and most common class" (vs 1:36 in KITTI);
+      13 of 23 classes dropped for <10k instances; importance sampling needed.
+    caught_by: scene selection emphasizing rare classes (partial); UNGUARDED at train time
+  - signature: sampling_frame
+    evidence: REPORTED
+    description: >
+      Data only from Boston + Singapore — "more research is required on generalizing to different countries,
+      lighting, previously unseen object types." Keyframe-only (2Hz) leaves intermediate frames unlabeled.
+    caught_by: UNGUARDED
+  - signature: under_specification
+    evidence: REPORTED
+    description: >
+      Label reliability degrades with distance/occlusion/night (as few as 1 lidar point at range; visibility
+      <40% boxes "may be unreliable") — the box is ambiguous to place when the sensor barely sees the object.
+    caught_by: multi-round validation (partial)
+
+cost_profile:
+  throughput: 1.4M boxes / 40k keyframes; large expert effort
+  bottleneck: expert 3D annotation + multi-round validation; manual face/plate labeling "prohibitively expensive"
+  human_cost: skilled 3D annotators; cost/timeline not disclosed
+
+provenance: >
+  Extracted from arXiv:1903.11027 via EXTRACTION_PROMPT, audited. Completes the modality space
+  (3d_pointcloud was the last gap). Strong REPORTED class_imbalance (1:10k) + geographic sampling_frame.

@@ -1,0 +1,2627 @@
+{
+ "cards": {
+  "adversarial-nli-anli": {
+   "id": "adversarial-nli-anli",
+   "title": "Human-and-Model-in-the-Loop Adversarial NLI (ANLI)",
+   "modality": "text",
+   "task_structure": "classification",
+   "annotator_structure": "crowd",
+   "scale": "crowd (high-throughput)",
+   "domain": "nlp",
+   "lineage": "",
+   "distinctive": "",
+   "qa_mechanism": [
+    "agreement"
+   ],
+   "failure_signatures": [
+    "sampling_frame",
+    "under_specification"
+   ],
+   "uses_patterns": [
+    "model-in-the-loop-adversarial",
+    "human-gold-anchor"
+   ],
+   "decision": "Collect hard NLI examples by having humans write hypotheses that fool a target model, producing a benchmark that resists saturation (a \"moving target\").",
+   "failure_modes": [
+    {
+     "signature": "sampling_frame",
+     "evidence": "REPORTED",
+     "description": "Examples are selected to fool a specific model, so the distribution is adversarial, not natural — strong for stress-testing, not representative of organic NLI (the recurring adversarial-collection caveat).",
+     "caught_by": "UNGUARDED (rounds re-target as models improve, but each round is still model-shaped)"
+    },
+    {
+     "signature": "under_specification",
+     "evidence": "INFERRED",
+     "description": "Adversarial hypotheses can be genuinely ambiguous, so even verifiers may disagree on the gold label. (Inferred.)",
+     "caught_by": "human verification (partial)"
+    }
+   ]
+  },
+  "audio-transcription-commonvoice": {
+   "id": "audio-transcription-commonvoice",
+   "title": "Crowdsourced Read-Speech Corpus with Vote Validation (Common Voice)",
+   "modality": "audio",
+   "task_structure": "transcription_translation",
+   "annotator_structure": "crowd",
+   "scale": "crowd (high-throughput)",
+   "domain": "speech",
+   "lineage": "",
+   "distinctive": "",
+   "qa_mechanism": [
+    "consensus_threshold",
+    "agreement"
+   ],
+   "failure_signatures": [
+    "class_imbalance",
+    "label_leakage",
+    "under_specification",
+    "sampling_frame",
+    "unanchored"
+   ],
+   "uses_patterns": [
+    "multi-annotator-aggregate",
+    "inter-annotator-agreement",
+    "split-isolation",
+    "powered-eval-split"
+   ],
+   "decision": "Produce validated <audio, transcript> pairs at massive multilingual scale to train/eval ASR, where validity = the spoken audio matches the displayed sentence.",
+   "failure_modes": [
+    {
+     "signature": "class_imbalance",
+     "evidence": "REPORTED",
+     "description": "Extreme coverage variance — English 780 validated hours vs Abkhaz <1; low-resource languages have almost no speaker diversity (Slovenian 3 unique train speakers, Irish 6), so ASR can't generalize there.",
+     "caught_by": "UNGUARDED (reported as a limitation, not solved in-corpus)"
+    },
+    {
+     "signature": "label_leakage",
+     "evidence": "REPORTED",
+     "description": "Same speaker in train + test would inflate ASR scores (model recognizes the voice, not the language).",
+     "caught_by": "speaker-bucketing"
+    },
+    {
+     "signature": "instrumentation-bug",
+     "evidence": "REPORTED",
+     "description": "Early voting mechanism had bugs; some clips received >3 votes, resolved by simple majority. An implementation defect, not a systematic data-quality signature.",
+     "caught_by": "post-hoc simple-majority rule"
+    },
+    {
+     "signature": "under_specification",
+     "evidence": "INFERRED",
+     "description": "Binary up/down conflates \"wrong words\" with \"heavy accent / bad audio\"; no rubric separates them. Source does not report this.",
+     "caught_by": "UNGUARDED"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "INFERRED",
+     "description": "Self-selected volunteers + Wikipedia sentences bias speaker and domain distribution away from deployment. Source notes optional demographics but does NOT report representativeness bias.",
+     "caught_by": "UNGUARDED"
+    },
+    {
+     "signature": "unanchored",
+     "evidence": "INFERRED",
+     "description": "Validity is pure crowd consensus with no expert/gold reference; no ground truth on the validators. Not reported.",
+     "caught_by": "UNGUARDED"
+    }
+   ]
+  },
+  "benchmark-bigbench": {
+   "id": "benchmark-bigbench",
+   "title": "Community-Contributed Eval Benchmark (BIG-bench)",
+   "modality": "text",
+   "task_structure": "freeform_generation",
+   "annotator_structure": "crowd",
+   "scale": "crowd (high-throughput)",
+   "domain": "research",
+   "lineage": "srivastava et al. 2022 (BIG-bench)",
+   "distinctive": "An eval benchmark built by the COMMUNITY — 204 tasks contributed by 450 authors across 132 institutions, peer-reviewed and merged on a rolling basis; dynamic and extensible. Coverage emerges bottom-up from whatever researchers care to contribute, not top-down from a coverage plan.",
+   "qa_mechanism": [
+    "agreement"
+   ],
+   "failure_signatures": [
+    "sampling_frame",
+    "under_specification",
+    "class_imbalance"
+   ],
+   "uses_patterns": [
+    "edge-case-guidelines"
+   ],
+   "decision": "Build a broad, extensible capability benchmark by soliciting, reviewing, and merging tasks contributed by the research community.",
+   "failure_modes": [
+    {
+     "signature": "sampling_frame",
+     "evidence": "REPORTED",
+     "description": "Tasks reflect contributors' interests, not a systematic map of capabilities; coverage is uneven and bottom-up.",
+     "caught_by": "UNGUARDED (breadth of contributors mitigates somewhat)"
+    },
+    {
+     "signature": "under_specification",
+     "evidence": "REPORTED",
+     "description": "Task quality varies; some contributed tasks were later critiqued as ill-posed (the 'common sense' subset debate).",
+     "caught_by": "peer review (partial)"
+    },
+    {
+     "signature": "class_imbalance",
+     "evidence": "INFERRED",
+     "description": "Some skills are over-covered (popular topics), rare capabilities under-covered. (Inferred.)",
+     "caught_by": "UNGUARDED"
+    }
+   ]
+  },
+  "clinical-annotation-guidelines": {
+   "id": "clinical-annotation-guidelines",
+   "title": "Clinical Text Annotation with Iterative Guidelines + Adjudication",
+   "modality": "text",
+   "task_structure": "extraction",
+   "annotator_structure": "tiered_review",
+   "scale": "expert + review (tiered)",
+   "domain": "clinical",
+   "lineage": "",
+   "distinctive": "",
+   "qa_mechanism": [
+    "agreement",
+    "adjudication"
+   ],
+   "failure_signatures": [
+    "under_specification",
+    "bottleneck"
+   ],
+   "uses_patterns": [
+    "edge-case-guidelines",
+    "tiered-adjudication",
+    "inter-annotator-agreement"
+   ],
+   "decision": "Produce a gold-standard annotated clinical corpus (entities/events) by iteratively refining guidelines until expert annotators agree, then adjudicating the rest.",
+   "failure_modes": [
+    {
+     "signature": "under_specification",
+     "evidence": "REPORTED",
+     "description": "Clinical language is ambiguous; early IAA is low until guidelines are iteratively refined on the edge cases (\"continually updated during adjudication; new rules created to arrive at one consistent label\").",
+     "caught_by": "edge-case guidelines (iterative) + adjudication"
+    },
+    {
+     "signature": "bottleneck",
+     "evidence": "REPORTED",
+     "description": "Physician annotator + adjudicator time is scarce and expensive; the gold corpus is slow to build.",
+     "caught_by": "UNGUARDED"
+    }
+   ]
+  },
+  "clinical-chexpert-labeler": {
+   "id": "clinical-chexpert-labeler",
+   "title": "Image Labels from Reports via Rule-Based NLP (CheXpert)",
+   "modality": "image",
+   "task_structure": "classification",
+   "annotator_structure": "programmatic",
+   "scale": "programmatic (weak supervision)",
+   "domain": "clinical",
+   "lineage": "irvin et al. 2019 (CheXpert)",
+   "distinctive": "Don't label the images at all — run the free-text radiology REPORTS through a rule-based NLP labeler (mention-extraction → classification → aggregation, with phrase lists hand-curated by board-certified radiologists + NegBio negation/uncertainty) to emit 14 observation labels per X-ray. Keeps an explicit UNCERTAIN class instead of collapsing it.",
+   "qa_mechanism": [
+    "agreement"
+   ],
+   "failure_signatures": [
+    "confounded",
+    "unanchored",
+    "under_specification"
+   ],
+   "uses_patterns": [
+    "labeling-functions",
+    "edge-case-guidelines"
+   ],
+   "decision": "Generate large-scale structured image labels cheaply by extracting observations from the paired radiology reports with a rule-based NLP labeler.",
+   "failure_modes": [
+    {
+     "signature": "confounded",
+     "evidence": "REPORTED",
+     "description": "Labels reflect the REPORT's language, not the image directly; report-image mismatch + uncertain wording propagate as label noise.",
+     "caught_by": "explicit uncertainty label (surfaces, doesn't fix)"
+    },
+    {
+     "signature": "unanchored",
+     "evidence": "INFERRED",
+     "description": "Rule-based extraction errors have no per-image human check at scale. (Inferred.)",
+     "caught_by": "UNGUARDED (CheXbert later added expert-validated BERT labeling)"
+    },
+    {
+     "signature": "under_specification",
+     "evidence": "REPORTED",
+     "description": "Radiology language is hedged; many findings are genuinely uncertain, kept explicit rather than resolved.",
+     "caught_by": "explicit uncertainty label"
+    }
+   ]
+  },
+  "code-humaneval": {
+   "id": "code-humaneval",
+   "title": "Execution-Verified Code-Generation Eval Set (HumanEval)",
+   "modality": "code",
+   "task_structure": "freeform_generation",
+   "annotator_structure": "expert",
+   "scale": "expert (low-throughput / high-skill)",
+   "domain": "code",
+   "lineage": "",
+   "distinctive": "",
+   "qa_mechanism": [
+    "execution_check"
+   ],
+   "failure_signatures": [
+    "label_leakage",
+    "under_specification",
+    "sampling_frame"
+   ],
+   "uses_patterns": [
+    "execution-verification",
+    "human-gold-anchor"
+   ],
+   "decision": "Build an eval set (164 problems) measuring whether generated code is FUNCTIONALLY correct — graded by running unit tests, not by text similarity.",
+   "failure_modes": [
+    {
+     "signature": "label_leakage",
+     "evidence": "REPORTED",
+     "description": "Models train on \"a large fraction of GitHub, which already contains solutions\" (>10 public repos with Codeforces solutions) — a scraped eval would be contaminated. The hand-writing gate exists to prevent this.",
+     "caught_by": "hand-authored problems"
+    },
+    {
+     "signature": "under_specification",
+     "evidence": "INFERRED",
+     "description": "~7.7 unit tests/problem may not fully specify correctness — a weak suite can pass a subtly wrong solution. NOTE: the paper does NOT analyze test coverage/adequacy, so this is inferred, not reported.",
+     "caught_by": "UNGUARDED (mutation testing / coverage analysis would help)"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "INFERRED",
+     "description": "Problems are \"easy interview\" difficulty and may not represent real software tasks. The paper notes the scope but does not claim representativeness; this concern is inferred.",
+     "caught_by": "UNGUARDED"
+    }
+   ]
+  },
+  "code-swebench": {
+   "id": "code-swebench",
+   "title": "Harvested GitHub Issues, Execution-Verified (SWE-bench)",
+   "modality": "code",
+   "task_structure": "freeform_generation",
+   "annotator_structure": "expert",
+   "scale": "expert (low-throughput / high-skill)",
+   "domain": "code",
+   "lineage": "",
+   "distinctive": "",
+   "qa_mechanism": [
+    "execution_check"
+   ],
+   "failure_signatures": [
+    "label_leakage",
+    "under_specification",
+    "sampling_frame"
+   ],
+   "uses_patterns": [
+    "execution-verification",
+    "human-gold-anchor"
+   ],
+   "decision": "Measure whether a model can resolve a real GitHub issue by generating a patch, verified by running the repository's tests (fail-to-pass + pass-to-pass).",
+   "failure_modes": [
+    {
+     "signature": "label_leakage",
+     "evidence": "REPORTED",
+     "description": "~32.67% of \"resolved\" instances had the solution outlined directly in the issue report/comments (SWE-Bench+), and 94% of issues predate the LLM knowledge cutoff (contamination risk) — apparent skill is partly leakage/memorization.",
+     "caught_by": "UNGUARDED (SWE-Bench+ adds SolutionLeakDetector + post-cutoff issues → 0% leakage)"
+    },
+    {
+     "signature": "under_specification",
+     "evidence": "REPORTED",
+     "description": "~31% of passing patches used WEAK tests (\"incorrect, incomplete, or applied to different files\" changes passed). Filtering weak tests + leakage drops SWE-Agent+GPT-4 resolution 12.47%→3.97% (Full), 22.4%→10.0% (Verified).",
+     "caught_by": "UNGUARDED (SWE-Bench+ TestEnhancer strengthens suites)"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "INFERRED",
+     "description": "Issues skew to popular Python repos of a certain era; may not represent software work broadly. (Inferred.)",
+     "caught_by": "UNGUARDED"
+    }
+   ]
+  },
+  "content-moderation-abuse": {
+   "id": "content-moderation-abuse",
+   "title": "Abusive-Language / Hate-Speech Annotation",
+   "modality": "text",
+   "task_structure": "classification",
+   "annotator_structure": "multi_aggregate",
+   "scale": "crowd (aggregated)",
+   "domain": "content-moderation",
+   "lineage": "",
+   "distinctive": "",
+   "qa_mechanism": [
+    "agreement",
+    "consensus_threshold"
+   ],
+   "failure_signatures": [
+    "drift",
+    "under_specification",
+    "over_specification",
+    "sampling_frame",
+    "confounded",
+    "class_imbalance",
+    "bottleneck"
+   ],
+   "uses_patterns": [
+    "multi-annotator-aggregate",
+    "inter-annotator-agreement",
+    "edge-case-guidelines"
+   ],
+   "decision": "Label text as abusive/hateful (binary or by taxonomy) to train moderation classifiers, where \"abuse\" is an inherently contested, context-dependent judgment.",
+   "failure_modes": [
+    {
+     "signature": "drift",
+     "evidence": "REPORTED",
+     "description": "Dataset DECAY: ID-only releases lose content (Mathew et al. counterspeech lost >60% in 12 months), and the class distribution + qualitative nature shift over time (overt abuse is removed faster than covert).",
+     "caught_by": "UNGUARDED"
+    },
+    {
+     "signature": "over_specification",
+     "evidence": "REPORTED",
+     "description": "A complex taxonomy \"is only suitable for ML if there are enough data points in each category and if annotators can consistently distinguish between them\" — rich schemas become non-implementable.",
+     "caught_by": "UNGUARDED (in live tension with under_specification)"
+    },
+    {
+     "signature": "under_specification",
+     "evidence": "REPORTED",
+     "description": "Low IAA is endemic — abuse is \"inherently subjective, contextual, political\"; irony/sarcasm/intent are hard; some guidelines just say label \"according to your opinion.\"",
+     "caught_by": "edge-case guidelines + majority vote (raise the floor, don't close it)"
+    },
+    {
+     "signature": "confounded",
+     "evidence": "REPORTED",
+     "description": "Creator homogeneity — 70% of sexist / 99% of racist tweets in the Waseem-Hovy set come from 1-2 users — makes \"user-level metadata artificially highly predictive of abuse\" (the model learns the author).",
+     "caught_by": "UNGUARDED"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "REPORTED",
+     "description": "Keyword oversampling drives racial bias; Twitter over-represented; far-right oversampled vs far-left; event-window sampling kills generalisability.",
+     "caught_by": "UNGUARDED"
+    },
+    {
+     "signature": "class_imbalance",
+     "evidence": "REPORTED",
+     "description": "Datasets are \"radically unrepresentative\" of real (<1%) abuse prevalence, so eval ≠ deployment.",
+     "caught_by": "UNGUARDED"
+    }
+   ]
+  },
+  "content-moderation-welfare-ops": {
+   "id": "content-moderation-welfare-ops",
+   "title": "Commercial Content Moderation (Decisions + Moderator Welfare)",
+   "modality": "multimodal",
+   "task_structure": "classification",
+   "annotator_structure": "expert",
+   "scale": "expert (low-throughput / high-skill)",
+   "domain": "content-moderation",
+   "lineage": "",
+   "distinctive": "",
+   "qa_mechanism": [
+    "audit_sampling",
+    "agreement"
+   ],
+   "failure_signatures": [
+    "drift",
+    "under_specification",
+    "inflation"
+   ],
+   "uses_patterns": [
+    "annotator-welfare-protocol",
+    "multi-annotator-aggregate"
+   ],
+   "decision": "Have employed moderators decide remove/keep (+ violation category) on user content at scale — labels that both enforce policy and train moderation models — while sustaining the moderators doing the work.",
+   "failure_modes": [
+    {
+     "signature": "drift",
+     "evidence": "REPORTED",
+     "description": "Policy changes frequently and moderator judgment shifts under fatigue, so \"the bar\" moves over time.",
+     "caught_by": "QA audit + appeals (partial)"
+    },
+    {
+     "signature": "under_specification",
+     "evidence": "REPORTED",
+     "description": "Policy can't cover every edge case moderators face; ambiguous calls under time pressure.",
+     "caught_by": "UNGUARDED (edge-case guidelines would help)"
+    },
+    {
+     "signature": "inflation",
+     "evidence": "INFERRED",
+     "description": "Burnout / secondary-trauma degrade consistency (rushed or numbed decisions). (Inferred from the welfare findings.)",
+     "caught_by": "annotator-welfare-protocol (partial)"
+    }
+   ]
+  },
+  "corpus-ingestion": {
+   "id": "corpus-ingestion",
+   "title": "Corpus Ingestion — Source Documents to Curated Workflow Cards",
+   "modality": "text",
+   "task_structure": "extraction",
+   "annotator_structure": "model_as_annotator",
+   "scale": "automated (very-high-throughput)",
+   "domain": "meta-tooling",
+   "lineage": "",
+   "distinctive": "",
+   "qa_mechanism": [
+    "audit_sampling",
+    "gold_honeypots",
+    "agreement",
+    "consensus_threshold"
+   ],
+   "failure_signatures": [
+    "unanchored",
+    "confounded",
+    "sampling_frame",
+    "inflation",
+    "class_imbalance",
+    "self_affinity"
+   ],
+   "uses_patterns": [
+    "human-audit-sample",
+    "cross-family-judges",
+    "human-gold-anchor",
+    "active-learning-loop",
+    "dedup-merge",
+    "coverage-routing"
+   ],
+   "decision": "Turn raw source documents into validated workflow cards (and candidate patterns) decomposed into the schema, so the corpus can scale beyond hand-authoring without losing the provenance-over-volume guarantee.",
+   "failure_modes": [
+    {
+     "signature": "unanchored",
+     "evidence": "",
+     "description": "THE central risk — the extractor invents a plausible failure mode the source never reported, and it enters the corpus as if observed. Kills the provenance-over-volume guarantee.",
+     "caught_by": "REPORTED-vs-INFERRED tagging + human audit + gold-set check"
+    },
+    {
+     "signature": "confounded",
+     "evidence": "",
+     "description": "The extractor launders its own priors about how workflows \"should\" work as if extracted from the source (the Pop Problem, in ingestion form).",
+     "caught_by": "cross-family extraction + human audit"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "",
+     "description": "You ingest the easy-to-find sources (arXiv, HF), so the corpus over-represents well-documented academic workflows and under-represents messy real-world vendor practice.",
+     "caught_by": "coverage routing (partial — UNGUARDED for the published-vs-practiced bias itself; needs deliberate non-academic source pulls)"
+    },
+    {
+     "signature": "inflation",
+     "evidence": "",
+     "description": "The corpus bloats with near-duplicate cards that look like coverage but aren't (many papers describe the same multi-annotator + adjudication skeleton).",
+     "caught_by": "dedup-merge + coverage-by-signature accounting"
+    },
+    {
+     "signature": "self_affinity",
+     "evidence": "",
+     "description": "If one model family extracts AND is later used in the tool, its framing dominates the corpus.",
+     "caught_by": "cross-family extraction"
+    },
+    {
+     "signature": "class_imbalance",
+     "evidence": "",
+     "description": "Rare task structures (red_team, 3D, transcription) are rare in sources too, so they stay uncovered unless deliberately sought.",
+     "caught_by": "coverage routing"
+    }
+   ]
+  },
+  "critique-criticgpt": {
+   "id": "critique-criticgpt",
+   "title": "Critique-Rationale Collection via Bug Tampering (CriticGPT)",
+   "modality": "code",
+   "task_structure": "critique_rationale",
+   "annotator_structure": "model_as_annotator",
+   "scale": "automated (very-high-throughput)",
+   "domain": "alignment-eval",
+   "lineage": "",
+   "distinctive": "",
+   "qa_mechanism": [
+    "gold_honeypots",
+    "agreement"
+   ],
+   "failure_signatures": [
+    "unanchored",
+    "sampling_frame",
+    "under_specification"
+   ],
+   "uses_patterns": [
+    "tamper-to-ground-truth",
+    "multi-annotator-aggregate",
+    "human-gold-anchor"
+   ],
+   "decision": "Collect critique-quality data — natural-language feedback that catches bugs in code — to train a critic model (RLHF) that helps humans evaluate model outputs.",
+   "failure_modes": [
+    {
+     "signature": "unanchored",
+     "evidence": "REPORTED",
+     "description": "Critics HALLUCINATE bugs that \"could mislead humans into making mistakes\"; the absolute rate of nitpicks and hallucinations \"is still quite high.\" Without the planted-bug gold you can't separate a real catch from a confabulated one. (Direct echo of Bryan's CoT-faithfulness / pop-problem confabulation findings.)",
+     "caught_by": "tamper-to-ground-truth (only for the planted bug; UNGUARDED for novel hallucinations)"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "REPORTED",
+     "description": "\"The distribution of inserted bugs is quite different from the distribution of natural LLM errors\" — tampered bugs are harder/more severe than natural ones, so the gold-creation method itself biases the data.",
+     "caught_by": "UNGUARDED (some unmodified data included to mitigate)"
+    },
+    {
+     "signature": "under_specification",
+     "evidence": "REPORTED",
+     "description": "Contractors \"often disagree when they compare two critiques on overall quality\" (low agreement, subjective); agreement improves substantially WITH a reference bug description.",
+     "caught_by": "tamper-to-ground-truth (the planted bug anchors the subjective judgment)"
+    }
+   ]
+  },
+  "crowd-aggregation-dawid-skene": {
+   "id": "crowd-aggregation-dawid-skene",
+   "title": "Probabilistic Label Aggregation (Dawid-Skene)",
+   "modality": "text",
+   "task_structure": "classification",
+   "annotator_structure": "multi_aggregate",
+   "scale": "crowd (aggregated)",
+   "domain": "crowdsourcing-methods",
+   "lineage": "dawid & skene 1979",
+   "distinctive": "Don't take a naive majority vote — jointly ESTIMATE each annotator's CONFUSION MATRIX and the true labels via EM, then weight annotators by their inferred reliability. The classical principled answer to 'how do I combine noisy, unequally-skilled annotators?' (the constructive counterpart to the MTurk quality crisis).",
+   "qa_mechanism": [
+    "agreement",
+    "consensus_threshold"
+   ],
+   "failure_signatures": [
+    "underpowered",
+    "confounded",
+    "unanchored"
+   ],
+   "uses_patterns": [
+    "multi-annotator-aggregate",
+    "inter-annotator-agreement"
+   ],
+   "decision": "Recover the most likely true labels from multiple noisy annotators by modeling each annotator's error pattern and down-weighting unreliable ones.",
+   "failure_modes": [
+    {
+     "signature": "underpowered",
+     "evidence": "INFERRED",
+     "description": "Needs enough overlap per annotator to estimate a confusion matrix; sparse labeling → unreliable estimates. (Inferred.)",
+     "caught_by": "UNGUARDED (require minimum overlap)"
+    },
+    {
+     "signature": "confounded",
+     "evidence": "INFERRED",
+     "description": "Assumes conditional independence of annotators; correlated/colluding workers violate it and bias the estimate. (Inferred.)",
+     "caught_by": "UNGUARDED"
+    },
+    {
+     "signature": "unanchored",
+     "evidence": "INFERRED",
+     "description": "True labels are estimated, not observed; without any gold, systematic shared error is invisible. (Inferred.)",
+     "caught_by": "UNGUARDED (seed with a few gold items)"
+    }
+   ]
+  },
+  "crowd-quality-mturk": {
+   "id": "crowd-quality-mturk",
+   "title": "Crowd Data Collection Under the MTurk Quality Crisis",
+   "modality": "text",
+   "task_structure": "classification",
+   "annotator_structure": "crowd",
+   "scale": "crowd (high-throughput)",
+   "domain": "crowdsourcing-methods",
+   "lineage": "",
+   "distinctive": "",
+   "qa_mechanism": [
+    "gold_honeypots",
+    "qualification_calibration"
+   ],
+   "failure_signatures": [
+    "gaming",
+    "sampling_frame",
+    "inflation"
+   ],
+   "uses_patterns": [
+    "gold-honeypots",
+    "qualification-calibration",
+    "engagement-gate"
+   ],
+   "decision": "Collect labels/survey responses from an anonymous paid crowd, reliably enough to use — despite workers who optimize pay over quality.",
+   "failure_modes": [
+    {
+     "signature": "gaming",
+     "evidence": "REPORTED",
+     "description": "Workers \"click through surveys as fast as possible,\" give nonsense free-text, fail reverse-coded items, attenuating effects ~10-30%. Crucially, \"common attention checks alone are insufficient\" — the gate is in an arms race with the gaming. (2nd gaming exemplar, a domain distinct from red-team template-farming.)",
+     "caught_by": "attention checks + qualifications (reported insufficient)"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "REPORTED",
+     "description": "Much fraud comes from \"non-US respondents who use VPNs to circumvent location requirements\" — the sample isn't the intended population, and the location gate is bypassed.",
+     "caught_by": "qualification/location (bypassed)"
+    },
+    {
+     "signature": "inflation",
+     "evidence": "INFERRED",
+     "description": "Speed-clickers default to easy/midpoint responses, compressing signal. (Plausible; not the papers' focus.)",
+     "caught_by": "UNGUARDED"
+    }
+   ]
+  },
+  "data-quality-cleanlab": {
+   "id": "data-quality-cleanlab",
+   "title": "Find NATURAL Label Errors via Confident Learning (CleanLab)",
+   "modality": "tabular",
+   "task_structure": "classification",
+   "annotator_structure": "model_as_annotator",
+   "scale": "automated (very-high-throughput)",
+   "domain": "data-quality",
+   "lineage": "northcutt et al. 2021 (confident learning / cleanlab)",
+   "distinctive": "Find the label errors ALREADY in a dataset (no planting). Confident learning uses a model's predicted class probabilities + per-class confidence thresholds to flag likely-mislabeled items, then HUMANS validate the flagged subset (~51% of flags confirmed real). Found ~3.4% errors across 10 famous test sets (even MNIST).",
+   "qa_mechanism": [
+    "audit_sampling",
+    "agreement"
+   ],
+   "failure_signatures": [
+    "confounded",
+    "unanchored",
+    "sampling_frame"
+   ],
+   "uses_patterns": [
+    "human-audit-sample",
+    "cross-family-judges"
+   ],
+   "decision": "Surface and correct the mislabeled items already present in a dataset, by ranking label-error candidates with confident learning and human-validating the top flags.",
+   "failure_modes": [
+    {
+     "signature": "confounded",
+     "evidence": "REPORTED",
+     "description": "Confident learning leans on the model's own probabilities — if the model shares the systematic error, it won't flag it (a blind spot it can't see).",
+     "caught_by": "cross-family / out-of-sample predictions"
+    },
+    {
+     "signature": "unanchored",
+     "evidence": "REPORTED",
+     "description": "There's no a-priori ground truth; only ~51% of algorithmic flags are confirmed errors, so human validation is mandatory.",
+     "caught_by": "human validation of flags"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "INFERRED",
+     "description": "Errors the model is confident about get flagged; errors it's also uncertain on slip through. (Inferred.)",
+     "caught_by": "UNGUARDED"
+    }
+   ]
+  },
+  "datasheets-documentation": {
+   "id": "datasheets-documentation",
+   "title": "Dataset Documentation & Provenance (Datasheets for Datasets)",
+   "modality": "text",
+   "task_structure": "extraction",
+   "annotator_structure": "expert",
+   "scale": "expert (low-throughput / high-skill)",
+   "domain": "meta-tooling",
+   "lineage": "gebru et al. 2021 (Datasheets for Datasets)",
+   "distinctive": "A META workflow: instead of producing labels, the dataset CREATOR fills a standardized datasheet — 57 questions across 7 categories (motivation, composition, collection process, preprocessing/cleaning/labeling, uses, distribution, maintenance). By analogy to electronics datasheets, it makes a dataset's provenance + intended use + limitations explicit, so consumers can judge fitness. The accountability layer over every other recipe.",
+   "qa_mechanism": [
+    "guideline_freeze"
+   ],
+   "failure_signatures": [
+    "under_specification",
+    "sampling_frame",
+    "gaming"
+   ],
+   "uses_patterns": [],
+   "decision": "Make a dataset's provenance, composition, intended uses, and limitations explicit and inspectable by having its creator answer a standardized question set.",
+   "failure_modes": [
+    {
+     "signature": "under_specification",
+     "evidence": "REPORTED",
+     "description": "Without a standard, datasets ship undocumented; even with one, questions get answered inconsistently/incompletely.",
+     "caught_by": "standardized question set (raises the floor)"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "INFERRED",
+     "description": "It's self-reported by the creator — blind spots and biases in collection may go unrecorded. (Inferred.)",
+     "caught_by": "UNGUARDED"
+    },
+    {
+     "signature": "gaming",
+     "evidence": "INFERRED",
+     "description": "Creators can rationalize or omit unflattering provenance. (Inferred.)",
+     "caught_by": "UNGUARDED"
+    }
+   ]
+  },
+  "demonstration-instructgpt": {
+   "id": "demonstration-instructgpt",
+   "title": "Screened-Contractor Demonstrations + Comparisons (InstructGPT)",
+   "modality": "text",
+   "task_structure": "demonstration",
+   "annotator_structure": "expert",
+   "scale": "expert (low-throughput / high-skill)",
+   "domain": "alignment-rlhf",
+   "lineage": "openai / InstructGPT (Ouyang et al. 2022)",
+   "distinctive": "",
+   "qa_mechanism": [
+    "qualification_calibration",
+    "agreement"
+   ],
+   "failure_signatures": [
+    "under_specification",
+    "sampling_frame",
+    "underpowered"
+   ],
+   "uses_patterns": [
+    "qualification-calibration",
+    "inter-annotator-agreement",
+    "split-isolation",
+    "human-gold-anchor"
+   ],
+   "decision": "Produce demonstrations of desired behavior + preference comparisons to align a model via SFT + RLHF, reflecting the labelers' (and researchers') preferences.",
+   "failure_modes": [
+    {
+     "signature": "sampling_frame",
+     "evidence": "REPORTED",
+     "description": "Labelers are mostly English-speaking US/SE-Asia, college-educated; authors state the model aligns to THEIR labelers' and researchers' preferences, \"not representative of the full spectrum\" of users.",
+     "caught_by": "held-out labeler generalization (tests overfit, does not broaden representation)"
+    },
+    {
+     "signature": "under_specification",
+     "evidence": "REPORTED",
+     "description": "Inter-labeler agreement ~73%; value judgments depend on labeler identity/background; persistent disagreement.",
+     "caught_by": "screening + IAA (raises floor, doesn't close it)"
+    },
+    {
+     "signature": "underpowered",
+     "evidence": "REPORTED",
+     "description": "\"Most comparisons labeled by 1 contractor for cost reasons\" — no redundancy to even measure per-item disagreement.",
+     "caught_by": "UNGUARDED (authors note multi-labeling would help)"
+    }
+   ]
+  },
+  "detector-planted-mislabels": {
+   "id": "detector-planted-mislabels",
+   "title": "Planted-Mislabel Injection for Bad-Data Detection",
+   "modality": "tabular",
+   "task_structure": "classification",
+   "annotator_structure": "model_as_annotator",
+   "scale": "automated (very-high-throughput)",
+   "domain": "data-quality",
+   "lineage": "",
+   "distinctive": "",
+   "qa_mechanism": [
+    "gold_honeypots",
+    "audit_sampling"
+   ],
+   "failure_signatures": [
+    "sampling_frame",
+    "unanchored",
+    "confounded"
+   ],
+   "uses_patterns": [
+    "tamper-to-ground-truth",
+    "human-audit-sample",
+    "cross-family-judges"
+   ],
+   "decision": "Measure how well a bad-data detector catches mislabeled training items, by planting KNOWN mislabels and checking how many it recovers — so detector quality is itself verifiable.",
+   "failure_modes": [
+    {
+     "signature": "sampling_frame",
+     "evidence": "REPORTED (general + own)",
+     "description": "Planted mislabels may not match the distribution of NATURAL mislabels (the exact caveat CriticGPT reports for tampered bugs) — high recovery on planted errors can overstate real-world catch rate.",
+     "caught_by": "UNGUARDED (mitigate by planting realistic error types + auditing natural cases too)"
+    },
+    {
+     "signature": "unanchored",
+     "evidence": "REPORTED",
+     "description": "Without the planted key there's no ground truth on the detector's flags — you can't tell a true catch from a false positive. The planted key is exactly what anchors detector evaluation.",
+     "caught_by": "tamper-to-ground-truth"
+    },
+    {
+     "signature": "confounded",
+     "evidence": "INFERRED",
+     "description": "If the planting heuristic and the detector share assumptions, the detector \"catches\" its own planting style. (Inferred.)",
+     "caught_by": "cross-family / held-out check"
+    }
+   ]
+  },
+  "eval-chatbot-arena": {
+   "id": "eval-chatbot-arena",
+   "title": "Open Crowd Pairwise Battles + LLM-Judge (Chatbot Arena / MT-Bench)",
+   "modality": "text",
+   "task_structure": "preference_ranking",
+   "annotator_structure": "crowd",
+   "scale": "crowd (high-throughput)",
+   "domain": "alignment-eval",
+   "lineage": "lmsys / Chatbot Arena + MT-Bench (Zheng et al. 2023)",
+   "distinctive": "Preference collection for EVALUATION (ranking models), not training. OPEN, in-the-wild crowd: anonymous A-vs-B battles where anyone votes which response is better → Elo ratings. Paired with MT-Bench, an LLM-as-judge (GPT-4) validated at ~80% agreement with human experts (≈ human-human agreement). Surfaces the judge biases directly: position, verbosity, self-enhancement.",
+   "qa_mechanism": [
+    "order_randomization",
+    "agreement"
+   ],
+   "failure_signatures": [
+    "priming",
+    "confounded",
+    "self_affinity",
+    "sampling_frame"
+   ],
+   "uses_patterns": [
+    "order-randomization",
+    "cross-family-judges",
+    "human-gold-anchor"
+   ],
+   "decision": "Rank models by collecting pairwise human preferences (open crowd battles → Elo) and validate an LLM judge against human agreement so it can scale the evaluation.",
+   "failure_modes": [
+    {
+     "signature": "priming",
+     "evidence": "REPORTED",
+     "description": "Position bias — judges (human or LLM) favor whichever response is shown first; mitigated by randomizing position.",
+     "caught_by": "A/B anonymization + position randomization"
+    },
+    {
+     "signature": "confounded",
+     "evidence": "REPORTED",
+     "description": "Verbosity bias — longer answers are preferred regardless of substance (length confounded with quality).",
+     "caught_by": "UNGUARDED (length-control / explicit instruction helps)"
+    },
+    {
+     "signature": "self_affinity",
+     "evidence": "REPORTED",
+     "description": "Self-enhancement bias — an LLM judge rates its own family's outputs higher.",
+     "caught_by": "cross-family / bias checks"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "INFERRED",
+     "description": "Open crowd voters self-select; the live prompt mix isn't a controlled distribution. (Inferred.)",
+     "caught_by": "UNGUARDED"
+    }
+   ]
+  },
+  "image-bbox-adjudicated": {
+   "id": "image-bbox-adjudicated",
+   "title": "Object Bounding-Box Labeling with Redundancy + Adjudication",
+   "modality": "image",
+   "task_structure": "structured_output",
+   "annotator_structure": "tiered_review",
+   "scale": "expert + review (tiered)",
+   "domain": "vision",
+   "lineage": "",
+   "distinctive": "",
+   "qa_mechanism": [
+    "agreement",
+    "adjudication",
+    "gold_honeypots"
+   ],
+   "failure_signatures": [
+    "under_specification",
+    "bottleneck",
+    "class_imbalance",
+    "sampling_frame"
+   ],
+   "uses_patterns": [
+    "multi-annotator-aggregate",
+    "tiered-adjudication",
+    "gold-honeypots",
+    "inter-annotator-agreement"
+   ],
+   "decision": "Produce tight, consistent object boxes (class + extent) to train a detector, reliable enough that box quality isn't the ceiling on model performance.",
+   "failure_modes": [
+    {
+     "signature": "under_specification",
+     "evidence": "",
+     "description": "\"Where exactly does the box edge go\" on occluded/truncated objects is undefined, so IoU agreement is low and labels aren't learnable. The cure is guideline examples for the hard cases, not more annotators.",
+     "caught_by": "adjudication + tighter guideline"
+    },
+    {
+     "signature": "bottleneck",
+     "evidence": "",
+     "description": "A single adjudicator on every low-agreement image throttles the whole campaign.",
+     "caught_by": "tiered-adjudication (only true disagreements escalate)"
+    },
+    {
+     "signature": "class_imbalance",
+     "evidence": "",
+     "description": "Rare objects are scarce in a random sample, so the detector never learns them.",
+     "caught_by": "rare-class over-sampling"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "",
+     "description": "Boxes look great on easy daytime scenes while night/occluded scenes — the deployment tail — are under-labeled.",
+     "caught_by": "UNGUARDED"
+    }
+   ]
+  },
+  "image-classification-imagenet": {
+   "id": "image-classification-imagenet",
+   "title": "Crowdsourced Image Classification against an Ontology (ImageNet)",
+   "modality": "image",
+   "task_structure": "classification",
+   "annotator_structure": "crowd",
+   "scale": "crowd (high-throughput)",
+   "domain": "vision",
+   "lineage": "deng et al. 2009 (ImageNet)",
+   "distinctive": "Verify candidate web images against a WordNet ONTOLOGY ('is this a <synset>?'), with a DYNAMIC vote budget — at least ~10 Turker votes per image, and harder synsets keep collecting votes until a confidence threshold is met. Scaled to 12M images / 22k categories at ~99.7% reported precision.",
+   "qa_mechanism": [
+    "consensus_threshold",
+    "agreement"
+   ],
+   "failure_signatures": [
+    "under_specification",
+    "sampling_frame",
+    "class_imbalance"
+   ],
+   "uses_patterns": [
+    "multi-annotator-aggregate",
+    "inter-annotator-agreement"
+   ],
+   "decision": "Build a massive labeled image set by crowd-verifying candidate images against WordNet synsets, spending more votes where agreement is low.",
+   "failure_modes": [
+    {
+     "signature": "under_specification",
+     "evidence": "REPORTED",
+     "description": "Some synsets are visually ambiguous / overlap; harder categories need many more votes to settle.",
+     "caught_by": "dynamic-confidence voting"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "INFERRED",
+     "description": "Candidates come from web image search, biasing toward canonical/photogenic instances. (Inferred.)",
+     "caught_by": "UNGUARDED"
+    },
+    {
+     "signature": "class_imbalance",
+     "evidence": "INFERRED",
+     "description": "WordNet synsets vary enormously in available web images. (Inferred.)",
+     "caught_by": "UNGUARDED"
+    }
+   ]
+  },
+  "instruction-openassistant": {
+   "id": "instruction-openassistant",
+   "title": "Instruction Data — Community Conversation Trees (OpenAssistant)",
+   "modality": "text",
+   "task_structure": "demonstration",
+   "annotator_structure": "crowd",
+   "scale": "crowd (high-throughput)",
+   "domain": "instruction-tuning",
+   "lineage": "openassistant / LAION (Köpf et al. 2023)",
+   "distinctive": "COMMUNITY-sourced — 13,500+ volunteers build conversation TREES (prompt root → branching replies), write both prompter and assistant turns, and RANK assistant replies by preference. Multilingual (35 languages, 161k messages, 461k quality ratings). GAMIFIED: points + leaderboards drive contribution; content-moderation + spam filtering guard quality.",
+   "qa_mechanism": [
+    "agreement",
+    "consensus_threshold"
+   ],
+   "failure_signatures": [
+    "gaming",
+    "sampling_frame",
+    "under_specification"
+   ],
+   "uses_patterns": [
+    "multi-annotator-aggregate",
+    "engagement-gate"
+   ],
+   "decision": "Build an open, multilingual assistant-conversation corpus + preference rankings from a volunteer community, for instruction tuning and alignment.",
+   "failure_modes": [
+    {
+     "signature": "gaming",
+     "evidence": "REPORTED",
+     "description": "Points + leaderboards can incentivize volume over quality; spam/abuse must be filtered.",
+     "caught_by": "moderation + spam filtering"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "INFERRED",
+     "description": "Self-selected volunteers skew the topic/language/style distribution away from any given deployment. (Inferred.)",
+     "caught_by": "UNGUARDED"
+    },
+    {
+     "signature": "under_specification",
+     "evidence": "INFERRED",
+     "description": "Volunteer 'quality' judgments are subjective and variably skilled. (Inferred.)",
+     "caught_by": "peer ratings (partial)"
+    }
+   ]
+  },
+  "instruction-self-instruct": {
+   "id": "instruction-self-instruct",
+   "title": "Instruction Data — Synthetic Bootstrap (Self-Instruct / Alpaca)",
+   "modality": "text",
+   "task_structure": "demonstration",
+   "annotator_structure": "model_as_annotator",
+   "scale": "automated (very-high-throughput)",
+   "domain": "instruction-tuning",
+   "lineage": "self-instruct (Wang et al. 2022); applied by Alpaca",
+   "distinctive": "SYNTHETIC — start from a tiny human seed (~175 tasks), prompt the LM (8-shot) to GENERATE new instructions + input/output instances, FILTER them (dedupe + quality), add back to the pool, and iterate. Almost no human labeling; instruction data is bootstrapped from the model's own generations.",
+   "qa_mechanism": [
+    "agreement"
+   ],
+   "failure_signatures": [
+    "confounded",
+    "sampling_frame",
+    "unanchored"
+   ],
+   "uses_patterns": [
+    "dedup-merge",
+    "human-gold-anchor"
+   ],
+   "decision": "Generate a large, diverse instruction-tuning set with minimal human effort by bootstrapping off the model's own generations from a small seed pool.",
+   "failure_modes": [
+    {
+     "signature": "confounded",
+     "evidence": "REPORTED",
+     "description": "The generator's biases + errors propagate into the data; the student inherits the teacher's blind spots.",
+     "caught_by": "UNGUARDED (cross-family generation / human audit would help)"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "REPORTED",
+     "description": "Diversity is bounded by the seed + the model; whole task types the model can't imagine stay absent.",
+     "caught_by": "dedupe (spreads coverage; doesn't add what's missing)"
+    },
+    {
+     "signature": "unanchored",
+     "evidence": "INFERRED",
+     "description": "Generated instances have no human ground-truth check beyond filtering heuristics. (Inferred.)",
+     "caught_by": "UNGUARDED"
+    }
+   ]
+  },
+  "judge-eval-study": {
+   "id": "judge-eval-study",
+   "title": "LLM-as-Judge Evaluation Study",
+   "modality": "text",
+   "task_structure": "rubric_rating",
+   "annotator_structure": "model_as_annotator",
+   "scale": "automated (very-high-throughput)",
+   "domain": "research",
+   "lineage": "",
+   "distinctive": "",
+   "qa_mechanism": [
+    "gold_honeypots",
+    "agreement",
+    "guideline_freeze"
+   ],
+   "failure_signatures": [
+    "self_affinity",
+    "inflation",
+    "unanchored",
+    "underpowered",
+    "priming"
+   ],
+   "uses_patterns": [
+    "cross-family-judges",
+    "human-gold-anchor",
+    "lock-then-score",
+    "inter-annotator-agreement",
+    "pooled-sampling"
+   ],
+   "decision": "Produce a defensible score (or ranking) of model outputs on some quality dimension, reliable enough to make a claim about how models differ.",
+   "failure_modes": [
+    {
+     "signature": "self_affinity",
+     "evidence": "",
+     "description": "A judge rates outputs from its own model family higher. Observed directly in Bryan's program: a GPT-4o judge showed +0.74 self-affinity while a Claude judge ran self-critical at -0.26. If generator and judge share a family, you measure self-preference, not quality.",
+     "caught_by": "cross-family judges + blind scoring"
+    },
+    {
+     "signature": "unanchored",
+     "evidence": "",
+     "description": "Raw judge scores are trusted with no human ground truth, so you cannot tell whether the judge tracks quality at all. The fix that recurs across the program is a small blind human-rated gold set.",
+     "caught_by": "human gold IRR"
+    },
+    {
+     "signature": "inflation",
+     "evidence": "",
+     "description": "Panel scores drift upward and compress at the top; everything reads as \"good.\" Worse when scoring is relative and unanchored to exemplars.",
+     "caught_by": "lock-then-score (rubric + anchor exemplars frozen first)"
+    },
+    {
+     "signature": "priming",
+     "evidence": "",
+     "description": "The first item seen sets the bar for the rest; item order leaks into scores. A real confound that forced a v2 redesign in one study.",
+     "caught_by": "blind scoring (shuffle order, hide identity)"
+    },
+    {
+     "signature": "underpowered",
+     "evidence": "",
+     "description": "A confident model-ranking claim drawn from too few cells. Tight nulls and chance-level adjacencies hide in small n.",
+     "caught_by": "power check"
+    }
+   ]
+  },
+  "ner-conll2003": {
+   "id": "ner-conll2003",
+   "title": "Expert Span Annotation for NER (CoNLL-2003)",
+   "modality": "text",
+   "task_structure": "extraction",
+   "annotator_structure": "tiered_review",
+   "scale": "expert + review (tiered)",
+   "domain": "nlp-extraction",
+   "lineage": "tjong kim sang & de meulder 2003 (CoNLL-2003)",
+   "distinctive": "Careful EXPERT span annotation — humans mark named-entity spans (PER / LOC / ORG / MISC) over newswire under explicit guidelines, with inter-annotator agreement tracked (well-run NER reaches ~0.95). The canonical human-gold supervised-NER standard — the opposite of distant supervision's noisy KB-derived labels.",
+   "qa_mechanism": [
+    "agreement",
+    "adjudication"
+   ],
+   "failure_signatures": [
+    "under_specification",
+    "sampling_frame"
+   ],
+   "uses_patterns": [
+    "edge-case-guidelines",
+    "inter-annotator-agreement",
+    "tiered-adjudication"
+   ],
+   "decision": "Produce gold named-entity spans by having annotators mark entity boundaries + types under shared guidelines, reconciling disagreements.",
+   "failure_modes": [
+    {
+     "signature": "under_specification",
+     "evidence": "REPORTED",
+     "description": "Entity boundaries + types are ambiguous (spans of tokens make the unit count itself unclear); needs guidelines + adjudication to reach high IAA.",
+     "caught_by": "edge-case guidelines + adjudication"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "INFERRED",
+     "description": "Newswire-only → poor transfer to other genres/domains. (Inferred.)",
+     "caught_by": "UNGUARDED"
+    }
+   ]
+  },
+  "nli-snli-artifacts": {
+   "id": "nli-snli-artifacts",
+   "title": "NLI Data by Crowd Hypothesis-Writing (SNLI) — the Artifacts Cautionary Tale",
+   "modality": "text",
+   "task_structure": "classification",
+   "annotator_structure": "crowd",
+   "scale": "crowd (high-throughput)",
+   "domain": "nlp",
+   "lineage": "stanford / SNLI (Bowman et al. 2015)",
+   "distinctive": "Crowdworkers are shown a premise + a target label and asked to WRITE a hypothesis that entails / contradicts / is neutral to it. Cheap and huge — but the writing protocol leaves label-predictive fingerprints: a hypothesis-ONLY model hits ~67% on SNLI / ~53% on MNLI vs 33% chance. A canonical lesson in how a generation protocol leaks the label.",
+   "qa_mechanism": [
+    "agreement"
+   ],
+   "failure_signatures": [
+    "label_leakage",
+    "confounded",
+    "sampling_frame"
+   ],
+   "uses_patterns": [
+    "inter-annotator-agreement"
+   ],
+   "decision": "Build a large NLI corpus cheaply by having crowdworkers write hypotheses for given premise+label — and learn why that protocol bakes in artifacts.",
+   "failure_modes": [
+    {
+     "signature": "label_leakage",
+     "evidence": "REPORTED",
+     "description": "The crowdsourcing protocol leaves clues — negation/specificity/length correlate with label — so a hypothesis-only model reaches ~67% (SNLI) / ~53% (MNLI) vs 33% chance. Models 'pass' by exploiting artifacts.",
+     "caught_by": "partial-input baseline (diagnostic; doesn't remove the artifacts)"
+    },
+    {
+     "signature": "confounded",
+     "evidence": "REPORTED",
+     "description": "Specific lexical phenomena (e.g. explicit negation → contradiction) are confounded with the label.",
+     "caught_by": "UNGUARDED (ANLI's model-in-the-loop collection was the field's structural fix)"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "INFERRED",
+     "description": "Premises are image captions; the hypothesis space reflects worker habits, not natural inference. (Inferred.)",
+     "caught_by": "UNGUARDED"
+    }
+   ]
+  },
+  "pointcloud-detection-nuscenes": {
+   "id": "pointcloud-detection-nuscenes",
+   "title": "Multi-Sensor 3D Bounding-Box Annotation (nuScenes)",
+   "modality": "3d_pointcloud",
+   "task_structure": "structured_output",
+   "annotator_structure": "tiered_review",
+   "scale": "expert + review (tiered)",
+   "domain": "autonomous-driving",
+   "lineage": "",
+   "distinctive": "",
+   "qa_mechanism": [
+    "adjudication",
+    "consensus_threshold"
+   ],
+   "failure_signatures": [
+    "class_imbalance",
+    "sampling_frame",
+    "under_specification"
+   ],
+   "uses_patterns": [
+    "tiered-adjudication",
+    "multi-annotator-aggregate",
+    "coverage-routing"
+   ],
+   "decision": "Produce accurate 3D bounding boxes (class + attributes + velocity) over fused LiDAR/camera/radar at 2Hz keyframes, to train/eval autonomous-driving perception.",
+   "failure_modes": [
+    {
+     "signature": "class_imbalance",
+     "evidence": "REPORTED",
+     "description": "\"Severe class imbalance with a ratio of 1:10k for the least and most common class\" (vs 1:36 in KITTI); 13 of 23 classes dropped for <10k instances; importance sampling needed.",
+     "caught_by": "scene selection emphasizing rare classes (partial); UNGUARDED at train time"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "REPORTED",
+     "description": "Data only from Boston + Singapore — \"more research is required on generalizing to different countries, lighting, previously unseen object types.\" Keyframe-only (2Hz) leaves intermediate frames unlabeled.",
+     "caught_by": "UNGUARDED"
+    },
+    {
+     "signature": "under_specification",
+     "evidence": "REPORTED",
+     "description": "Label reliability degrades with distance/occlusion/night (as few as 1 lidar point at range; visibility <40% boxes \"may be unreliable\") — the box is ambiguous to place when the sensor barely sees the object.",
+     "caught_by": "multi-round validation (partial)"
+    }
+   ]
+  },
+  "pointcloud-segmentation-semantickitti": {
+   "id": "pointcloud-segmentation-semantickitti",
+   "title": "Dense Point-Cloud Segmentation over Superimposed Scans (SemanticKITTI)",
+   "modality": "3d_pointcloud",
+   "task_structure": "structured_output",
+   "annotator_structure": "tiered_review",
+   "scale": "expert + review (tiered)",
+   "domain": "autonomous-driving",
+   "lineage": "behley et al. 2019 (SemanticKITTI)",
+   "distinctive": "Dense PER-POINT semantic labels (25 classes, 4.5B points) — not boxes. Annotators SUPERIMPOSE a sequence of LiDAR scans into one consistent cloud (SLAM poses), tile into 100×100m regions, label once with a custom OpenGL brush/polygon tool, and propagate — then a two-pass verification enforces temporal+spatial consistency.",
+   "qa_mechanism": [
+    "adjudication",
+    "consensus_threshold"
+   ],
+   "failure_signatures": [
+    "bottleneck",
+    "under_specification",
+    "sampling_frame"
+   ],
+   "uses_patterns": [
+    "tiered-adjudication"
+   ],
+   "decision": "Produce dense, temporally-consistent point-wise semantic labels for LiDAR sequences by labeling aggregated scans once and propagating across frames.",
+   "failure_modes": [
+    {
+     "signature": "bottleneck",
+     "evidence": "REPORTED",
+     "description": "Dense point labeling is extremely slow/laborious even with superposition + tooling.",
+     "caught_by": "scan-aggregation (label once, propagate) — mitigates, doesn't remove"
+    },
+    {
+     "signature": "under_specification",
+     "evidence": "INFERRED",
+     "description": "Class + boundary calls on sparse points (moving objects leave traces) are ambiguous. (Inferred.)",
+     "caught_by": "two-pass verification"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "INFERRED",
+     "description": "KITTI urban-driving sequences; limited geographic/sensor diversity. (Inferred.)",
+     "caught_by": "UNGUARDED"
+    }
+   ]
+  },
+  "preference-anthropic-hh": {
+   "id": "preference-anthropic-hh",
+   "title": "Preference Collection — Anthropic HH-RLHF",
+   "modality": "text",
+   "task_structure": "preference_ranking",
+   "annotator_structure": "crowd",
+   "scale": "crowd (high-throughput)",
+   "domain": "alignment-rlhf",
+   "lineage": "anthropic / HH-RLHF (Bai et al. 2022)",
+   "distinctive": "Helpful and harmless collected as SEPARATE axes (not one blended 'better'); ONLINE-iterated — preference data is periodically re-collected with the latest model so the reward model stays in distribution. Crowdworkers pick the more-helpful (helpfulness task) or the more-harmful (red-team / harmlessness task) of two model responses.",
+   "qa_mechanism": [
+    "order_randomization",
+    "agreement"
+   ],
+   "failure_signatures": [
+    "drift",
+    "sampling_frame",
+    "inflation"
+   ],
+   "uses_patterns": [
+    "order-randomization",
+    "model-in-the-loop-adversarial",
+    "human-gold-anchor"
+   ],
+   "decision": "Collect chosen/rejected response pairs to train SEPARATE helpfulness and harmlessness reward models, kept current via online iteration.",
+   "failure_modes": [
+    {
+     "signature": "drift",
+     "evidence": "REPORTED",
+     "description": "A static reward model drifts out of distribution as the policy improves; online iterated collection counters it.",
+     "caught_by": "online re-collection"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "INFERRED",
+     "description": "Crowdworker-initiated dialogues may not cover the deployment distribution. (Inferred.)",
+     "caught_by": "UNGUARDED"
+    },
+    {
+     "signature": "inflation",
+     "evidence": "INFERRED",
+     "description": "Relative pairwise choice without absolute anchors can drift in stringency over a long campaign. (Inferred.)",
+     "caught_by": "UNGUARDED"
+    }
+   ]
+  },
+  "preference-constitutional-cai": {
+   "id": "preference-constitutional-cai",
+   "title": "Preference Collection — Anthropic Constitutional AI (RLAIF)",
+   "modality": "text",
+   "task_structure": "preference_ranking",
+   "annotator_structure": "model_as_annotator",
+   "scale": "automated (very-high-throughput)",
+   "domain": "alignment-rlhf",
+   "lineage": "anthropic / Constitutional AI — RLAIF (Bai et al. 2022)",
+   "distinctive": "Harmlessness preferences are generated by an AI judging against a written CONSTITUTION of principles — minimizing human harm-labeling. Two stages: (1) supervised self-critique + revise (model critiques its own answer per a sampled principle, then rewrites it); (2) RL from AI Feedback (RLAIF) — a model picks the better of two responses conditioned on a random principle. Humans still provide HELPFULNESS preferences; harms are AI-labeled.",
+   "qa_mechanism": [
+    "guideline_freeze",
+    "agreement"
+   ],
+   "failure_signatures": [
+    "self_affinity",
+    "confounded",
+    "sampling_frame"
+   ],
+   "uses_patterns": [
+    "lock-then-score",
+    "cross-family-judges",
+    "model-in-the-loop-adversarial"
+   ],
+   "decision": "Produce harmlessness preference data WITHOUT human harm labels, by having a model judge responses against an explicit written constitution.",
+   "failure_modes": [
+    {
+     "signature": "self_affinity",
+     "evidence": "REPORTED",
+     "description": "A model judges model outputs (and even revises its own) — preferences can reflect the judge's family/quirks, not ground-truth harmlessness.",
+     "caught_by": "UNGUARDED in-method (cross-family checking would mitigate)"
+    },
+    {
+     "signature": "confounded",
+     "evidence": "REPORTED",
+     "description": "The AI may apply a principle via a spurious cue; the principle set, not real harm, drives the label.",
+     "caught_by": "explicit constitution (makes the basis legible, not necessarily correct)"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "INFERRED",
+     "description": "Coverage is bounded by the constitution + the prompts the model is probed on. (Inferred.)",
+     "caught_by": "UNGUARDED"
+    }
+   ]
+  },
+  "preference-llama2-rlhf": {
+   "id": "preference-llama2-rlhf",
+   "title": "Preference Collection — Meta Llama 2 RLHF",
+   "modality": "text",
+   "task_structure": "preference_ranking",
+   "annotator_structure": "crowd",
+   "scale": "crowd (high-throughput)",
+   "domain": "alignment-rlhf",
+   "lineage": "meta / Llama 2 (Touvron et al. 2023)",
+   "distinctive": "Binary choice PLUS a 4-point DEGREE label (significantly / better / slightly / negligibly-better-or- unsure), fed into a MARGIN term in the ranking loss. TWO separate reward models — Helpfulness RM and Safety RM — because the two objectives trade off. Preference data collected in WEEKLY vendor BATCHES, deliberately re-collected with the latest model to keep RMs in distribution.",
+   "qa_mechanism": [
+    "order_randomization",
+    "agreement"
+   ],
+   "failure_signatures": [
+    "drift",
+    "confounded",
+    "inflation"
+   ],
+   "uses_patterns": [
+    "order-randomization",
+    "human-gold-anchor"
+   ],
+   "decision": "Collect graded pairwise preferences to train separate helpfulness and safety reward models, refreshed weekly so they track the improving policy.",
+   "failure_modes": [
+    {
+     "signature": "drift",
+     "evidence": "REPORTED",
+     "description": "Reward models degrade as the policy moves; weekly re-collection with the latest model counters it.",
+     "caught_by": "weekly re-collection"
+    },
+    {
+     "signature": "confounded",
+     "evidence": "REPORTED",
+     "description": "Helpfulness and safety trade off; a single RM conflates them — so they split into two.",
+     "caught_by": "separate reward models"
+    },
+    {
+     "signature": "inflation",
+     "evidence": "INFERRED",
+     "description": "Degree labels can drift toward the middle without calibration. (Inferred.)",
+     "caught_by": "UNGUARDED"
+    }
+   ]
+  },
+  "preference-sparrow": {
+   "id": "preference-sparrow",
+   "title": "Preference Collection — DeepMind Sparrow (Rule-Conditional)",
+   "modality": "text",
+   "task_structure": "preference_ranking",
+   "annotator_structure": "crowd",
+   "scale": "crowd (high-throughput)",
+   "domain": "alignment-rlhf",
+   "lineage": "deepmind / Sparrow (Glaese et al. 2022)",
+   "distinctive": "Decompose good behavior into ~23 short, standalone RULES (helpful / correct / harmless). Collect TWO kinds of judgment: (1) per-rule ADVERSARIAL PROBING — a participant is told a specific rule and tries to make the model break it, then judges whether it did; (2) per-response PREFERENCE — pick the best of several responses, with separate evidence/plausibility ratings. Train a Rule RM (rule-violation classifier) AND a Preference RM.",
+   "qa_mechanism": [
+    "order_randomization",
+    "agreement"
+   ],
+   "failure_signatures": [
+    "under_specification",
+    "sampling_frame",
+    "confounded"
+   ],
+   "uses_patterns": [
+    "model-in-the-loop-adversarial",
+    "edge-case-guidelines",
+    "order-randomization"
+   ],
+   "decision": "Collect targeted per-rule violation judgments AND per-response preferences to train a rule-violation model plus a preference model — turning vague 'harmless' into specific, checkable rules.",
+   "failure_modes": [
+    {
+     "signature": "under_specification",
+     "evidence": "REPORTED",
+     "description": "The goal \"harmless\" is too vague to judge consistently; Sparrow decomposes it into ~23 standalone rules.",
+     "caught_by": "rule decomposition"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "REPORTED",
+     "description": "General harm judgments miss specific failure modes; per-rule targeted probing deliberately seeks each one.",
+     "caught_by": "per-rule probing"
+    },
+    {
+     "signature": "confounded",
+     "evidence": "REPORTED",
+     "description": "Plausible answers unsupported by evidence; evidence-grounded judgments separate plausibility from support.",
+     "caught_by": "evidence-grounded judgments"
+    }
+   ]
+  },
+  "redteam-adversarial-dialogue": {
+   "id": "redteam-adversarial-dialogue",
+   "title": "Crowdsourced Adversarial Red-Team Dialogue Collection",
+   "modality": "text",
+   "task_structure": "red_team",
+   "annotator_structure": "crowd",
+   "scale": "crowd (high-throughput)",
+   "domain": "safety-redteam",
+   "lineage": "anthropic / Ganguli et al. 2022",
+   "distinctive": "CROWDSOURCED manual red-teaming — humans hold open-ended adversarial dialogues to elicit harm, with a model-in-the-loop (pick the more-harmful of two) + welfare protocols. Human-driven, broad, expensive, with explicit worker-wellbeing care.",
+   "qa_mechanism": [
+    "agreement",
+    "audit_sampling"
+   ],
+   "failure_signatures": [
+    "under_specification",
+    "sampling_frame",
+    "confounded",
+    "gaming",
+    "unanchored"
+   ],
+   "uses_patterns": [
+    "inter-annotator-agreement",
+    "human-audit-sample",
+    "multi-annotator-aggregate",
+    "annotator-welfare-protocol",
+    "model-in-the-loop-adversarial"
+   ],
+   "decision": "Elicit a dataset of adversarial attacks (38,961) that make an AI assistant behave harmfully, to measure and reduce harmful outputs.",
+   "failure_modes": [
+    {
+     "signature": "under_specification",
+     "evidence": "REPORTED",
+     "description": "\"Successful attack\" is subjective — raw Fleiss κ=0.32 (poor-to-fair agreement on what counts).",
+     "caught_by": "post-hoc IAA (measures, does not fix)"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "REPORTED",
+     "description": "Coverage is incomplete and unbounded — no code attacks despite code in training; roleplay attacks absent; red-teamer pool skews White/college-educated vs census; demographic impact unanalyzable (anon).",
+     "caught_by": "UNGUARDED"
+    },
+    {
+     "signature": "confounded",
+     "evidence": "REPORTED",
+     "description": "~80% of attacks come from ~50 of ~300 workers; prolific-worker identity confounds results.",
+     "caught_by": "prolific-worker statistical control"
+    },
+    {
+     "signature": "gaming",
+     "evidence": "REPORTED",
+     "description": "Workers iterated template attacks (\"insulting term for X starting with Y\") to maximize earnings, producing redundant low-value data — Goodhart on the pay structure.",
+     "caught_by": "UNGUARDED"
+    },
+    {
+     "signature": "unanchored",
+     "evidence": "REPORTED",
+     "description": "The harmlessness PM is noisy and out-of-distribution on task descriptions; self-report vs PM correlation imperfect.",
+     "caught_by": "UNGUARDED (two noisy metrics, no gold)"
+    }
+   ]
+  },
+  "redteam-automated-perez": {
+   "id": "redteam-automated-perez",
+   "title": "Red-Teaming — Automated (LM-Generated Attacks)",
+   "modality": "text",
+   "task_structure": "red_team",
+   "annotator_structure": "model_as_annotator",
+   "scale": "automated (very-high-throughput)",
+   "domain": "safety-redteam",
+   "lineage": "deepmind / Red-Teaming LMs with LMs (Perez et al. 2022)",
+   "distinctive": "AUTOMATED — a red-team LANGUAGE MODEL generates the test cases (zero-shot / few-shot / SL / RL) and a trained classifier detects offensive target responses. Scales far past human red-teamers (uncovered tens of thousands of offensive replies in a 280B chatbot) but inherits the red-LM's blind spots.",
+   "qa_mechanism": [
+    "agreement"
+   ],
+   "failure_signatures": [
+    "sampling_frame",
+    "unanchored",
+    "under_specification",
+    "self_affinity"
+   ],
+   "uses_patterns": [
+    "model-in-the-loop-adversarial",
+    "cross-family-judges"
+   ],
+   "decision": "Discover harmful target-model behaviors at scale by generating adversarial test cases with another LM and flagging harmful responses with a classifier.",
+   "failure_modes": [
+    {
+     "signature": "sampling_frame",
+     "evidence": "REPORTED",
+     "description": "Coverage is bounded by the red-LM's own distribution; it can mode-collapse and miss harm types humans would find.",
+     "caught_by": "UNGUARDED (RL diversity objectives help partially)"
+    },
+    {
+     "signature": "unanchored",
+     "evidence": "INFERRED",
+     "description": "Harm labels come from a classifier with no human gold in the loop, so its errors propagate silently.",
+     "caught_by": "UNGUARDED"
+    },
+    {
+     "signature": "self_affinity",
+     "evidence": "INFERRED",
+     "description": "Red-LM, target, and classifier may share a family — blind spots correlate. (Inferred.)",
+     "caught_by": "cross-family checks"
+    },
+    {
+     "signature": "under_specification",
+     "evidence": "INFERRED",
+     "description": "\"Offensive/harmful\" is a fuzzy boundary the classifier encodes implicitly. (Inferred.)",
+     "caught_by": "UNGUARDED"
+    }
+   ]
+  },
+  "redteam-external-gpt4": {
+   "id": "redteam-external-gpt4",
+   "title": "Red-Teaming — External Domain-Expert Network",
+   "modality": "multimodal",
+   "task_structure": "red_team",
+   "annotator_structure": "expert",
+   "scale": "expert (low-throughput / high-skill)",
+   "domain": "safety-redteam",
+   "lineage": "openai / external red teaming (GPT-4 & GPT-4o system cards)",
+   "distinctive": "An EXTERNAL network of vetted DOMAIN EXPERTS (100+ across bio, cyber, law, persuasion, child-safety, fairness…; 45 languages, 29 countries) probes the model PRE-DEPLOYMENT. Iterative + hypothesis-driven: start from suspected high-risk areas, probe, adjust, then turn findings into structured measurements + mitigations. Qualitative and breadth-of-expertise-driven, not crowd-scale or automated.",
+   "qa_mechanism": [
+    "audit_sampling"
+   ],
+   "failure_signatures": [
+    "sampling_frame",
+    "unanchored",
+    "bottleneck"
+   ],
+   "uses_patterns": [
+    "model-in-the-loop-adversarial",
+    "coverage-routing"
+   ],
+   "decision": "Surface novel, high-severity, domain-specific risks before deployment by having vetted external experts adversarially probe the model, then convert findings into measurements + mitigations.",
+   "failure_modes": [
+    {
+     "signature": "sampling_frame",
+     "evidence": "REPORTED",
+     "description": "The space of harms is unbounded; expert coverage is broad but can't be exhaustive, and skews to anticipated risks.",
+     "caught_by": "domain/language/geographic breadth (partial)"
+    },
+    {
+     "signature": "unanchored",
+     "evidence": "REPORTED",
+     "description": "Probing is qualitative; until findings are turned into structured measurements there's no repeatable metric.",
+     "caught_by": "findings → structured measurements"
+    },
+    {
+     "signature": "bottleneck",
+     "evidence": "INFERRED",
+     "description": "Vetted domain-expert time is scarce and slow vs crowd or automated red-teaming. (Inferred.)",
+     "caught_by": "UNGUARDED"
+    }
+   ]
+  },
+  "relevance-pooling-trec": {
+   "id": "relevance-pooling-trec",
+   "title": "TREC-Style Relevance Judgments via Pooling",
+   "modality": "text",
+   "task_structure": "relevance",
+   "annotator_structure": "expert",
+   "scale": "expert (low-throughput / high-skill)",
+   "domain": "search-ir",
+   "lineage": "trec / NIST pooling",
+   "distinctive": "",
+   "qa_mechanism": [
+    "order-randomization",
+    "input-pooling"
+   ],
+   "failure_signatures": [
+    "sampling_frame",
+    "priming",
+    "confounded",
+    "under_specification"
+   ],
+   "uses_patterns": [
+    "pooled-sampling",
+    "order-randomization"
+   ],
+   "decision": "Produce reusable relevance labels (graded 0-2) for query-document pairs so that any retrieval system can be scored, without judging the entire collection.",
+   "failure_modes": [
+    {
+     "signature": "sampling_frame",
+     "evidence": "REPORTED",
+     "description": "Pooling is biased against systems that did not contribute to the pool — a novel system that returns relevant docs outside the pool is underrated because those docs were never judged.",
+     "caught_by": "pool depth (mitigates, doesn't remove)"
+    },
+    {
+     "signature": "priming",
+     "evidence": "REPORTED",
+     "description": "Assessors \"hedge\" on early documents (avoid extreme ratings); order leaks into labels.",
+     "caught_by": "order-randomization"
+    },
+    {
+     "signature": "confounded",
+     "evidence": "REPORTED",
+     "description": "If docs are shown by \"pseudorelevance\" (prioritized) instead of random, assessors favor \"popular\" docs returned by many systems — presentation induces a popularity bias.",
+     "caught_by": "order-randomization (use RND not PRI)"
+    },
+    {
+     "signature": "under_specification",
+     "evidence": "REPORTED",
+     "description": "Assessors disagree on relevance (subjective). NOTABLE: the classic finding is this is DOWNSTREAM-ROBUST — disagreement does not change the *relative* ranking of systems.",
+     "caught_by": "n/a — present but does not affect the decision (worth recording as such)"
+    }
+   ]
+  },
+  "search-msmarco": {
+   "id": "search-msmarco",
+   "title": "Relevance + Answers from Real Query Logs (MS MARCO)",
+   "modality": "text",
+   "task_structure": "relevance",
+   "annotator_structure": "crowd",
+   "scale": "crowd (high-throughput)",
+   "domain": "search-ir",
+   "lineage": "microsoft / MS MARCO (Nguyen et al. 2016)",
+   "distinctive": "Built from ~1M REAL anonymized Bing QUERIES (not curated topics). Crowdworkers answer the query if they can and mark the passages that support the answer — yielding human-WRITTEN answers + SPARSE relevance marks. The opposite trade from TREC pooling: real query distribution, but incomplete judgments.",
+   "qa_mechanism": [
+    "agreement"
+   ],
+   "failure_signatures": [
+    "sampling_frame",
+    "under_specification"
+   ],
+   "uses_patterns": [
+    "human-gold-anchor"
+   ],
+   "decision": "Produce relevance judgments + natural-language answers grounded in real user queries, by having crowdworkers answer queries and mark supporting passages from retrieved web documents.",
+   "failure_modes": [
+    {
+     "signature": "sampling_frame",
+     "evidence": "REPORTED",
+     "description": "Judgments are SPARSE — workers mark some supporting passages, so genuinely relevant unmarked passages count as non-relevant (the inverse of TREC's pooling bias).",
+     "caught_by": "UNGUARDED"
+    },
+    {
+     "signature": "under_specification",
+     "evidence": "INFERRED",
+     "description": "Free-form human answers vary in phrasing/completeness; 'the' answer is underdetermined. (Inferred.)",
+     "caught_by": "UNGUARDED"
+    }
+   ]
+  },
+  "self-training-noisy-student": {
+   "id": "self-training-noisy-student",
+   "title": "Self-Training / Pseudo-Labeling (Noisy Student)",
+   "modality": "image",
+   "task_structure": "classification",
+   "annotator_structure": "model_as_annotator",
+   "scale": "automated (very-high-throughput)",
+   "domain": "weak-supervision",
+   "lineage": "xie et al. 2020 (Noisy Student)",
+   "distinctive": "Labels come from the MODEL ITSELF: a teacher trained on labeled data PSEUDO-LABELS 300M UNLABELED images, then a LARGER, NOISED student trains on labeled + pseudo-labeled data; iterate (student becomes teacher). The teacher is kept un-noised for accurate pseudo-labels; the student gets dropout/RandAugment so it generalizes beyond the teacher. No new human labels.",
+   "qa_mechanism": [
+    "consensus_threshold"
+   ],
+   "failure_signatures": [
+    "confounded",
+    "unanchored",
+    "class_imbalance"
+   ],
+   "uses_patterns": [
+    "labeling-functions"
+   ],
+   "decision": "Turn a large pool of UNLABELED data into training signal by pseudo-labeling it with a teacher model and training a noised student on the union, iteratively.",
+   "failure_modes": [
+    {
+     "signature": "confounded",
+     "evidence": "INFERRED",
+     "description": "Pseudo-labels propagate the teacher's biases/errors — confirmation bias can entrench mistakes across iterations. (Inferred.)",
+     "caught_by": "noised student + confidence filtering (partial)"
+    },
+    {
+     "signature": "unanchored",
+     "evidence": "INFERRED",
+     "description": "The 300M pseudo-labels have no human ground truth; only the small seed set is real. (Inferred.)",
+     "caught_by": "confidence filtering (weak)"
+    },
+    {
+     "signature": "class_imbalance",
+     "evidence": "REPORTED",
+     "description": "Pseudo-labels skew toward classes the teacher is confident on; rare classes get few/none.",
+     "caught_by": "class balancing of pseudo-labels"
+    }
+   ]
+  },
+  "speech-librispeech": {
+   "id": "speech-librispeech",
+   "title": "Speech Data by Forced Alignment to Existing Text (LibriSpeech)",
+   "modality": "audio",
+   "task_structure": "transcription_translation",
+   "annotator_structure": "model_as_annotator",
+   "scale": "automated (very-high-throughput)",
+   "domain": "speech",
+   "lineage": "panayotov et al. 2015 (LibriSpeech)",
+   "distinctive": "No human transcription at all — derived from public-domain LibriVox AUDIOBOOKS whose text ALREADY EXISTS. Forced alignment (LM + two-pass decoding) automatically segments the audio to the book text, then filters by alignment confidence. ~1000h for near-zero labeling cost — the opposite of Common Voice's crowd record+vote.",
+   "qa_mechanism": [
+    "agreement"
+   ],
+   "failure_signatures": [
+    "sampling_frame",
+    "unanchored",
+    "under_specification"
+   ],
+   "uses_patterns": [
+    "dedup-merge"
+   ],
+   "decision": "Build a large read-speech ASR corpus cheaply by aligning existing audiobook recordings to their known text, rather than collecting and validating new human transcriptions.",
+   "failure_modes": [
+    {
+     "signature": "sampling_frame",
+     "evidence": "REPORTED",
+     "description": "READ speech from audiobooks ≠ spontaneous/conversational speech; reader + accent + book selection skew the distribution.",
+     "caught_by": "UNGUARDED"
+    },
+    {
+     "signature": "unanchored",
+     "evidence": "INFERRED",
+     "description": "Labels come from automated alignment with no per-utterance human check; alignment errors survive the confidence filter. (Inferred.)",
+     "caught_by": "alignment-confidence filtering (partial)"
+    },
+    {
+     "signature": "under_specification",
+     "evidence": "INFERRED",
+     "description": "Text normalization (numbers, punctuation, disfluencies) is ambiguous when reusing book text. (Inferred.)",
+     "caught_by": "UNGUARDED"
+    }
+   ]
+  },
+  "synthetic-textbooks-phi": {
+   "id": "synthetic-textbooks-phi",
+   "title": "Model-Generated + Model-Filtered Training Data (phi / Textbooks)",
+   "modality": "text",
+   "task_structure": "freeform_generation",
+   "annotator_structure": "model_as_annotator",
+   "scale": "automated (very-high-throughput)",
+   "domain": "synthetic-data",
+   "lineage": "gunasekar et al. 2023 (phi-1 / Textbooks Are All You Need)",
+   "distinctive": "Curate 'textbook-quality' pretraining data with models on BOTH ends: GPT-3.5 GENERATES synthetic textbooks + exercises, and GPT-4 acts as a QUALITY FILTER scoring the educational value of web code. No human labeling — a tiny, model-curated corpus (a few B tokens) that beats far larger raw-web data (phi-1: 50.6% HumanEval at 1.3B).",
+   "qa_mechanism": [
+    "agreement"
+   ],
+   "failure_signatures": [
+    "confounded",
+    "unanchored",
+    "sampling_frame"
+   ],
+   "uses_patterns": [
+    "cross-family-judges",
+    "dedup-merge"
+   ],
+   "decision": "Build a small, high-quality training corpus by generating synthetic textbook data and using a strong model to filter for educational value, instead of scaling raw web data or human curation.",
+   "failure_modes": [
+    {
+     "signature": "confounded",
+     "evidence": "INFERRED",
+     "description": "Generator + filter share model lineage; their biases co-propagate, and synthetic data risks benchmark CONTAMINATION resembling eval sets. (Inferred.)",
+     "caught_by": "cross-family generation/filtering (partial)"
+    },
+    {
+     "signature": "unanchored",
+     "evidence": "INFERRED",
+     "description": "No human ground-truth on generated content; correctness rests on the generator + a model filter. (Inferred.)",
+     "caught_by": "UNGUARDED"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "INFERRED",
+     "description": "Diversity is bounded by what the generator can imagine + what the filter calls 'educational'. (Inferred.)",
+     "caught_by": "dedupe (spreads, doesn't add missing coverage)"
+    }
+   ]
+  },
+  "synthetic-with-audit": {
+   "id": "synthetic-with-audit",
+   "title": "Model-Generated Labels with Human Audit",
+   "modality": "multimodal",
+   "task_structure": "classification",
+   "annotator_structure": "model_as_annotator",
+   "scale": "automated (very-high-throughput)",
+   "domain": "synthetic-data",
+   "lineage": "",
+   "distinctive": "",
+   "qa_mechanism": [
+    "audit_sampling",
+    "gold_honeypots",
+    "agreement"
+   ],
+   "failure_signatures": [
+    "confounded",
+    "sampling_frame",
+    "label_leakage",
+    "self_affinity",
+    "class_imbalance"
+   ],
+   "uses_patterns": [
+    "human-audit-sample",
+    "gold-honeypots",
+    "cross-family-judges",
+    "active-learning-loop"
+   ],
+   "decision": "Produce labels cheaply at scale by having a model label and a human audit a sample, reliable enough to train on without baking the labeler model's blind spots into the student.",
+   "failure_modes": [
+    {
+     "signature": "confounded",
+     "evidence": "",
+     "description": "The labeler model's own biases (it over-predicts the majority class, or keys on a spurious cue) get baked into the training set and inherited by the student.",
+     "caught_by": "cross-family check + stratified audit"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "",
+     "description": "Auditing only a random sample makes accuracy look high because the easy bulk dominates, while the hard tail — where the model is wrong — is barely sampled.",
+     "caught_by": "stratified audit sample"
+    },
+    {
+     "signature": "label_leakage",
+     "evidence": "",
+     "description": "The model labels using a feature that won't exist at deployment (or that trivially encodes the answer), inflating apparent quality.",
+     "caught_by": "UNGUARDED"
+    },
+    {
+     "signature": "self_affinity",
+     "evidence": "",
+     "description": "If the same family later judges the student, it rewards inherited quirks.",
+     "caught_by": "cross-family check"
+    }
+   ]
+  },
+  "tabular-weak-supervision-snorkel": {
+   "id": "tabular-weak-supervision-snorkel",
+   "title": "Weak Supervision via Labeling Functions (Snorkel)",
+   "modality": "tabular",
+   "task_structure": "classification",
+   "annotator_structure": "model_as_annotator",
+   "scale": "automated (very-high-throughput)",
+   "domain": "weak-supervision",
+   "lineage": "",
+   "distinctive": "",
+   "qa_mechanism": [
+    "agreement"
+   ],
+   "failure_signatures": [
+    "confounded",
+    "sampling_frame",
+    "unanchored"
+   ],
+   "uses_patterns": [
+    "multi-annotator-aggregate",
+    "labeling-functions"
+   ],
+   "decision": "Create probabilistic training labels at scale WITHOUT hand-labeling, by writing heuristic labeling functions and denoising them with a learned label model.",
+   "failure_modes": [
+    {
+     "signature": "confounded",
+     "evidence": "REPORTED",
+     "description": "LFs \"may be statistically dependent\" (variations of each other); if correlations aren't modeled the label model misestimates accuracies (Example 3.1). Snorkel uses structure learning to catch it.",
+     "caught_by": "structure learning + label model"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "REPORTED",
+     "description": "LFs have \"limited accuracy and coverage\" and abstain — coverage gaps leave parts of the distribution with no weak signal. (The discriminative model is what generalizes past all-abstain regions.)",
+     "caught_by": "discriminative model (partial)"
+    },
+    {
+     "signature": "unanchored",
+     "evidence": "REPORTED",
+     "description": "Labels are learned WITHOUT any ground truth, from LF agreement alone; results land within ~3.60% of hand-curated supervision — an inherent gap, and no gold exists to detect when LFs jointly mislead.",
+     "caught_by": "UNGUARDED (by design — the trade for not hand-labeling)"
+    }
+   ]
+  },
+  "text-preference-rlhf": {
+   "id": "text-preference-rlhf",
+   "title": "Pairwise Preference Collection for RLHF",
+   "modality": "text",
+   "task_structure": "preference_ranking",
+   "annotator_structure": "crowd",
+   "scale": "crowd (high-throughput)",
+   "domain": "alignment-rlhf",
+   "lineage": "generic / canonical RLHF preference collection",
+   "distinctive": "",
+   "qa_mechanism": [
+    "gold_honeypots",
+    "agreement",
+    "qualification_calibration"
+   ],
+   "failure_signatures": [
+    "drift",
+    "inflation",
+    "unanchored",
+    "confounded",
+    "priming"
+   ],
+   "uses_patterns": [
+    "gold-honeypots",
+    "qualification-calibration",
+    "inter-annotator-agreement",
+    "human-gold-anchor"
+   ],
+   "decision": "Produce pairwise \"A vs B is better\" judgments on model responses to train a reward model that reflects the intended preference (helpful, harmless, on-instruction).",
+   "failure_modes": [
+    {
+     "signature": "drift",
+     "evidence": "",
+     "description": "Over a long campaign raters fatigue and their bar shifts, so week-6 preferences aren't week-1 preferences and the reward model sees a moving target.",
+     "caught_by": "honeypots + agreement tracking + re-calibration"
+    },
+    {
+     "signature": "confounded",
+     "evidence": "",
+     "description": "Raters prefer the longer/more-formatted response regardless of substance, so the reward model learns \"longer = better\" — a length confound, not a quality signal.",
+     "caught_by": "UNGUARDED"
+    },
+    {
+     "signature": "priming",
+     "evidence": "",
+     "description": "Whichever response is shown first gets a systematic edge.",
+     "caught_by": "A/B position randomization"
+    },
+    {
+     "signature": "inflation",
+     "evidence": "",
+     "description": "Raters drift toward \"they're about equal\" or always-A to reduce effort.",
+     "caught_by": "qualification + calibration + honeypots"
+    },
+    {
+     "signature": "unanchored",
+     "evidence": "",
+     "description": "Without gold pairs you can't tell whether raters track the rubric or their own taste.",
+     "caught_by": "human-gold-anchor (gold pairs)"
+    }
+   ]
+  },
+  "text-relation-distant-supervision": {
+   "id": "text-relation-distant-supervision",
+   "title": "Distant Supervision for Relation Extraction (KB Alignment)",
+   "modality": "text",
+   "task_structure": "extraction",
+   "annotator_structure": "programmatic",
+   "scale": "programmatic (weak supervision)",
+   "domain": "nlp-extraction",
+   "lineage": "",
+   "distinctive": "",
+   "qa_mechanism": [
+    "agreement"
+   ],
+   "failure_signatures": [
+    "confounded",
+    "unanchored",
+    "class_imbalance"
+   ],
+   "uses_patterns": [
+    "labeling-functions",
+    "multi-annotator-aggregate"
+   ],
+   "decision": "Auto-label a large relation-extraction training set without hand annotation, by aligning text to a knowledge base.",
+   "failure_modes": [
+    {
+     "signature": "confounded",
+     "evidence": "REPORTED",
+     "description": "Entity co-occurrence is confounded with relation-expression — \"all sentences mentioning the pair express the relation\" is too strong; alignment precision was only ~70%, with >30% noisy instances.",
+     "caught_by": "bag-level aggregation (partial; spawned a whole multi-instance-learning literature)"
+    },
+    {
+     "signature": "unanchored",
+     "evidence": "REPORTED",
+     "description": "Labels come entirely from the KB heuristic with no hand-labeled ground truth to anchor them.",
+     "caught_by": "UNGUARDED (by design)"
+    },
+    {
+     "signature": "class_imbalance",
+     "evidence": "INFERRED",
+     "description": "KB coverage is uneven across relations; rare relations get few/no aligned sentences. (Inferred.)",
+     "caught_by": "UNGUARDED"
+    }
+   ]
+  },
+  "video-action-kinetics": {
+   "id": "video-action-kinetics",
+   "title": "Crowdsourced Video Action Verification (Kinetics)",
+   "modality": "video",
+   "task_structure": "classification",
+   "annotator_structure": "crowd",
+   "scale": "crowd (high-throughput)",
+   "domain": "vision-video",
+   "lineage": "",
+   "distinctive": "",
+   "qa_mechanism": [
+    "gold_honeypots",
+    "consensus_threshold",
+    "agreement"
+   ],
+   "failure_signatures": [
+    "under_specification",
+    "class_imbalance",
+    "sampling_frame",
+    "bottleneck"
+   ],
+   "uses_patterns": [
+    "multi-annotator-aggregate",
+    "gold-honeypots",
+    "dedup-merge",
+    "active-learning-loop",
+    "engagement-gate"
+   ],
+   "decision": "Verify which 10-second YouTube clips actually show a named human action, to build a labeled action-recognition dataset (400 classes).",
+   "failure_modes": [
+    {
+     "signature": "under_specification",
+     "evidence": "REPORTED",
+     "description": "Class boundaries overlap — \"riding mule\" vs \"riding/walking with horse\" 40% confusion; \"skipping\" (rope vs stones) ambiguous; clips aren't exhaustively annotated → top-5 used instead of top-1.",
+     "caught_by": "classifier-driven class refinement"
+    },
+    {
+     "signature": "class_imbalance",
+     "evidence": "REPORTED",
+     "description": "60 of 400 classes are gender-imbalanced (e.g. \"shaving beard\" mostly male); bias impact flagged for \"more thorough investigation\".",
+     "caught_by": "UNGUARDED"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "REPORTED",
+     "description": "YouTube sourcing + an image-classifier in the candidate pipeline could constrain variety (authors claim empirically it did not); duplicates persist because users reuse clips.",
+     "caught_by": "de-duplication (partial)"
+    },
+    {
+     "signature": "bottleneck",
+     "evidence": "INFERRED",
+     "description": "Video verification is slow + costly per clip (watching >> reading) — exactly the cost finding the text→video modality-shift demo predicted. NOTE: authors do NOT disclose per-clip cost, so this is inferred.",
+     "caught_by": "UNGUARDED"
+    }
+   ]
+  },
+  "video-something-something": {
+   "id": "video-something-something",
+   "title": "Crowd-Acted Templated Action Videos (Something-Something)",
+   "modality": "video",
+   "task_structure": "classification",
+   "annotator_structure": "crowd",
+   "scale": "crowd (high-throughput)",
+   "domain": "vision-video",
+   "lineage": "goyal et al. 2017 (Something-Something)",
+   "distinctive": "Label-FIRST data CREATION: crowdworkers are given a caption TEMPLATE ('Dropping [something] into [something]') and RECORD a video acting it out, filling the object slots with a noun-phrase they choose. The data is crowd-GENERATED (108k videos, 174 templates), not harvested-and-verified. Splits isolate each worker.",
+   "qa_mechanism": [
+    "order_randomization",
+    "agreement"
+   ],
+   "failure_signatures": [
+    "sampling_frame",
+    "under_specification",
+    "confounded"
+   ],
+   "uses_patterns": [
+    "split-isolation"
+   ],
+   "decision": "Build a fine-grained action dataset that needs physical/causal common sense by having crowdworkers record short videos enacting caption templates.",
+   "failure_modes": [
+    {
+     "signature": "sampling_frame",
+     "evidence": "INFERRED",
+     "description": "Acted videos in workers' homes/environments differ from natural in-the-wild video. (Inferred.)",
+     "caught_by": "UNGUARDED"
+    },
+    {
+     "signature": "under_specification",
+     "evidence": "INFERRED",
+     "description": "Template interpretation varies (how to 'drop', what counts) → intra-class variation. (Inferred.)",
+     "caught_by": "UNGUARDED"
+    },
+    {
+     "signature": "confounded",
+     "evidence": "INFERRED",
+     "description": "Worker-specific backgrounds/objects can correlate with templates. (Inferred.)",
+     "caught_by": "split-isolation (partial)"
+    }
+   ]
+  }
+ },
+ "patterns": {
+  "multi-annotator-aggregate": {
+   "id": "multi-annotator-aggregate",
+   "name": "Multi-Annotator + Aggregation",
+   "does": "Have N annotators label each item independently, then combine (majority, or a model like Dawid-Skene) into one label, using disagreement as a noise signal.",
+   "defends": [
+    "under_specification",
+    "unanchored"
+   ],
+   "pairs_with": [
+    "inter-annotator-agreement",
+    "tiered-adjudication",
+    "gold-honeypots"
+   ],
+   "conflicts_with": [],
+   "cost": "Multiplies per-item human cost by N.",
+   "modality_notes": "Agreement metric is modality-specific: exact-match for classification, IoU for boxes, WER for transcription, span-overlap for extraction. The redundancy idea is invariant.",
+   "exemplified_by": [
+    "image-bbox-adjudicated"
+   ]
+  },
+  "tiered-adjudication": {
+   "id": "tiered-adjudication",
+   "name": "Tiered Review / Adjudication",
+   "does": "Auto-accept high-agreement items; escalate only true disagreements to a scarce senior adjudicator who sets the gold answer.",
+   "defends": [
+    "under_specification",
+    "bottleneck"
+   ],
+   "pairs_with": [
+    "multi-annotator-aggregate",
+    "inter-annotator-agreement"
+   ],
+   "conflicts_with": [],
+   "cost": "Senior reviewer time, but only on the contested tail.",
+   "modality_notes": "What counts as 'disagreement' is the modality's agreement metric crossing a threshold.",
+   "exemplified_by": [
+    "image-bbox-adjudicated"
+   ]
+  },
+  "gold-honeypots": {
+   "id": "gold-honeypots",
+   "name": "Gold / Honeypot Items",
+   "does": "Seed known-answer items invisibly into the live stream to score each annotator's accuracy continuously and catch bad actors and drift.",
+   "defends": [
+    "inflation",
+    "drift"
+   ],
+   "pairs_with": [
+    "qualification-calibration",
+    "inter-annotator-agreement"
+   ],
+   "conflicts_with": [],
+   "cost": "Authoring + maintaining a fresh honeypot bank (raters memorize stale ones).",
+   "modality_notes": "Trivial for classification/preference; for generative tasks a 'known answer' is fuzzier — use rubric-scored references instead of exact match.",
+   "exemplified_by": [
+    "text-preference-rlhf",
+    "image-bbox-adjudicated"
+   ]
+  },
+  "qualification-calibration": {
+   "id": "qualification-calibration",
+   "name": "Qualification + Calibration Test",
+   "does": "Gate annotators through a gold calibration set before live work and re-test periodically, so everyone shares the same bar.",
+   "defends": [
+    "inflation",
+    "unanchored",
+    "drift"
+   ],
+   "pairs_with": [
+    "gold-honeypots",
+    "human-gold-anchor"
+   ],
+   "conflicts_with": [],
+   "cost": "Up-front calibration-set authoring; raters lost to the qual gate.",
+   "modality_notes": "Calibration items mirror the task; the gating logic is invariant.",
+   "exemplified_by": [
+    "text-preference-rlhf"
+   ]
+  },
+  "inter-annotator-agreement": {
+   "id": "inter-annotator-agreement",
+   "name": "Inter-Annotator Agreement (IAA)",
+   "does": "Measure κ/α (or modality analog) between annotators as a standing health metric; low IAA means the guidelines are under-specified, not that annotators are bad.",
+   "defends": [
+    "under_specification",
+    "unanchored"
+   ],
+   "pairs_with": [
+    "multi-annotator-aggregate",
+    "tiered-adjudication"
+   ],
+   "conflicts_with": [],
+   "cost": "Cheap to compute; needs overlap (annotators must share items).",
+   "modality_notes": "Metric swaps by modality (κ, α, IoU, WER, span-F1); interpretation is the same.",
+   "exemplified_by": [
+    "image-bbox-adjudicated",
+    "text-preference-rlhf",
+    "judge-eval-study"
+   ]
+  },
+  "human-gold-anchor": {
+   "id": "human-gold-anchor",
+   "name": "Human-Gold Anchor",
+   "does": "Hold out a small, expert-labeled reference set and validate the automated/crowd labels against it — the thing that turns raw scores into trustworthy ones.",
+   "defends": [
+    "unanchored"
+   ],
+   "pairs_with": [
+    "qualification-calibration",
+    "human-audit-sample",
+    "cross-family-judges"
+   ],
+   "conflicts_with": [],
+   "cost": "Expert time to build and refresh the gold set.",
+   "modality_notes": "Always applicable; the gold set must cover the model's weak cases, not the easy bulk.",
+   "exemplified_by": [
+    "judge-eval-study",
+    "text-preference-rlhf"
+   ]
+  },
+  "cross-family-judges": {
+   "id": "cross-family-judges",
+   "name": "Cross-Family Judges / Checkers",
+   "does": "When a model labels or judges, have a model of a *different* family re-label a slice, so you measure quality rather than self-preference.",
+   "defends": [
+    "self_affinity",
+    "confounded"
+   ],
+   "pairs_with": [
+    "human-gold-anchor",
+    "human-audit-sample"
+   ],
+   "conflicts_with": [],
+   "cost": "A second model pass on a slice; cheap relative to humans.",
+   "modality_notes": "Applies wherever a model is in the labeling/judging loop, any modality.",
+   "exemplified_by": [
+    "judge-eval-study",
+    "synthetic-with-audit"
+   ]
+  },
+  "human-audit-sample": {
+   "id": "human-audit-sample",
+   "name": "Stratified Human Audit",
+   "does": "Review a sample of model-produced labels, stratified by confidence and class (not random), to estimate true accuracy where the model is actually weak.",
+   "defends": [
+    "sampling_frame",
+    "class_imbalance",
+    "unanchored"
+   ],
+   "pairs_with": [
+    "human-gold-anchor",
+    "cross-family-judges",
+    "active-learning-loop"
+   ],
+   "conflicts_with": [],
+   "cost": "Small but high-skill auditor time.",
+   "modality_notes": "Stratification axes are modality/task specific; the 'don't audit at random' rule is invariant.",
+   "exemplified_by": [
+    "synthetic-with-audit"
+   ]
+  },
+  "lock-then-score": {
+   "id": "lock-then-score",
+   "name": "Lock-Then-Score (Guideline Freeze)",
+   "does": "Freeze the rubric/guidelines and analysis plan before any labels are seen, so the bar can't silently move to fit the data.",
+   "defends": [
+    "drift",
+    "inflation",
+    "confounded"
+   ],
+   "pairs_with": [
+    "gold-honeypots",
+    "qualification-calibration"
+   ],
+   "conflicts_with": [
+    "active-learning-loop"
+   ],
+   "cost": "Discipline; forces guideline work up front instead of mid-stream.",
+   "modality_notes": "Invariant. The tension with active learning is the interesting design choice.",
+   "exemplified_by": [
+    "judge-eval-study"
+   ]
+  },
+  "active-learning-loop": {
+   "id": "active-learning-loop",
+   "name": "Active-Learning Loop",
+   "does": "Let the model pick the next items to label (most-uncertain / most-informative) instead of labeling a static batch, concentrating human effort where it moves the model most.",
+   "defends": [
+    "class_imbalance",
+    "bottleneck"
+   ],
+   "pairs_with": [
+    "human-audit-sample",
+    "gold-honeypots"
+   ],
+   "conflicts_with": [
+    "lock-then-score"
+   ],
+   "cost": "Infra to score informativeness; risk of sampling the model's blind spots away.",
+   "modality_notes": "Uncertainty signal is modality-specific (entropy, margin, ensemble disagreement).",
+   "exemplified_by": [
+    "synthetic-with-audit"
+   ]
+  },
+  "split-isolation": {
+   "id": "split-isolation",
+   "name": "Entity-Partitioned Splits",
+   "does": "Partition data on an entity (speaker, author, document, patient, session) so the same entity never appears in more than one of train/dev/test, forcing the model to learn the task instead of memorizing the entity.",
+   "defends": [
+    "label_leakage"
+   ],
+   "pairs_with": [
+    "powered-eval-split",
+    "human-audit-sample"
+   ],
+   "conflicts_with": [],
+   "cost": "Needs reliable entity IDs; starves low-resource cells where entities are few.",
+   "modality_notes": "The entity differs by modality/task — speaker (audio), author/source (text), patient (medical imaging), session (logs), or the ANNOTATOR (held-out raters who produced no training data, used to test the model isn't overfit to its labelers' preferences) — but the 'one entity, one split' rule is invariant.",
+   "exemplified_by": [
+    "audio-transcription-commonvoice",
+    "demonstration-instructgpt"
+   ]
+  },
+  "powered-eval-split": {
+   "id": "powered-eval-split",
+   "name": "Power-Sized Eval Split",
+   "does": "Size the dev/test split to a statistical target (confidence level + margin of error) rather than an arbitrary percentage, so eval conclusions are actually supported.",
+   "defends": [
+    "underpowered"
+   ],
+   "pairs_with": [
+    "split-isolation",
+    "human-gold-anchor",
+    "inter-annotator-agreement"
+   ],
+   "conflicts_with": [],
+   "cost": "Up-front stats; can demand more held-out data than a small corpus can spare.",
+   "modality_notes": "The power calc depends on the metric's variance (accuracy, WER, IoU, κ), but 'size it for a target, don't eyeball it' is invariant.",
+   "exemplified_by": [
+    "audio-transcription-commonvoice"
+   ]
+  },
+  "order-randomization": {
+   "id": "order-randomization",
+   "name": "Order / Position Randomization",
+   "does": "Present items (or A/B options) in random order so the position or popularity of an item can't leak into the judgment — kills \"hedging\" early-item effects and popularity bias.",
+   "defends": [
+    "priming",
+    "confounded"
+   ],
+   "pairs_with": [
+    "multi-annotator-aggregate",
+    "pooled-sampling"
+   ],
+   "conflicts_with": [],
+   "cost": "Near-zero; just shuffle. Loses any genuine efficiency from a helpful ordering.",
+   "modality_notes": "Same idea everywhere: A/B side-randomization (preference), random doc order (relevance), shuffled item order (classification). Cross-validated by text-preference-rlhf and relevance-pooling-trec.",
+   "exemplified_by": [
+    "relevance-pooling-trec",
+    "text-preference-rlhf"
+   ]
+  },
+  "dedup-merge": {
+   "id": "dedup-merge",
+   "name": "De-duplicate / Merge",
+   "does": "Detect near-duplicate items (exact, hash, or feature-similarity) and remove or merge them so they don't inflate apparent volume/coverage or leak the same content across train/test splits.",
+   "defends": [
+    "inflation",
+    "sampling_frame",
+    "label_leakage"
+   ],
+   "pairs_with": [
+    "split-isolation",
+    "active-learning-loop",
+    "coverage-routing"
+   ],
+   "conflicts_with": [],
+   "cost": "A similarity pass (hashing/embeddings + threshold); risk of over-merging genuinely distinct items.",
+   "modality_notes": "Similarity metric is modality-specific — exact/MinHash (text), perceptual-hash or feature-cosine (image/video; Inception >0.97 in Kinetics), audio fingerprint — but 'don't double-count' is invariant.",
+   "exemplified_by": [
+    "video-action-kinetics",
+    "corpus-ingestion"
+   ]
+  },
+  "execution-verification": {
+   "id": "execution-verification",
+   "name": "Execution-Based Verification",
+   "does": "Get ground truth by RUNNING the artifact against tests/specs instead of judging it — a candidate is correct iff it passes. Available wherever output is executable (code, SQL, configs, formal proofs).",
+   "defends": [
+    "unanchored"
+   ],
+   "pairs_with": [
+    "human-gold-anchor",
+    "split-isolation",
+    "dedup-merge"
+   ],
+   "conflicts_with": [],
+   "cost": "Authoring comprehensive tests + a safe sandbox; WEAK tests silently pass wrong answers.",
+   "modality_notes": "Executable artifacts only. The catch is TEST ADEQUACY: passing a weak suite != correct (SWE-bench: ~31% of passes used insufficient tests; resolution rate ~3x lower once weak tests + leakage are filtered).",
+   "exemplified_by": [
+    "code-humaneval",
+    "code-swebench"
+   ]
+  },
+  "labeling-functions": {
+   "id": "labeling-functions",
+   "name": "Labeling Functions / Weak Supervision",
+   "does": "Replace per-item hand labels with programmatic heuristics (patterns, rules, KB alignment) that vote or abstain; combine their noisy outputs (majority or a learned label model) into training labels.",
+   "defends": [
+    "bottleneck"
+   ],
+   "pairs_with": [
+    "multi-annotator-aggregate",
+    "human-audit-sample",
+    "dedup-merge"
+   ],
+   "conflicts_with": [],
+   "cost": "SME time writing/iterating LFs; trades the labeling bottleneck for label NOISE + no gold (distant supervision ~70% precision); correlated LFs double-count unless modeled. (Defends bottleneck, induces confounded/unanchored.)",
+   "modality_notes": "Heuristics are modality-specific (text patterns, KB alignment, tabular rules) but 'heuristics-vote-then- denoise' is invariant. Cross-validated by Snorkel (label model) + distant supervision (KB alignment).",
+   "exemplified_by": [
+    "tabular-weak-supervision-snorkel",
+    "text-relation-distant-supervision"
+   ]
+  },
+  "tamper-to-ground-truth": {
+   "id": "tamper-to-ground-truth",
+   "name": "Tamper-to-Ground-Truth (Planted Errors)",
+   "does": "Manufacture verifiable gold by deliberately INJECTING known defects (bugs, mislabels, poison) with a recorded key, so a detector/critic can be scored on whether it recovers them.",
+   "defends": [
+    "unanchored"
+   ],
+   "pairs_with": [
+    "human-audit-sample",
+    "cross-family-judges",
+    "gold-honeypots"
+   ],
+   "conflicts_with": [],
+   "cost": "Planting effort; and the planted distribution may differ from natural errors (overstates real recall).",
+   "modality_notes": "The 'defect' is domain-specific — inserted bugs (code/CriticGPT), flipped labels (data-quality/detector), poisoned samples (security) — but 'plant known errors, measure recovery' is invariant. The honest caveat (planted != natural) recurs everywhere.",
+   "exemplified_by": [
+    "critique-criticgpt",
+    "detector-planted-mislabels"
+   ]
+  },
+  "edge-case-guidelines": {
+   "id": "edge-case-guidelines",
+   "name": "Edge-Case Guidelines (Iterative Refinement)",
+   "does": "Write clear guidelines anchored by EXAMPLES — especially boundary cases that \"only just\" qualify — and refine them iteratively: annotate, measure IAA, discuss disagreements, update the rule book, repeat.",
+   "defends": [
+    "under_specification",
+    "over_specification"
+   ],
+   "pairs_with": [
+    "inter-annotator-agreement",
+    "tiered-adjudication",
+    "multi-annotator-aggregate"
+   ],
+   "conflicts_with": [
+    "lock-then-score"
+   ],
+   "cost": "Multiple annotation rounds + expert adjudication before the labels even count.",
+   "modality_notes": "Edge cases are domain-specific (which content 'just crosses the line'; which clinical mention is an event) but 'anchor with examples + refine on disagreements' is invariant. Cross-validated by content-moderation + clinical.",
+   "exemplified_by": [
+    "content-moderation-abuse",
+    "clinical-annotation-guidelines"
+   ]
+  },
+  "annotator-welfare-protocol": {
+   "id": "annotator-welfare-protocol",
+   "name": "Annotator Welfare Protocol",
+   "does": "Protect annotators exposed to harmful/distressing content — warnings, exposure limits, breaks, counseling, well-being surveys, content-masking tools, and time-based (not quota) pay.",
+   "defends": [],
+   "pairs_with": [
+    "tiered-adjudication",
+    "audit-sampling"
+   ],
+   "conflicts_with": [],
+   "cost": "Counseling/wellness programs + reduced throughput from exposure limits; the ethical floor for harmful-content work.",
+   "modality_notes": "Applies to any harmful-content workflow (text abuse, image/video moderation, red-team). Masking tools are modality-specific (text redaction, image blurring); the duty-of-care is invariant. Lives in cost_profile per schema convention.",
+   "exemplified_by": [
+    "redteam-adversarial-dialogue",
+    "content-moderation-welfare-ops"
+   ]
+  },
+  "model-in-the-loop-adversarial": {
+   "id": "model-in-the-loop-adversarial",
+   "name": "Model-in-the-Loop Adversarial Elicitation",
+   "does": "Put a target model in the collection loop and have humans craft inputs that fool/beat it — yielding hard, discriminative examples (and a moving target as models improve). (Subsumes the earlier `adversarial-pairing` candidate.)",
+   "defends": [],
+   "pairs_with": [
+    "human-gold-anchor",
+    "tamper-to-ground-truth"
+   ],
+   "conflicts_with": [],
+   "cost": "Needs a live model in the loop; the collected distribution is ADVERSARIAL, not natural (induces sampling_frame).",
+   "modality_notes": "The 'beat the model' signal is task-specific — more-harmful-of-two (red-team), fool-the-classifier (ANLI) — but human-vs-model-in-the-loop is invariant.",
+   "exemplified_by": [
+    "redteam-adversarial-dialogue",
+    "adversarial-nli-anli"
+   ]
+  },
+  "coverage-routing": {
+   "id": "coverage-routing",
+   "name": "Coverage Routing",
+   "does": "Track which strata/cells are under-represented and route the NEXT collection/labeling to fill the thinnest ones (rare classes, missing modalities, uncovered signatures) — active sampling for COVERAGE, not uncertainty.",
+   "defends": [
+    "class_imbalance",
+    "sampling_frame"
+   ],
+   "pairs_with": [
+    "active-learning-loop",
+    "dedup-merge",
+    "human-audit-sample"
+   ],
+   "conflicts_with": [],
+   "cost": "A live coverage map + the discipline to seek hard-to-find rare cells (which cost more per item).",
+   "modality_notes": "Strata differ (object classes, demographics, signature×modality cells) but 'measure coverage, fill the thinnest cell next' is invariant. Distinct from active-learning-loop (coverage vs model-uncertainty).",
+   "exemplified_by": [
+    "corpus-ingestion",
+    "pointcloud-detection-nuscenes"
+   ]
+  },
+  "engagement-gate": {
+   "id": "engagement-gate",
+   "name": "Engagement / Attention Gate",
+   "does": "Verify the annotator actually engaged with THIS item — attention/instructional checks, reverse-coded traps, whole-item completion ('did it last the whole clip?'), minimum time-on-task — and drop/flag those who didn't.",
+   "defends": [
+    "gaming",
+    "inflation"
+   ],
+   "pairs_with": [
+    "gold-honeypots",
+    "qualification-calibration"
+   ],
+   "conflicts_with": [],
+   "cost": "Authoring checks; an arms race (sophisticated gamers learn them); some false flags on fast-but-honest workers.",
+   "modality_notes": "The check is modality-specific — trap question (text/survey), 'did it last the whole clip?' (video/audio), watch-time (time-based media) — but 'confirm engagement with this item' is invariant.",
+   "exemplified_by": [
+    "crowd-quality-mturk",
+    "video-action-kinetics"
+   ]
+  },
+  "pooled-sampling": {
+   "id": "pooled-sampling",
+   "name": "Pooled Sampling (Judge the Union, Reuse)",
+   "does": "Instead of judging the whole space, judge only the UNION of what the candidate systems produced/retrieved, then reuse those judgments to score all systems — including ones absent from the pool.",
+   "defends": [
+    "bottleneck"
+   ],
+   "pairs_with": [
+    "order-randomization",
+    "human-gold-anchor"
+   ],
+   "conflicts_with": [],
+   "cost": "Pooling BIAS — systems that surface relevant items OUTSIDE the pool are underrated (a sampling_frame cost).",
+   "modality_notes": "Canonical in IR (judge top-k of each run, reuse qrels); generalizes to model-comparison eval (judge the union of outputs the candidate models produced, reuse the rubric across them). 'Don't judge the whole space' is invariant.",
+   "exemplified_by": [
+    "relevance-pooling-trec",
+    "judge-eval-study"
+   ]
+  }
+ }
+}

@@ -1,0 +1,72 @@
+id: datasheets-documentation
+title: Dataset Documentation & Provenance (Datasheets for Datasets)
+modality: text
+task_structure: extraction
+annotator_structure: expert
+lineage: gebru et al. 2021 (Datasheets for Datasets)
+qa_mechanism: [guideline_freeze]
+failure_signatures: [under_specification, sampling_frame, gaming]
+uses_patterns: []
+# candidate pattern: `provenance-datasheet` (a standardized doc capturing motivation/composition/collection/uses)
+distinctive: >
+  A META workflow: instead of producing labels, the dataset CREATOR fills a standardized datasheet — 57 questions
+  across 7 categories (motivation, composition, collection process, preprocessing/cleaning/labeling, uses,
+  distribution, maintenance). By analogy to electronics datasheets, it makes a dataset's provenance + intended
+  use + limitations explicit, so consumers can judge fitness. The accountability layer over every other recipe.
+
+provenance_meta:
+  source: "Gebru et al., Datasheets for Datasets, CACM 2021 (arXiv:1803.09010)"
+  extraction_confidence: high
+  provenance: extracted-then-audited (a documentation workflow; task_structure 'extraction' = extract dataset facts into the standard form)
+  dedup_hint: "2nd meta-tooling recipe (after corpus-ingestion); distinct — DOCUMENTS a dataset's provenance/limitations rather than building one"
+
+decision: >
+  Make a dataset's provenance, composition, intended uses, and limitations explicit and inspectable by having
+  its creator answer a standardized question set.
+
+inputs:
+  - source: the dataset + its creators' knowledge of how it was made
+    provenance: the creators themselves
+    assumption: creators will answer honestly + completely (self-report is the weak point)
+
+actors:
+  - role: dataset creator
+    does: answer the 57 datasheet questions across the 7 categories
+    type: human (expert)
+
+steps:
+  - work through the 7 categories (motivation … maintenance)
+  - record composition, collection process, preprocessing, recommended + discouraged uses, limitations
+  - ship the datasheet alongside the dataset; update on maintenance
+
+quality_gates:
+  - gate: standardized question set (frozen template)
+    checks: every dataset answers the same provenance/use/limitation questions
+    catches: under_specification / undocumented provenance [REPORTED]
+
+output:
+  shape: a structured datasheet (provenance + composition + uses + limitations + maintenance)
+  consumed_by: dataset consumers deciding fitness-for-use; the ingestion pipeline's provenance field
+
+failure_modes:
+  - signature: under_specification
+    evidence: REPORTED
+    description: Without a standard, datasets ship undocumented; even with one, questions get answered inconsistently/incompletely.
+    caught_by: standardized question set (raises the floor)
+  - signature: sampling_frame
+    evidence: INFERRED
+    description: It's self-reported by the creator — blind spots and biases in collection may go unrecorded. (Inferred.)
+    caught_by: UNGUARDED
+  - signature: gaming
+    evidence: INFERRED
+    description: Creators can rationalize or omit unflattering provenance. (Inferred.)
+    caught_by: UNGUARDED
+
+cost_profile:
+  throughput: one datasheet per dataset
+  bottleneck: creator diligence
+  human_cost: creator time; high leverage (documents everyone else's work)
+
+provenance: >
+  Extracted from arXiv:1803.09010. 2nd meta-tooling recipe — the documentation/provenance layer. Deeply on-theme:
+  this whole corpus runs on provenance-over-volume, and datasheets are that discipline as a workflow.

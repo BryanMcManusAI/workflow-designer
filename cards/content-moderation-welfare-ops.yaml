@@ -1,0 +1,78 @@
+id: content-moderation-welfare-ops
+title: Commercial Content Moderation (Decisions + Moderator Welfare)
+modality: multimodal
+task_structure: classification
+annotator_structure: expert        # employed/trained commercial moderators
+qa_mechanism: [audit_sampling, agreement]
+failure_signatures: [drift, under_specification, inflation]
+uses_patterns: [annotator-welfare-protocol, multi-annotator-aggregate]
+
+provenance_meta:
+  source: "Steiger et al., The Psychological Well-Being of Content Moderators (CHI 2021); commercial-moderation welfare literature"
+  extraction_confidence: medium-high (grounded via the cited study)
+  provenance: extracted-then-audited
+  dedup_hint: "moderation-decision labeling like content-moderation-abuse, but this card centers OPERATIONS + WELFARE (employed moderators at scale) — 2nd annotator-welfare-protocol exemplar"
+
+decision: >
+  Have employed moderators decide remove/keep (+ violation category) on user content at scale — labels that both
+  enforce policy and train moderation models — while sustaining the moderators doing the work.
+
+inputs:
+  - source: streams of user content (text, image, video), much of it disturbing
+    provenance: live platform reports/queues
+    assumption: moderators can sustain repeated exposure to graphic content (the welfare crux)
+  - source: a moderation policy
+    provenance: platform; revised frequently
+    assumption: the policy resolves the cases moderators actually see (often not, at the edges)
+
+actors:
+  - role: commercial moderators (~100k globally)
+    does: review content, apply the policy, label remove/keep + category
+    type: human (employed)
+  - role: QA / appeals
+    does: audit a sample; handle appeals/overturns
+    type: human
+
+steps:
+  - route content to moderators by queue/severity
+  - moderators decide under time pressure + welfare protocol (warnings, breaks, masking tools, counseling)
+  - QA audits a sample; appeals overturn errors
+  - policy revised as new content types emerge
+
+quality_gates:
+  - gate: annotator-welfare-protocol
+    checks: exposure limits, breaks, content-masking, counseling, time-based pay
+    catches: (guards the moderators; also limits fatigue-driven error) [REPORTED — wellness interventions]
+  - gate: QA audit + appeals
+    checks: sample audits + appeal overturns
+    catches: under_specification, inflation
+
+output:
+  shape: remove/keep + category labels (+ appeal outcomes)
+  consumed_by: enforcement + moderation-model training
+
+failure_modes:
+  - signature: drift
+    evidence: REPORTED
+    description: Policy changes frequently and moderator judgment shifts under fatigue, so "the bar" moves over time.
+    caught_by: QA audit + appeals (partial)
+  - signature: under_specification
+    evidence: REPORTED
+    description: Policy can't cover every edge case moderators face; ambiguous calls under time pressure.
+    caught_by: UNGUARDED (edge-case guidelines would help)
+  - signature: inflation
+    evidence: INFERRED
+    description: Burnout / secondary-trauma degrade consistency (rushed or numbed decisions). (Inferred from the welfare findings.)
+    caught_by: annotator-welfare-protocol (partial)
+
+cost_profile:
+  throughput: very high (continuous queues)
+  bottleneck: sustainable moderator capacity
+  human_cost: >
+    SEVERE & WELFARE-CRITICAL — ~100k commercial moderators face repeated graphic exposure with documented PTSD
+    symptoms, secondary traumatic stress, compassion fatigue, anxiety/depression (Steiger et al. 2021). Wellness
+    interventions (psychological + technological, e.g. content masking) are part of the workflow, not optional.
+
+provenance: >
+  Grounded in Steiger et al. (CHI 2021) + the commercial-moderation welfare literature. 2nd `annotator-welfare-protocol`
+  exemplar → promoting the pattern. The welfare dimension lives in cost_profile per the schema convention.

@@ -1,0 +1,79 @@
+id: redteam-external-gpt4
+title: Red-Teaming — External Domain-Expert Network
+modality: multimodal
+task_structure: red_team
+annotator_structure: expert
+lineage: openai / external red teaming (GPT-4 & GPT-4o system cards)
+qa_mechanism: [audit_sampling]
+failure_signatures: [sampling_frame, unanchored, bottleneck]
+uses_patterns: [model-in-the-loop-adversarial, coverage-routing]
+distinctive: >
+  An EXTERNAL network of vetted DOMAIN EXPERTS (100+ across bio, cyber, law, persuasion, child-safety,
+  fairness…; 45 languages, 29 countries) probes the model PRE-DEPLOYMENT. Iterative + hypothesis-driven:
+  start from suspected high-risk areas, probe, adjust, then turn findings into structured measurements +
+  mitigations. Qualitative and breadth-of-expertise-driven, not crowd-scale or automated.
+
+provenance_meta:
+  source: "OpenAI GPT-4 System Card (2023) + GPT-4o System Card (arXiv:2410.21276); OpenAI's Approach to External Red Teaming"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "same task; the OPENAI variant — external domain experts vs Anthropic crowd vs DeepMind automated"
+
+decision: >
+  Surface novel, high-severity, domain-specific risks before deployment by having vetted external experts
+  adversarially probe the model, then convert findings into measurements + mitigations.
+
+inputs:
+  - source: expert-authored adversarial probes across many risk domains
+    provenance: 100+ vetted external experts, broad domain + language + geographic coverage
+    assumption: experts can anticipate the highest-severity risks (the space of harms is still unbounded)
+
+actors:
+  - role: external domain experts
+    does: probe assigned/owned risk areas adversarially, qualitatively
+    type: human (expert)
+  - role: OpenAI safety team
+    does: pick initial risk hypotheses; convert findings into structured measurements + mitigations
+    type: human
+
+steps:
+  - hypothesize the highest-risk areas
+  - vetted external experts probe those areas (iteratively, adjusting as risks surface)
+  - discover novel risks beyond the initial hypotheses
+  - turn risks into structured measurements + build mitigations
+
+quality_gates:
+  - gate: domain + language + geographic breadth of experts
+    checks: cover many risk types deliberately (coverage routing over expertise)
+    catches: sampling_frame (partial — breadth of expert coverage) [REPORTED]
+  - gate: findings → structured measurements
+    checks: convert qualitative probes into repeatable measurements
+    catches: unanchored (turns one-off probes into trackable metrics) [REPORTED]
+
+output:
+  shape: qualitative risk findings → structured measurements + mitigations
+  consumed_by: pre-deployment safety decisions
+
+failure_modes:
+  - signature: sampling_frame
+    evidence: REPORTED
+    description: The space of harms is unbounded; expert coverage is broad but can't be exhaustive, and skews to anticipated risks.
+    caught_by: domain/language/geographic breadth (partial)
+  - signature: unanchored
+    evidence: REPORTED
+    description: Probing is qualitative; until findings are turned into structured measurements there's no repeatable metric.
+    caught_by: findings → structured measurements
+  - signature: bottleneck
+    evidence: INFERRED
+    description: Vetted domain-expert time is scarce and slow vs crowd or automated red-teaming. (Inferred.)
+    caught_by: UNGUARDED
+
+cost_profile:
+  throughput: low — expert-bound, pre-deployment
+  bottleneck: recruiting + scheduling vetted domain experts
+  human_cost: high-skill experts; exposure to harmful content (welfare protocol advisable)
+
+provenance: >
+  Extracted from the GPT-4 / GPT-4o system cards + OpenAI's external-red-teaming writeup. OPENAI's variant —
+  domain-expert breadth + pre-deployment qualitative probing. Compare: Anthropic crowd (scale/cheap),
+  DeepMind automated (very-high scale), OpenAI experts (depth/breadth, low throughput).

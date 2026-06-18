@@ -1,0 +1,86 @@
+id: tabular-weak-supervision-snorkel
+title: Weak Supervision via Labeling Functions (Snorkel)
+modality: tabular            # modality-flexible; applied to relational/tabular + text
+task_structure: classification
+annotator_structure: model_as_annotator    # NOTE: really PROGRAMMATIC weak supervision — CANDIDATE annotator_structure `programmatic`
+qa_mechanism: [agreement]
+failure_signatures: [confounded, sampling_frame, unanchored]
+uses_patterns: [multi-annotator-aggregate, labeling-functions]
+# labeling-functions = CANDIDATE pattern; the label model is a learned-accuracy / correlation-aware
+# generalization of multi-annotator-aggregate (the "annotators" are labeling functions)
+
+provenance_meta:
+  source: "Ratner et al., Snorkel: Rapid Training Data Creation with Weak Supervision, VLDB 2018 / arXiv:1711.10160"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "generalizes multi-annotator-aggregate — but the 'annotators' are programmatic labeling functions with learned accuracies + modeled correlations, and there are no hand labels"
+
+decision: >
+  Create probabilistic training labels at scale WITHOUT hand-labeling, by writing heuristic labeling
+  functions and denoising them with a learned label model.
+
+inputs:
+  - source: unlabeled data points (relational / tabular / text)
+    provenance: domain corpus
+    assumption: enough signal exists for heuristics to vote (LFs must meet min accuracy + coverage)
+  - source: labeling functions (LFs)
+    provenance: written by subject-matter experts (patterns, heuristics, distant supervision, knowledge bases)
+    assumption: LFs are better than random and their dependencies are discoverable
+
+actors:
+  - role: SME LF authors
+    does: write black-box LFs that emit a class label or ABSTAIN per data point
+    type: human
+  - role: generative label model
+    does: learn LF accuracies + correlation structure from agreements/disagreements (no ground truth) → probabilistic labels
+    type: model/process
+
+steps:
+  - SMEs write LFs (each may abstain, has unknown accuracy, may correlate with others)
+  - apply all LFs over the unlabeled data → a label matrix
+  - structure-learning detects correlated LFs
+  - the generative label model recovers LF accuracies/correlations and emits probabilistic labels
+  - train a discriminative model on those labels (generalizes past all-abstain cases)
+
+quality_gates:
+  - gate: label-model denoising (agreement structure)
+    checks: weight LFs by learned accuracy; down-weight correlated ones
+    catches: confounded (correlated sources double-counting) [REPORTED]
+  - gate: structure learning
+    checks: automatically identify statistically dependent LFs
+    catches: confounded [REPORTED]
+
+output:
+  shape: probabilistic labels per data point (+ learned LF accuracies)
+  consumed_by: discriminative model training
+
+failure_modes:
+  - signature: confounded
+    evidence: REPORTED
+    description: >
+      LFs "may be statistically dependent" (variations of each other); if correlations aren't modeled the
+      label model misestimates accuracies (Example 3.1). Snorkel uses structure learning to catch it.
+    caught_by: structure learning + label model
+  - signature: sampling_frame
+    evidence: REPORTED
+    description: >
+      LFs have "limited accuracy and coverage" and abstain — coverage gaps leave parts of the distribution with
+      no weak signal. (The discriminative model is what generalizes past all-abstain regions.)
+    caught_by: discriminative model (partial)
+  - signature: unanchored
+    evidence: REPORTED
+    description: >
+      Labels are learned WITHOUT any ground truth, from LF agreement alone; results land within ~3.60% of
+      hand-curated supervision — an inherent gap, and no gold exists to detect when LFs jointly mislead.
+    caught_by: UNGUARDED (by design — the trade for not hand-labeling)
+
+cost_profile:
+  throughput: very high — labels whole corpora from a handful of LFs
+  bottleneck: SME time writing + iterating labeling functions
+  human_cost: shifts human effort from per-item labeling to writing reusable heuristics
+
+provenance: >
+  Extracted from arXiv:1711.10160 via EXTRACTION_PROMPT, audited. First TABULAR card. Introduces the
+  WEAK-SUPERVISION paradigm — candidate annotator_structure `programmatic` + candidate pattern
+  `labeling-functions` — and shows the label model is a learned-accuracy / correlation-aware generalization
+  of multi-annotator-aggregate (LFs as the "annotators").

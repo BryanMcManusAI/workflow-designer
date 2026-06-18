@@ -1,0 +1,70 @@
+id: video-something-something
+title: Crowd-Acted Templated Action Videos (Something-Something)
+modality: video
+task_structure: classification
+annotator_structure: crowd
+lineage: goyal et al. 2017 (Something-Something)
+qa_mechanism: [order_randomization, agreement]
+failure_signatures: [sampling_frame, under_specification, confounded]
+uses_patterns: [split-isolation]
+distinctive: >
+  Label-FIRST data CREATION: crowdworkers are given a caption TEMPLATE ('Dropping [something] into [something]')
+  and RECORD a video acting it out, filling the object slots with a noun-phrase they choose. The data is
+  crowd-GENERATED (108k videos, 174 templates), not harvested-and-verified. Splits isolate each worker.
+
+provenance_meta:
+  source: "Goyal et al., The 'Something Something' Video Database, ICCV 2017 (arXiv:1706.04261)"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "2nd vision-video recipe (after Kinetics harvest+verify); distinct — workers ACT and record videos to order, label given first"
+
+decision: >
+  Build a fine-grained action dataset that needs physical/causal common sense by having crowdworkers record
+  short videos enacting caption templates.
+
+inputs:
+  - source: caption templates with [something] slots
+    provenance: dataset designers
+    assumption: workers enact the template faithfully and label the objects correctly
+
+actors:
+  - role: crowdworkers (actors + uploaders)
+    does: record a video performing the template; enter the object noun-phrases
+    type: human
+
+steps:
+  - present a template with object slots
+  - worker records a short (2-6s) video performing it, choosing + naming objects
+  - assign label = template; split so a worker's videos stay in one split
+
+quality_gates:
+  - gate: split-isolation by worker
+    checks: all videos from one worker go to a single split
+    catches: label_leakage (worker/setup style leaking across splits) [REPORTED]
+
+output:
+  shape: short videos labeled by action template (+ object noun-phrases)
+  consumed_by: fine-grained/temporal action-recognition training
+
+failure_modes:
+  - signature: sampling_frame
+    evidence: INFERRED
+    description: Acted videos in workers' homes/environments differ from natural in-the-wild video. (Inferred.)
+    caught_by: UNGUARDED
+  - signature: under_specification
+    evidence: INFERRED
+    description: Template interpretation varies (how to 'drop', what counts) → intra-class variation. (Inferred.)
+    caught_by: UNGUARDED
+  - signature: confounded
+    evidence: INFERRED
+    description: Worker-specific backgrounds/objects can correlate with templates. (Inferred.)
+    caught_by: split-isolation (partial)
+
+cost_profile:
+  throughput: high — crowd records to order
+  bottleneck: recording effort + object-naming consistency
+  human_cost: crowd; low welfare risk
+
+provenance: >
+  Extracted from arXiv:1706.04261. 2nd vision-video recipe — crowd data CREATION (act-to-order) vs Kinetics'
+  YouTube harvest+verify. Two opposite ways to source labeled video.

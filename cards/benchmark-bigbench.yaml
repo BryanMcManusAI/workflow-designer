@@ -1,0 +1,74 @@
+id: benchmark-bigbench
+title: Community-Contributed Eval Benchmark (BIG-bench)
+modality: text
+task_structure: freeform_generation
+annotator_structure: crowd
+lineage: srivastava et al. 2022 (BIG-bench)
+qa_mechanism: [agreement]
+failure_signatures: [sampling_frame, under_specification, class_imbalance]
+uses_patterns: [edge-case-guidelines]
+# candidate pattern: `peer-review-gate` (contributed items are reviewed/merged on a rolling basis)
+distinctive: >
+  An eval benchmark built by the COMMUNITY — 204 tasks contributed by 450 authors across 132 institutions,
+  peer-reviewed and merged on a rolling basis; dynamic and extensible. Coverage emerges bottom-up from
+  whatever researchers care to contribute, not top-down from a coverage plan.
+
+provenance_meta:
+  source: "Srivastava et al., Beyond the Imitation Game (BIG-bench), arXiv:2206.04615"
+  extraction_confidence: high
+  provenance: extracted-then-audited (eval-benchmark construction; task_structure is a loose fit — tasks are heterogeneous)
+  dedup_hint: "2nd research recipe (after judge-eval-study); distinct — collaborative bottom-up benchmark CONSTRUCTION vs running a judge"
+
+decision: >
+  Build a broad, extensible capability benchmark by soliciting, reviewing, and merging tasks contributed by
+  the research community.
+
+inputs:
+  - source: task submissions from researchers
+    provenance: 450 authors / 132 institutions, self-selected
+    assumption: aggregate community interest approximates good capability coverage (bottom-up ≠ systematic)
+
+actors:
+  - role: contributors
+    does: submit tasks (data + scoring) in diverse areas
+    type: human (community)
+  - role: reviewers / maintainers
+    does: review + merge submissions on a rolling basis
+    type: human
+
+steps:
+  - solicit task contributions (standard format + scoring)
+  - peer-review submissions for validity
+  - merge accepted tasks; keep the collection open/extensible
+
+quality_gates:
+  - gate: peer review of contributions
+    checks: reviewers vet each task before merge
+    catches: under_specification / invalid tasks [REPORTED]
+
+output:
+  shape: a large, diverse, extensible task suite (data + scoring per task)
+  consumed_by: LLM capability evaluation
+
+failure_modes:
+  - signature: sampling_frame
+    evidence: REPORTED
+    description: Tasks reflect contributors' interests, not a systematic map of capabilities; coverage is uneven and bottom-up.
+    caught_by: UNGUARDED (breadth of contributors mitigates somewhat)
+  - signature: under_specification
+    evidence: REPORTED
+    description: Task quality varies; some contributed tasks were later critiqued as ill-posed (the 'common sense' subset debate).
+    caught_by: peer review (partial)
+  - signature: class_imbalance
+    evidence: INFERRED
+    description: Some skills are over-covered (popular topics), rare capabilities under-covered. (Inferred.)
+    caught_by: UNGUARDED
+
+cost_profile:
+  throughput: community-scale, bursty; near-zero central labeling cost
+  bottleneck: review capacity + sustaining contributions
+  human_cost: volunteer researchers
+
+provenance: >
+  Extracted from arXiv:2206.04615. 2nd research recipe — collaborative benchmark construction. Contrast with
+  HELM-style top-down scenario×metric design (systematic) vs this bottom-up community contribution (broad, uneven).

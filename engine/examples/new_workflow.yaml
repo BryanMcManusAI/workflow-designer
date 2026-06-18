@@ -1,0 +1,9 @@
+# A new workflow to design — fill the axes; leave patterns empty to get maximal interrogation.
+# This example: evaluating AI-generated marketing copy with an LLM judge, nothing defended yet.
+goal: Evaluate AI-generated marketing copy at scale
+modality: text
+task_structure: rubric_rating
+annotator_structure: model_as_annotator
+qa_mechanism: []
+uses_patterns: []
+addressed_signatures: []

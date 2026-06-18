@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.DS_Store
+
+# Internal working journal — not for the public repo
+NOTES.md

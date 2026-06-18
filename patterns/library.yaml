@@ -1,0 +1,320 @@
+# Pattern Library (v0.1)
+# Modality-independent sub-structures distilled out of the workflow cards.
+# Patterns are the recombinable units; the creative operators traverse them.
+# Each: does / defends / pairs_with / conflicts_with / cost / modality_notes / exemplified_by
+
+patterns:
+
+  - id: multi-annotator-aggregate
+    name: Multi-Annotator + Aggregation
+    does: >
+      Have N annotators label each item independently, then combine (majority, or a model like
+      Dawid-Skene) into one label, using disagreement as a noise signal.
+    defends: [under_specification, unanchored]
+    pairs_with: [inter-annotator-agreement, tiered-adjudication, gold-honeypots]
+    conflicts_with: []
+    cost: "Multiplies per-item human cost by N."
+    modality_notes: >
+      Agreement metric is modality-specific: exact-match for classification, IoU for boxes,
+      WER for transcription, span-overlap for extraction. The redundancy idea is invariant.
+    exemplified_by: [image-bbox-adjudicated]
+
+  - id: tiered-adjudication
+    name: Tiered Review / Adjudication
+    does: >
+      Auto-accept high-agreement items; escalate only true disagreements to a scarce senior
+      adjudicator who sets the gold answer.
+    defends: [under_specification, bottleneck]
+    pairs_with: [multi-annotator-aggregate, inter-annotator-agreement]
+    conflicts_with: []
+    cost: "Senior reviewer time, but only on the contested tail."
+    modality_notes: >
+      What counts as 'disagreement' is the modality's agreement metric crossing a threshold.
+    exemplified_by: [image-bbox-adjudicated]
+
+  - id: gold-honeypots
+    name: Gold / Honeypot Items
+    does: >
+      Seed known-answer items invisibly into the live stream to score each annotator's accuracy
+      continuously and catch bad actors and drift.
+    defends: [inflation, drift]
+    pairs_with: [qualification-calibration, inter-annotator-agreement]
+    conflicts_with: []
+    cost: "Authoring + maintaining a fresh honeypot bank (raters memorize stale ones)."
+    modality_notes: >
+      Trivial for classification/preference; for generative tasks a 'known answer' is fuzzier —
+      use rubric-scored references instead of exact match.
+    exemplified_by: [text-preference-rlhf, image-bbox-adjudicated]
+
+  - id: qualification-calibration
+    name: Qualification + Calibration Test
+    does: >
+      Gate annotators through a gold calibration set before live work and re-test periodically,
+      so everyone shares the same bar.
+    defends: [inflation, unanchored, drift]
+    pairs_with: [gold-honeypots, human-gold-anchor]
+    conflicts_with: []
+    cost: "Up-front calibration-set authoring; raters lost to the qual gate."
+    modality_notes: "Calibration items mirror the task; the gating logic is invariant."
+    exemplified_by: [text-preference-rlhf]
+
+  - id: inter-annotator-agreement
+    name: Inter-Annotator Agreement (IAA)
+    does: >
+      Measure κ/α (or modality analog) between annotators as a standing health metric; low IAA
+      means the guidelines are under-specified, not that annotators are bad.
+    defends: [under_specification, unanchored]
+    pairs_with: [multi-annotator-aggregate, tiered-adjudication]
+    conflicts_with: []
+    cost: "Cheap to compute; needs overlap (annotators must share items)."
+    modality_notes: "Metric swaps by modality (κ, α, IoU, WER, span-F1); interpretation is the same."
+    exemplified_by: [image-bbox-adjudicated, text-preference-rlhf, judge-eval-study]
+
+  - id: human-gold-anchor
+    name: Human-Gold Anchor
+    does: >
+      Hold out a small, expert-labeled reference set and validate the automated/crowd labels
+      against it — the thing that turns raw scores into trustworthy ones.
+    defends: [unanchored]
+    pairs_with: [qualification-calibration, human-audit-sample, cross-family-judges]
+    conflicts_with: []
+    cost: "Expert time to build and refresh the gold set."
+    modality_notes: "Always applicable; the gold set must cover the model's weak cases, not the easy bulk."
+    exemplified_by: [judge-eval-study, text-preference-rlhf]
+
+  - id: cross-family-judges
+    name: Cross-Family Judges / Checkers
+    does: >
+      When a model labels or judges, have a model of a *different* family re-label a slice, so
+      you measure quality rather than self-preference.
+    defends: [self_affinity, confounded]
+    pairs_with: [human-gold-anchor, human-audit-sample]
+    conflicts_with: []
+    cost: "A second model pass on a slice; cheap relative to humans."
+    modality_notes: "Applies wherever a model is in the labeling/judging loop, any modality."
+    exemplified_by: [judge-eval-study, synthetic-with-audit]
+
+  - id: human-audit-sample
+    name: Stratified Human Audit
+    does: >
+      Review a sample of model-produced labels, stratified by confidence and class (not random),
+      to estimate true accuracy where the model is actually weak.
+    defends: [sampling_frame, class_imbalance, unanchored]
+    pairs_with: [human-gold-anchor, cross-family-judges, active-learning-loop]
+    conflicts_with: []
+    cost: "Small but high-skill auditor time."
+    modality_notes: "Stratification axes are modality/task specific; the 'don't audit at random' rule is invariant."
+    exemplified_by: [synthetic-with-audit]
+
+  - id: lock-then-score
+    name: Lock-Then-Score (Guideline Freeze)
+    does: >
+      Freeze the rubric/guidelines and analysis plan before any labels are seen, so the bar can't
+      silently move to fit the data.
+    defends: [drift, inflation, confounded]
+    pairs_with: [gold-honeypots, qualification-calibration]
+    conflicts_with: [active-learning-loop]   # iterative guideline refinement deliberately unfreezes
+    cost: "Discipline; forces guideline work up front instead of mid-stream."
+    modality_notes: "Invariant. The tension with active learning is the interesting design choice."
+    exemplified_by: [judge-eval-study]
+
+  - id: active-learning-loop
+    name: Active-Learning Loop
+    does: >
+      Let the model pick the next items to label (most-uncertain / most-informative) instead of
+      labeling a static batch, concentrating human effort where it moves the model most.
+    defends: [class_imbalance, bottleneck]
+    pairs_with: [human-audit-sample, gold-honeypots]
+    conflicts_with: [lock-then-score]   # the guideline/sample changes as you go
+    cost: "Infra to score informativeness; risk of sampling the model's blind spots away."
+    modality_notes: "Uncertainty signal is modality-specific (entropy, margin, ensemble disagreement)."
+    exemplified_by: [synthetic-with-audit]
+
+  - id: split-isolation
+    name: Entity-Partitioned Splits
+    does: >
+      Partition data on an entity (speaker, author, document, patient, session) so the same entity
+      never appears in more than one of train/dev/test, forcing the model to learn the task instead
+      of memorizing the entity.
+    defends: [label_leakage]
+    pairs_with: [powered-eval-split, human-audit-sample]
+    conflicts_with: []
+    cost: "Needs reliable entity IDs; starves low-resource cells where entities are few."
+    modality_notes: >
+      The entity differs by modality/task — speaker (audio), author/source (text), patient (medical
+      imaging), session (logs), or the ANNOTATOR (held-out raters who produced no training data, used
+      to test the model isn't overfit to its labelers' preferences) — but the 'one entity, one split'
+      rule is invariant.
+    exemplified_by: [audio-transcription-commonvoice, demonstration-instructgpt]
+
+  - id: powered-eval-split
+    name: Power-Sized Eval Split
+    does: >
+      Size the dev/test split to a statistical target (confidence level + margin of error) rather
+      than an arbitrary percentage, so eval conclusions are actually supported.
+    defends: [underpowered]
+    pairs_with: [split-isolation, human-gold-anchor, inter-annotator-agreement]
+    conflicts_with: []
+    cost: "Up-front stats; can demand more held-out data than a small corpus can spare."
+    modality_notes: >
+      The power calc depends on the metric's variance (accuracy, WER, IoU, κ), but 'size it for a
+      target, don't eyeball it' is invariant.
+    exemplified_by: [audio-transcription-commonvoice]
+
+  - id: order-randomization
+    name: Order / Position Randomization
+    does: >
+      Present items (or A/B options) in random order so the position or popularity of an item can't
+      leak into the judgment — kills "hedging" early-item effects and popularity bias.
+    defends: [priming, confounded]
+    pairs_with: [multi-annotator-aggregate, pooled-sampling]
+    conflicts_with: []
+    cost: "Near-zero; just shuffle. Loses any genuine efficiency from a helpful ordering."
+    modality_notes: >
+      Same idea everywhere: A/B side-randomization (preference), random doc order (relevance),
+      shuffled item order (classification). Cross-validated by text-preference-rlhf and relevance-pooling-trec.
+    exemplified_by: [relevance-pooling-trec, text-preference-rlhf]
+
+  - id: dedup-merge
+    name: De-duplicate / Merge
+    does: >
+      Detect near-duplicate items (exact, hash, or feature-similarity) and remove or merge them so they
+      don't inflate apparent volume/coverage or leak the same content across train/test splits.
+    defends: [inflation, sampling_frame, label_leakage]
+    pairs_with: [split-isolation, active-learning-loop, coverage-routing]
+    conflicts_with: []
+    cost: "A similarity pass (hashing/embeddings + threshold); risk of over-merging genuinely distinct items."
+    modality_notes: >
+      Similarity metric is modality-specific — exact/MinHash (text), perceptual-hash or feature-cosine
+      (image/video; Inception >0.97 in Kinetics), audio fingerprint — but 'don't double-count' is invariant.
+    exemplified_by: [video-action-kinetics, corpus-ingestion]
+
+  - id: execution-verification
+    name: Execution-Based Verification
+    does: >
+      Get ground truth by RUNNING the artifact against tests/specs instead of judging it — a candidate is
+      correct iff it passes. Available wherever output is executable (code, SQL, configs, formal proofs).
+    defends: [unanchored]
+    pairs_with: [human-gold-anchor, split-isolation, dedup-merge]
+    conflicts_with: []
+    cost: "Authoring comprehensive tests + a safe sandbox; WEAK tests silently pass wrong answers."
+    modality_notes: >
+      Executable artifacts only. The catch is TEST ADEQUACY: passing a weak suite != correct (SWE-bench: ~31% of
+      passes used insufficient tests; resolution rate ~3x lower once weak tests + leakage are filtered).
+    exemplified_by: [code-humaneval, code-swebench]
+
+  - id: labeling-functions
+    name: Labeling Functions / Weak Supervision
+    does: >
+      Replace per-item hand labels with programmatic heuristics (patterns, rules, KB alignment) that vote or
+      abstain; combine their noisy outputs (majority or a learned label model) into training labels.
+    defends: [bottleneck]
+    pairs_with: [multi-annotator-aggregate, human-audit-sample, dedup-merge]
+    conflicts_with: []
+    cost: >
+      SME time writing/iterating LFs; trades the labeling bottleneck for label NOISE + no gold (distant
+      supervision ~70% precision); correlated LFs double-count unless modeled. (Defends bottleneck, induces
+      confounded/unanchored.)
+    modality_notes: >
+      Heuristics are modality-specific (text patterns, KB alignment, tabular rules) but 'heuristics-vote-then-
+      denoise' is invariant. Cross-validated by Snorkel (label model) + distant supervision (KB alignment).
+    exemplified_by: [tabular-weak-supervision-snorkel, text-relation-distant-supervision]
+
+  - id: tamper-to-ground-truth
+    name: Tamper-to-Ground-Truth (Planted Errors)
+    does: >
+      Manufacture verifiable gold by deliberately INJECTING known defects (bugs, mislabels, poison) with a
+      recorded key, so a detector/critic can be scored on whether it recovers them.
+    defends: [unanchored]
+    pairs_with: [human-audit-sample, cross-family-judges, gold-honeypots]
+    conflicts_with: []
+    cost: "Planting effort; and the planted distribution may differ from natural errors (overstates real recall)."
+    modality_notes: >
+      The 'defect' is domain-specific — inserted bugs (code/CriticGPT), flipped labels (data-quality/detector),
+      poisoned samples (security) — but 'plant known errors, measure recovery' is invariant. The honest caveat
+      (planted != natural) recurs everywhere.
+    exemplified_by: [critique-criticgpt, detector-planted-mislabels]
+
+  - id: edge-case-guidelines
+    name: Edge-Case Guidelines (Iterative Refinement)
+    does: >
+      Write clear guidelines anchored by EXAMPLES — especially boundary cases that "only just" qualify — and refine
+      them iteratively: annotate, measure IAA, discuss disagreements, update the rule book, repeat.
+    defends: [under_specification, over_specification]
+    pairs_with: [inter-annotator-agreement, tiered-adjudication, multi-annotator-aggregate]
+    conflicts_with: [lock-then-score]   # iterative refinement deliberately unfreezes the rubric
+    cost: "Multiple annotation rounds + expert adjudication before the labels even count."
+    modality_notes: >
+      Edge cases are domain-specific (which content 'just crosses the line'; which clinical mention is an event) but
+      'anchor with examples + refine on disagreements' is invariant. Cross-validated by content-moderation + clinical.
+    exemplified_by: [content-moderation-abuse, clinical-annotation-guidelines]
+
+  - id: annotator-welfare-protocol
+    name: Annotator Welfare Protocol
+    does: >
+      Protect annotators exposed to harmful/distressing content — warnings, exposure limits, breaks, counseling,
+      well-being surveys, content-masking tools, and time-based (not quota) pay.
+    defends: []   # guards the HUMANS, not a data-quality signature
+    pairs_with: [tiered-adjudication, audit-sampling]
+    conflicts_with: []
+    cost: "Counseling/wellness programs + reduced throughput from exposure limits; the ethical floor for harmful-content work."
+    modality_notes: >
+      Applies to any harmful-content workflow (text abuse, image/video moderation, red-team). Masking tools are
+      modality-specific (text redaction, image blurring); the duty-of-care is invariant. Lives in cost_profile per schema convention.
+    exemplified_by: [redteam-adversarial-dialogue, content-moderation-welfare-ops]
+
+  - id: model-in-the-loop-adversarial
+    name: Model-in-the-Loop Adversarial Elicitation
+    does: >
+      Put a target model in the collection loop and have humans craft inputs that fool/beat it — yielding hard,
+      discriminative examples (and a moving target as models improve). (Subsumes the earlier `adversarial-pairing` candidate.)
+    defends: []   # not a guard — a hard-example generation strategy
+    pairs_with: [human-gold-anchor, tamper-to-ground-truth]
+    conflicts_with: []
+    cost: "Needs a live model in the loop; the collected distribution is ADVERSARIAL, not natural (induces sampling_frame)."
+    modality_notes: >
+      The 'beat the model' signal is task-specific — more-harmful-of-two (red-team), fool-the-classifier (ANLI) —
+      but human-vs-model-in-the-loop is invariant.
+    exemplified_by: [redteam-adversarial-dialogue, adversarial-nli-anli]
+
+  - id: coverage-routing
+    name: Coverage Routing
+    does: >
+      Track which strata/cells are under-represented and route the NEXT collection/labeling to fill the thinnest
+      ones (rare classes, missing modalities, uncovered signatures) — active sampling for COVERAGE, not uncertainty.
+    defends: [class_imbalance, sampling_frame]
+    pairs_with: [active-learning-loop, dedup-merge, human-audit-sample]
+    conflicts_with: []
+    cost: "A live coverage map + the discipline to seek hard-to-find rare cells (which cost more per item)."
+    modality_notes: >
+      Strata differ (object classes, demographics, signature×modality cells) but 'measure coverage, fill the thinnest
+      cell next' is invariant. Distinct from active-learning-loop (coverage vs model-uncertainty).
+    exemplified_by: [corpus-ingestion, pointcloud-detection-nuscenes]
+
+  - id: engagement-gate
+    name: Engagement / Attention Gate
+    does: >
+      Verify the annotator actually engaged with THIS item — attention/instructional checks, reverse-coded traps,
+      whole-item completion ('did it last the whole clip?'), minimum time-on-task — and drop/flag those who didn't.
+    defends: [gaming, inflation]
+    pairs_with: [gold-honeypots, qualification-calibration]
+    conflicts_with: []
+    cost: "Authoring checks; an arms race (sophisticated gamers learn them); some false flags on fast-but-honest workers."
+    modality_notes: >
+      The check is modality-specific — trap question (text/survey), 'did it last the whole clip?' (video/audio),
+      watch-time (time-based media) — but 'confirm engagement with this item' is invariant.
+    exemplified_by: [crowd-quality-mturk, video-action-kinetics]
+
+  - id: pooled-sampling
+    name: Pooled Sampling (Judge the Union, Reuse)
+    does: >
+      Instead of judging the whole space, judge only the UNION of what the candidate systems produced/retrieved,
+      then reuse those judgments to score all systems — including ones absent from the pool.
+    defends: [bottleneck]   # judging the union (not everything) makes large-scale eval tractable
+    pairs_with: [order-randomization, human-gold-anchor]
+    conflicts_with: []
+    cost: "Pooling BIAS — systems that surface relevant items OUTSIDE the pool are underrated (a sampling_frame cost)."
+    modality_notes: >
+      Canonical in IR (judge top-k of each run, reuse qrels); generalizes to model-comparison eval (judge the union of
+      outputs the candidate models produced, reuse the rubric across them). 'Don't judge the whole space' is invariant.
+    exemplified_by: [relevance-pooling-trec, judge-eval-study]

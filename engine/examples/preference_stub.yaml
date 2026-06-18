@@ -1,0 +1,9 @@
+# A preference-collection workflow (RLHF-like), with a real skeleton filled in.
+# Use this to exercise modality-shift / flip / actor-substitute.
+goal: Collect pairwise preference data to train a reward model
+modality: text
+task_structure: preference_ranking
+annotator_structure: crowd
+qa_mechanism: [gold_honeypots, agreement, qualification_calibration]
+uses_patterns: [gold-honeypots, qualification-calibration, inter-annotator-agreement, human-gold-anchor]
+addressed_signatures: []

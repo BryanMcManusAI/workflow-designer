@@ -1,0 +1,75 @@
+id: image-classification-imagenet
+title: Crowdsourced Image Classification against an Ontology (ImageNet)
+modality: image
+task_structure: classification
+annotator_structure: crowd
+lineage: deng et al. 2009 (ImageNet)
+qa_mechanism: [consensus_threshold, agreement]
+failure_signatures: [under_specification, sampling_frame, class_imbalance]
+uses_patterns: [multi-annotator-aggregate, inter-annotator-agreement]
+distinctive: >
+  Verify candidate web images against a WordNet ONTOLOGY ('is this a <synset>?'), with a DYNAMIC vote
+  budget — at least ~10 Turker votes per image, and harder synsets keep collecting votes until a
+  confidence threshold is met. Scaled to 12M images / 22k categories at ~99.7% reported precision.
+
+provenance_meta:
+  source: "Deng et al., ImageNet: A Large-Scale Hierarchical Image Database, CVPR 2009"
+  extraction_confidence: medium-high (grounded via the paper's reported method)
+  provenance: extracted-then-audited
+  dedup_hint: "2nd VISION recipe (after image-bbox-adjudicated); distinct — classification against an ontology with dynamic-confidence voting, not box adjudication"
+
+decision: >
+  Build a massive labeled image set by crowd-verifying candidate images against WordNet synsets, spending
+  more votes where agreement is low.
+
+inputs:
+  - source: candidate web images per WordNet synset
+    provenance: web image search per synset query
+    assumption: web-sourced candidates represent the concept (introduces web/search bias)
+
+actors:
+  - role: AMT Turkers
+    does: vote whether an image depicts the given synset
+    type: human (crowd)
+
+steps:
+  - query the web for candidate images per WordNet synset
+  - collect ≥~10 Turker votes per image
+  - compute a confidence score from vote consensus
+  - keep voting on harder synsets until a confidence threshold is reached
+  - roll labels up the WordNet hierarchy
+
+quality_gates:
+  - gate: dynamic-confidence voting
+    checks: collect votes until a confidence threshold (more for ambiguous synsets)
+    catches: under_specification (spend effort where annotators disagree) [REPORTED]
+  - gate: multi-vote consensus
+    checks: ≥~10 independent votes per image
+    catches: label noise [REPORTED]
+
+output:
+  shape: synset-labeled images (+ confidence) rolled up the WordNet hierarchy
+  consumed_by: image-classifier training/eval
+
+failure_modes:
+  - signature: under_specification
+    evidence: REPORTED
+    description: Some synsets are visually ambiguous / overlap; harder categories need many more votes to settle.
+    caught_by: dynamic-confidence voting
+  - signature: sampling_frame
+    evidence: INFERRED
+    description: Candidates come from web image search, biasing toward canonical/photogenic instances. (Inferred.)
+    caught_by: UNGUARDED
+  - signature: class_imbalance
+    evidence: INFERRED
+    description: WordNet synsets vary enormously in available web images. (Inferred.)
+    caught_by: UNGUARDED
+
+cost_profile:
+  throughput: massive crowd; cost scales with the dynamic vote budget
+  bottleneck: vote volume on ambiguous synsets
+  human_cost: distributed crowd; low welfare risk
+
+provenance: >
+  Extracted from Deng et al. 2009. 2nd vision recipe — the canonical ontology-anchored, dynamic-confidence
+  crowd classification. Pairs with image-bbox-adjudicated to give the vision section depth.

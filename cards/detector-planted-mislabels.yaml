@@ -1,0 +1,86 @@
+id: detector-planted-mislabels
+title: Planted-Mislabel Injection for Bad-Data Detection
+modality: tabular            # labeled records (text/tabular); the detector flags mislabeled items
+task_structure: classification   # the data under audit is classification labels
+annotator_structure: model_as_annotator   # a detector flags suspect labels; humans plant the known errors
+qa_mechanism: [gold_honeypots, audit_sampling]   # planted mislabels = known-answer gold; audit recovery
+failure_signatures: [sampling_frame, unanchored, confounded]
+uses_patterns: [tamper-to-ground-truth, human-audit-sample, cross-family-judges]
+# tamper-to-ground-truth: 2nd exemplar (after critique-criticgpt) → PROMOTE
+
+provenance_meta:
+  source: "Bryan's PUBLIC detector-demo (github.com/BryanMcManusAI/detector-demo) — stdlib, synthetic, MIT — plus the general planted-mislabel evaluation technique"
+  extraction_confidence: high (own public artifact; internal/proprietary specifics deliberately excluded)
+  provenance: own-work (public, scrubbed)
+  dedup_hint: "shares tamper-to-ground-truth with critique-criticgpt and the audit skeleton with synthetic-with-audit; distinct as a DETECTOR-evaluation workflow (measure recovery of known-bad labels)"
+
+decision: >
+  Measure how well a bad-data detector catches mislabeled training items, by planting KNOWN mislabels and
+  checking how many it recovers — so detector quality is itself verifiable.
+
+inputs:
+  - source: a clean(ish) labeled dataset
+    provenance: existing labels
+    assumption: base labels are mostly correct, so planted errors are detectable signal (not noise on noise)
+  - source: planted mislabels (corrupted labels with a recorded ground-truth flip)
+    provenance: injected by the evaluator (e.g., flip to a plausible "lenient" wrong class)
+    assumption: planted errors resemble the real errors you want caught (the central caveat — same as CriticGPT)
+
+actors:
+  - role: evaluator
+    does: plant known mislabels (record what/where), set the detection bar
+    type: human
+  - role: detector
+    does: score each item's label-suspiciousness; flag likely-bad
+    type: model/heuristic
+
+steps:
+  - take a labeled dataset; record current labels
+  - plant a known set of mislabels (e.g., lenient flips), keeping a ground-truth key
+  - run the detector to flag suspected-bad items
+  - measure recovery (recall on planted) + false-positive rate; tune the bar
+  - (CI mode) gate a batch: block it from training if flagged-bad rate exceeds a threshold
+
+quality_gates:
+  - gate: tamper-to-ground-truth (planted key)
+    checks: a recorded ground-truth flip exists, so detector recall is directly measurable
+    catches: unanchored (gives the detector a verifiable target) [REPORTED — demo recovers 4/4 planted lenient mislabels]
+  - gate: cross-family / held-out check
+    checks: don't evaluate the detector only with its own family/heuristic
+    catches: self_affinity, confounded
+  - gate: data-batch gate (--max-bad-rate)
+    checks: block a batch from training when flagged-bad rate exceeds the bar
+    catches: shipping a corrupted batch downstream
+
+output:
+  shape: detector recall/FP on the planted set + per-item bad-label flags (+ a CI pass/fail gate)
+  consumed_by: data-quality assurance before training; the detector's own calibration
+
+failure_modes:
+  - signature: sampling_frame
+    evidence: REPORTED (general + own)
+    description: >
+      Planted mislabels may not match the distribution of NATURAL mislabels (the exact caveat CriticGPT reports for
+      tampered bugs) — high recovery on planted errors can overstate real-world catch rate.
+    caught_by: UNGUARDED (mitigate by planting realistic error types + auditing natural cases too)
+  - signature: unanchored
+    evidence: REPORTED
+    description: >
+      Without the planted key there's no ground truth on the detector's flags — you can't tell a true catch from a
+      false positive. The planted key is exactly what anchors detector evaluation.
+    caught_by: tamper-to-ground-truth
+  - signature: confounded
+    evidence: INFERRED
+    description: If the planting heuristic and the detector share assumptions, the detector "catches" its own planting style. (Inferred.)
+    caught_by: cross-family / held-out check
+
+cost_profile:
+  throughput: high — planting + detection automated; the public demo is stdlib/deterministic
+  bottleneck: designing realistic planted-error types; auditing natural errors to validate the proxy
+  human_cost: low; the skill is in making planted errors resemble real ones
+
+provenance: >
+  Distilled from Bryan's PUBLIC detector-demo (synthetic, stdlib, MIT; recovers 4/4 planted lenient mislabels;
+  --max-bad-rate CI gate) + the general planted-mislabel technique. Internal/proprietary specifics excluded.
+  2nd `tamper-to-ground-truth` exemplar → promoting the pattern. First own-work card; links the corpus to the
+  bad-data-detector portfolio thread.

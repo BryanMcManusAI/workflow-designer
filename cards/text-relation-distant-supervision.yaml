@@ -1,0 +1,73 @@
+id: text-relation-distant-supervision
+title: Distant Supervision for Relation Extraction (KB Alignment)
+modality: text
+task_structure: extraction
+annotator_structure: programmatic       # the new vocab value: KB-alignment labeling, no hand labels
+qa_mechanism: [agreement]               # bag-level aggregation over sentences mentioning the entity pair
+failure_signatures: [confounded, unanchored, class_imbalance]
+uses_patterns: [labeling-functions, multi-annotator-aggregate]
+
+provenance_meta:
+  source: "Mintz et al., Distant supervision for relation extraction without labeled data, ACL 2009"
+  extraction_confidence: medium-high (grounded via the paper's widely-reported findings)
+  provenance: extracted-then-audited
+  dedup_hint: "2nd labeling-functions exemplar after Snorkel; distant supervision is the canonical weak-supervision precursor (KB alignment as the labeling heuristic)"
+
+decision: >
+  Auto-label a large relation-extraction training set without hand annotation, by aligning text to a
+  knowledge base.
+
+inputs:
+  - source: a text corpus + a knowledge base (e.g., Freebase) of known entity-relation facts
+    provenance: existing KB + raw text
+    assumption: >
+      THE DISTANT-SUPERVISION ASSUMPTION — if two entities are in a relation in the KB, every sentence mentioning
+      both expresses that relation (deliberately too strong — the central failure)
+
+actors:
+  - role: alignment heuristic (the labeling function)
+    does: label sentences containing a KB entity pair with that pair's relation
+    type: programmatic
+  - role: feature aggregator
+    does: combine features across the "bag" of sentences for an entity pair
+    type: process
+
+steps:
+  - take KB facts (entity1, relation, entity2)
+  - find all sentences mentioning both entities
+  - label them all with that relation (the heuristic)
+  - aggregate features across the bag; train the extractor
+
+quality_gates:
+  - gate: bag-level aggregation
+    checks: combine many sentences per entity pair to dilute individual mislabels
+    catches: confounded (PARTIAL) [REPORTED — the multi-instance idea]
+
+output:
+  shape: heuristically-labeled (sentence, relation) pairs
+  consumed_by: relation-extractor training
+
+failure_modes:
+  - signature: confounded
+    evidence: REPORTED
+    description: >
+      Entity co-occurrence is confounded with relation-expression — "all sentences mentioning the pair express the
+      relation" is too strong; alignment precision was only ~70%, with >30% noisy instances.
+    caught_by: bag-level aggregation (partial; spawned a whole multi-instance-learning literature)
+  - signature: unanchored
+    evidence: REPORTED
+    description: Labels come entirely from the KB heuristic with no hand-labeled ground truth to anchor them.
+    caught_by: UNGUARDED (by design)
+  - signature: class_imbalance
+    evidence: INFERRED
+    description: KB coverage is uneven across relations; rare relations get few/no aligned sentences. (Inferred.)
+    caught_by: UNGUARDED
+
+cost_profile:
+  throughput: very high — labels a whole corpus from a KB, no per-item human cost
+  bottleneck: KB coverage + the heuristic's precision
+  human_cost: shifts effort from labeling to curating the KB + heuristic
+
+provenance: >
+  Grounded in Mintz et al. 2009 via search. 2nd `labeling-functions` exemplar (KB alignment as the weak labeler)
+  → promoting the pattern. Uses the new `programmatic` annotator_structure; adds depth to the extraction task.

@@ -1,0 +1,101 @@
+id: judge-eval-study
+title: LLM-as-Judge Evaluation Study
+domain: research
+modality: text
+task_structure: rubric_rating              # also yields preference/ranking eval data
+annotator_structure: model_as_annotator    # model judges + human gold audit
+qa_mechanism: [gold_honeypots, agreement, guideline_freeze]
+failure_signatures: [self_affinity, inflation, unanchored, underpowered, priming]
+uses_patterns: [cross-family-judges, human-gold-anchor, lock-then-score, inter-annotator-agreement, pooled-sampling]  # judge the union of produced outputs across the model grid, reuse the rubric
+
+decision: >
+  Produce a defensible score (or ranking) of model outputs on some quality dimension,
+  reliable enough to make a claim about how models differ.
+
+inputs:
+  - source: model outputs generated under a fixed prompt protocol
+    provenance: produced in-study, so generation is controlled
+    assumption: the prompt set is representative of what you want to claim about
+  - source: a scoring rubric
+    provenance: authored before scoring
+    assumption: the rubric actually discriminates quality (often untested)
+
+actors:
+  - role: generator models
+    does: produce the outputs under test
+    type: model
+  - role: judge model(s)
+    does: score each output against the rubric
+    type: model
+  - role: human gold raters
+    does: blind-score a sample to validate the judge
+    type: human
+
+steps:
+  - pre-register the hypothesis, rubric, and analysis plan (lock before any data is seen)
+  - generate outputs across the model x condition grid
+  - shuffle/blind so the judge cannot see model identity or item order signal
+  - judge scores every cell, ideally with >=2 judges of different families
+  - a human gold sample is blind-scored independently
+  - compute judge-vs-human agreement (IRR) and judge-vs-judge agreement
+  - only then read the results against the pre-registered plan
+
+quality_gates:
+  - gate: lock-then-score
+    checks: rubric and analysis plan are frozen before any scores are seen
+    catches: drift, inflation, confounded
+  - gate: blind scoring
+    checks: judge and humans cannot see model identity or position
+    catches: priming, self_affinity
+  - gate: cross-family judges
+    checks: a second judge from a different model family scores the same cells
+    catches: self_affinity
+  - gate: human gold IRR
+    checks: model judge agreement with blind human raters on a sample
+    catches: unanchored
+  - gate: power check
+    checks: enough cells/reps for the effect being claimed
+    catches: underpowered
+
+output:
+  shape: per-cell scores + agreement statistics + a pass/fail against the pre-registered claim
+  consumed_by: the writeup / decision about which model to use
+
+failure_modes:
+  - signature: self_affinity
+    description: >
+      A judge rates outputs from its own model family higher. Observed directly in Bryan's
+      program: a GPT-4o judge showed +0.74 self-affinity while a Claude judge ran self-critical
+      at -0.26. If generator and judge share a family, you measure self-preference, not quality.
+    caught_by: cross-family judges + blind scoring
+  - signature: unanchored
+    description: >
+      Raw judge scores are trusted with no human ground truth, so you cannot tell whether the
+      judge tracks quality at all. The fix that recurs across the program is a small blind
+      human-rated gold set.
+    caught_by: human gold IRR
+  - signature: inflation
+    description: >
+      Panel scores drift upward and compress at the top; everything reads as "good." Worse when
+      scoring is relative and unanchored to exemplars.
+    caught_by: lock-then-score (rubric + anchor exemplars frozen first)
+  - signature: priming
+    description: >
+      The first item seen sets the bar for the rest; item order leaks into scores. A real
+      confound that forced a v2 redesign in one study.
+    caught_by: blind scoring (shuffle order, hide identity)
+  - signature: underpowered
+    description: >
+      A confident model-ranking claim drawn from too few cells. Tight nulls and chance-level
+      adjacencies hide in small n.
+    caught_by: power check
+
+cost_profile:
+  throughput: hundreds of cells per run; cheap if the judge is a model
+  bottleneck: the human gold sample (slowest, but the gate everything else leans on)
+  human_cost: rubric authoring up front + blind gold scoring of a sample
+
+provenance: >
+  Distilled from Bryan's own eval program (judge-auditor, manipulation red-team, philosophy
+  red-team, Prompt-Your-Way-To panels). The failure modes and the gates that catch them are
+  hard-won, not synthetic — which makes this card the seed of the experimental-design vertical.

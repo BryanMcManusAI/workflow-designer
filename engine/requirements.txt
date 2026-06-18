@@ -1,0 +1,4 @@
+# Public portfolio demo (engine/portfolio_app.py) — runtime deps only.
+# The engine is stdlib + reads the committed index.json, so streamlit is all that's needed.
+# (PyYAML is only needed at build time to regenerate index.json via build_index.py.)
+streamlit>=1.40

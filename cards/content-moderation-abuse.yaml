@@ -1,0 +1,105 @@
+id: content-moderation-abuse
+title: Abusive-Language / Hate-Speech Annotation
+modality: text
+task_structure: classification
+annotator_structure: multi_aggregate     # majority vote; expert-vs-crowd-vs-pro is a key choice
+qa_mechanism: [agreement, consensus_threshold]
+failure_signatures: [drift, under_specification, over_specification, sampling_frame, confounded, class_imbalance, bottleneck]
+uses_patterns: [multi-annotator-aggregate, inter-annotator-agreement, edge-case-guidelines]
+# edge-case-guidelines = CANDIDATE pattern surfaced here
+
+provenance_meta:
+  source: "Vidgen & Derczynski, Directions in Abusive Language Training Data: A Systematic Review (Garbage In, Garbage Out), PLoS ONE 2020"
+  extraction_confidence: high
+  provenance: extracted-then-audited (review of 63 datasets → canonical workflow)
+  dedup_hint: "shares the multi-annotator majority-vote skeleton with text-preference-rlhf and image-bbox; distinct in the subjectivity + decay profile"
+
+decision: >
+  Label text as abusive/hateful (binary or by taxonomy) to train moderation classifiers, where
+  "abuse" is an inherently contested, context-dependent judgment.
+
+inputs:
+  - source: social-media text (Twitter dominates — 39 of 63 datasets)
+    provenance: keyword/boolean sampling, often during a specific event
+    assumption: the keywords + window represent real abuse (frequently false — the central bias)
+  - source: a guideline + taxonomy
+    provenance: 43% of datasets ship NO guidelines; only 25% detailed
+    assumption: annotators share a definition of "abuse" (contested)
+
+actors:
+  - role: annotators (crowd, expert, or professional moderators)
+    does: label each item against the taxonomy
+    type: human
+  - role: aggregator
+    does: majority-vote; vote proportion ~ soft severity signal
+    type: process
+
+steps:
+  - sample content (keywords / event window) — the step that bakes in most bias
+  - choose annotator type (experts beat amateurs on quality; pro moderators are output-focused)
+  - annotate against guidelines (ideally with edge-case examples)
+  - majority-vote aggregate; track inter-annotator agreement
+  - release (often as IDs → later rehydration)
+
+quality_gates:
+  - gate: multi-annotator majority vote
+    checks: combine ≥3 annotators; vote proportion as soft severity
+    catches: under_specification (averages out subjectivity)
+  - gate: inter-annotator agreement
+    checks: report κ/α (often low for non-binary taxonomies)
+    catches: under_specification (measures it)
+  - gate: edge-case guidelines
+    checks: clear guidelines WITH examples that "only just cross the line"
+    catches: under_specification, over_specification
+
+output:
+  shape: abuse labels (+ vote proportion) per item
+  consumed_by: moderation classifier training
+
+failure_modes:
+  - signature: drift
+    evidence: REPORTED
+    description: >
+      Dataset DECAY: ID-only releases lose content (Mathew et al. counterspeech lost >60% in 12 months),
+      and the class distribution + qualitative nature shift over time (overt abuse is removed faster than covert).
+    caught_by: UNGUARDED
+  - signature: over_specification
+    evidence: REPORTED
+    description: >
+      A complex taxonomy "is only suitable for ML if there are enough data points in each category and if
+      annotators can consistently distinguish between them" — rich schemas become non-implementable.
+    caught_by: UNGUARDED (in live tension with under_specification)
+  - signature: under_specification
+    evidence: REPORTED
+    description: >
+      Low IAA is endemic — abuse is "inherently subjective, contextual, political"; irony/sarcasm/intent are
+      hard; some guidelines just say label "according to your opinion."
+    caught_by: edge-case guidelines + majority vote (raise the floor, don't close it)
+  - signature: confounded
+    evidence: REPORTED
+    description: >
+      Creator homogeneity — 70% of sexist / 99% of racist tweets in the Waseem-Hovy set come from 1-2 users —
+      makes "user-level metadata artificially highly predictive of abuse" (the model learns the author).
+    caught_by: UNGUARDED
+  - signature: sampling_frame
+    evidence: REPORTED
+    description: >
+      Keyword oversampling drives racial bias; Twitter over-represented; far-right oversampled vs far-left;
+      event-window sampling kills generalisability.
+    caught_by: UNGUARDED
+  - signature: class_imbalance
+    evidence: REPORTED
+    description: 'Datasets are "radically unrepresentative" of real (<1%) abuse prevalence, so eval ≠ deployment.'
+    caught_by: UNGUARDED
+
+cost_profile:
+  throughput: varies (crowd cheap/fast; expert slow)
+  bottleneck: '"high-quality data requires volumes of painstaking labour and deep expertise"; ethical crowd pay ≈ expert cost'
+  human_cost: >
+    WELFARE-CRITICAL — authors stress the "harmful and potentially triggering effects of annotating online
+    abuse" and urge emotional/practical support + fair pay. (Welfare captured here per the cost_profile convention.)
+
+provenance: >
+  Extracted from Vidgen & Derczynski (PLoS ONE 2020) via EXTRACTION_PROMPT, audited. Fills the
+  over_specification gap (was 0) with a REPORTED statement, plus drift (decay) and bottleneck, and
+  exercises the welfare prose convention. Surfaced candidate pattern edge-case-guidelines.

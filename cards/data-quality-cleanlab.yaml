@@ -1,0 +1,77 @@
+id: data-quality-cleanlab
+title: Find NATURAL Label Errors via Confident Learning (CleanLab)
+modality: tabular
+task_structure: classification
+annotator_structure: model_as_annotator
+lineage: northcutt et al. 2021 (confident learning / cleanlab)
+qa_mechanism: [audit_sampling, agreement]
+failure_signatures: [confounded, unanchored, sampling_frame]
+uses_patterns: [human-audit-sample, cross-family-judges]
+distinctive: >
+  Find the label errors ALREADY in a dataset (no planting). Confident learning uses a model's predicted
+  class probabilities + per-class confidence thresholds to flag likely-mislabeled items, then HUMANS validate
+  the flagged subset (~51% of flags confirmed real). Found ~3.4% errors across 10 famous test sets (even MNIST).
+
+provenance_meta:
+  source: "Northcutt et al., Pervasive Label Errors in Test Sets Destabilize ML Benchmarks, NeurIPS 2021 (cleanlab)"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "2nd DATA-QUALITY recipe (after detector-planted-mislabels); the inverse — detect NATURAL errors you don't know about, vs measuring recall on PLANTED ones"
+
+decision: >
+  Surface and correct the mislabeled items already present in a dataset, by ranking label-error candidates
+  with confident learning and human-validating the top flags.
+
+inputs:
+  - source: a labeled dataset + a model's out-of-sample predicted probabilities
+    provenance: cross-validated model predictions
+    assumption: the model is good enough that its confident disagreements indicate label errors (circular if it shares the error)
+
+actors:
+  - role: confident-learning algorithm
+    does: flag likely-mislabeled items from predicted-prob vs given-label disagreement
+    type: model
+  - role: human validators
+    does: confirm/reject the flagged candidates (crowdsourced)
+    type: human
+
+steps:
+  - get out-of-sample predicted probabilities (cross-validation)
+  - apply confident learning to rank label-error candidates
+  - human-validate the flagged subset
+  - correct or remove confirmed errors; re-benchmark
+
+quality_gates:
+  - gate: human validation of flags
+    checks: humans confirm flagged candidates (only ~51% are real)
+    catches: unanchored / false flags [REPORTED]
+  - gate: out-of-sample / cross-family predictions
+    checks: use a model that didn't train on the item (ideally a different family)
+    catches: confounded (model 'confidently' reproducing the error) [REPORTED]
+
+output:
+  shape: ranked label-error candidates + human-confirmed corrections
+  consumed_by: dataset cleaning; benchmark re-scoring
+
+failure_modes:
+  - signature: confounded
+    evidence: REPORTED
+    description: Confident learning leans on the model's own probabilities — if the model shares the systematic error, it won't flag it (a blind spot it can't see).
+    caught_by: cross-family / out-of-sample predictions
+  - signature: unanchored
+    evidence: REPORTED
+    description: There's no a-priori ground truth; only ~51% of algorithmic flags are confirmed errors, so human validation is mandatory.
+    caught_by: human validation of flags
+  - signature: sampling_frame
+    evidence: INFERRED
+    description: Errors the model is confident about get flagged; errors it's also uncertain on slip through. (Inferred.)
+    caught_by: UNGUARDED
+
+cost_profile:
+  throughput: high — algorithmic flagging; humans only validate the top candidates
+  bottleneck: human validation of flagged subset + getting good out-of-sample probabilities
+  human_cost: small, targeted validation
+
+provenance: >
+  Extracted from Northcutt et al. 2021. 2nd data-quality recipe — finds NATURAL errors via confident learning,
+  the complement to detector-planted-mislabels (which measures recall on KNOWN planted errors). Both are Bryan's world.

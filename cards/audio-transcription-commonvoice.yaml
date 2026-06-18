@@ -1,0 +1,111 @@
+id: audio-transcription-commonvoice
+title: Crowdsourced Read-Speech Corpus with Vote Validation (Common Voice)
+modality: audio
+task_structure: transcription_translation   # read-speech: contributors read given sentences; data = audio<->transcript pairs for ASR
+annotator_structure: crowd
+qa_mechanism: [consensus_threshold, agreement]
+failure_signatures: [class_imbalance, label_leakage, under_specification, sampling_frame, unanchored]
+uses_patterns: [multi-annotator-aggregate, inter-annotator-agreement, split-isolation, powered-eval-split]
+# split-isolation + powered-eval-split: PROMOTED into library.yaml (this pilot surfaced them)
+
+provenance_meta:
+  source: "Ardila et al., Common Voice: A Massively-Multilingual Speech Corpus, arXiv:1912.06670"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "closest skeleton = text-preference-rlhf (crowd + vote aggregation + released vote counts); distinct task+modality => NEW card, not a duplicate"
+
+decision: >
+  Produce validated <audio, transcript> pairs at massive multilingual scale to train/eval ASR,
+  where validity = the spoken audio matches the displayed sentence.
+
+inputs:
+  - source: text sentences (Wikipedia via per-language rulesets; community Sentence Collector)
+    provenance: pre-validated — auto-checks (length, foreign alphabets, numbers) + 2-of-3 reviewer approval before a sentence is recordable
+    assumption: approved sentences are clean, in-language, readable [REPORTED gate]
+  - source: audio recordings of those sentences
+    provenance: 50,000+ volunteer contributors read aloud on web / iPhone app
+    assumption: volunteers represent the speakers the ASR will serve (the hidden risk)
+
+actors:
+  - role: sentence reviewers
+    does: approve candidate sentences (2 of 3) into the recordable pool
+    type: human (crowd)
+  - role: speaker-contributors
+    does: read displayed sentences aloud to create clips
+    type: human (crowd)
+  - role: clip validators
+    does: up/down-vote whether a clip matches its transcript
+    type: human (crowd)
+
+steps:
+  - source + auto-filter sentences; 2-of-3 reviewers approve (min 5,000 sentences to launch a language)
+  - contributors record clips by reading approved sentences
+  - up to 3 validators vote per clip; first to two up-votes => valid; two down-votes => invalid; else "other"
+  - release vote counts with the data; bucket speakers so any speaker appears in only one split
+  - size dev/test splits by power analysis (99% confidence, 1% margin); de-dup repeated sentences across splits
+
+quality_gates:
+  - gate: sentence pre-approval (2-of-3 + auto-checks)
+    checks: only clean in-language sentences become recordable
+    catches: under_specification (bad prompts) [REPORTED]
+  - gate: 2-of-3 clip vote (early-stopping consensus)
+    checks: a clip is valid only on majority agreement
+    catches: under_specification, label noise [REPORTED]
+  - gate: speaker-bucketing across splits
+    checks: no speaker in more than one of train/dev/test
+    catches: label_leakage [REPORTED]
+  - gate: powered split sizing
+    checks: dev/test sized for a target confidence / margin
+    catches: underpowered [REPORTED]
+
+output:
+  shape: <audio, transcript> pairs + up/down vote counts + optional demographics (age/gender/accent) + split label
+  consumed_by: ASR model training and evaluation
+
+failure_modes:
+  - signature: class_imbalance
+    evidence: REPORTED
+    description: >
+      Extreme coverage variance — English 780 validated hours vs Abkhaz <1; low-resource languages
+      have almost no speaker diversity (Slovenian 3 unique train speakers, Irish 6), so ASR can't
+      generalize there.
+    caught_by: UNGUARDED (reported as a limitation, not solved in-corpus)
+  - signature: label_leakage
+    evidence: REPORTED
+    description: >
+      Same speaker in train + test would inflate ASR scores (model recognizes the voice, not the language).
+    caught_by: speaker-bucketing
+  - signature: instrumentation-bug   # NOTE: no clean match in the 13-signature vocab
+    evidence: REPORTED
+    description: >
+      Early voting mechanism had bugs; some clips received >3 votes, resolved by simple majority.
+      An implementation defect, not a systematic data-quality signature.
+    caught_by: post-hoc simple-majority rule
+  - signature: under_specification
+    evidence: INFERRED
+    description: >
+      Binary up/down conflates "wrong words" with "heavy accent / bad audio"; no rubric separates them.
+      Source does not report this.
+    caught_by: UNGUARDED
+  - signature: sampling_frame
+    evidence: INFERRED
+    description: >
+      Self-selected volunteers + Wikipedia sentences bias speaker and domain distribution away from
+      deployment. Source notes optional demographics but does NOT report representativeness bias.
+    caught_by: UNGUARDED
+  - signature: unanchored
+    evidence: INFERRED
+    description: >
+      Validity is pure crowd consensus with no expert/gold reference; no ground truth on the validators.
+      Not reported.
+    caught_by: UNGUARDED
+
+cost_profile:
+  throughput: massive, fully crowdsourced; near-zero marginal cost per clip
+  bottleneck: validator attention in low-resource languages (too few contributors to reach 2 votes)
+  human_cost: distributed across volunteers; scarce resource = contributors per language
+
+provenance: >
+  Extracted from arXiv:1912.06670 via the ingestion EXTRACTION_PROMPT, then audited. Failure modes
+  tagged REPORTED vs INFERRED; promoted to war-story on the REPORTED class_imbalance + leakage gates.
+  First audio-modality card; the pilot for the corpus-ingestion workflow.

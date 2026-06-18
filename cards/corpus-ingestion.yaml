@@ -1,0 +1,109 @@
+id: corpus-ingestion
+title: Corpus Ingestion — Source Documents to Curated Workflow Cards
+modality: text                 # sources are documents; produces cards about ALL modalities
+task_structure: extraction
+annotator_structure: model_as_annotator
+qa_mechanism: [audit_sampling, gold_honeypots, agreement, consensus_threshold]
+failure_signatures: [unanchored, confounded, sampling_frame, inflation, class_imbalance, self_affinity]
+uses_patterns: [human-audit-sample, cross-family-judges, human-gold-anchor, active-learning-loop, dedup-merge, coverage-routing]
+# NOTE: dedup-merge and coverage-routing are CANDIDATE patterns surfaced by designing this card
+#       (not yet in patterns/library.yaml) — the growth loop again.
+
+decision: >
+  Turn raw source documents into validated workflow cards (and candidate patterns) decomposed
+  into the schema, so the corpus can scale beyond hand-authoring without losing the
+  provenance-over-volume guarantee.
+
+inputs:
+  - source: datasheets / data cards, HuggingFace dataset cards, annotation-methodology + RLHF
+      papers, crowdsourcing/IAA literature, labeling-platform docs, Bryan's vault (211 papers)
+    provenance: mostly published / academic — skewed toward what gets written down
+    assumption: the source actually describes a DATA WORKFLOW (many papers describe the model,
+      not the data process) — the central intake risk
+
+actors:
+  - role: extractor model
+    does: read a source and propose a card (4 axes + 8 facets + candidate failure modes)
+    type: model
+  - role: second-family extractor (slice)
+    does: re-extract a sample to check the framing isn't one model's priors
+    type: model
+  - role: human curator
+    does: audit a stratified sample; verify each failure mode is REPORTED not INFERRED; promote
+      scaffolding cards to war-story cards; resolve dedup/merge
+    type: human
+
+steps:
+  - intake & triage — keep only sources that describe a data workflow; drop model-only papers
+  - extract — run EXTRACTION_PROMPT to draft a card (provenance = extracted, scaffolding)
+  - pattern-link — map gates/steps to existing patterns; flag novel structures as CANDIDATE-PATTERN
+  - dedup/merge — if the skeleton duplicates an existing card, file as an EXEMPLAR, not a new card
+  - human audit — verify REPORTED failure modes; cut/hold INFERRED ones; promote on confirmation
+  - coverage routing — check which signature x modality x task cells are thin; pull sources that
+    fill the gaps next (active-learning over sources, not more of what's covered)
+  - commit — card enters corpus with its provenance flag; candidate patterns enter a review queue
+
+quality_gates:
+  - gate: gold-set check
+    checks: extracted cards are compared against the hand-built seed cards as a gold standard
+    catches: unanchored
+  - gate: REPORTED-vs-INFERRED tagging + human audit
+    checks: every failure mode is tagged by source-evidence; only REPORTED ones make a war-story card
+    catches: unanchored, confounded (hallucinated failure modes)
+  - gate: cross-family extraction on a slice
+    checks: a second model family re-extracts; framing divergence is flagged
+    catches: self_affinity, confounded
+  - gate: dedup/merge
+    checks: near-duplicate skeletons become exemplars, not new cards
+    catches: inflation (fake coverage)
+  - gate: coverage routing
+    checks: thin signature/modality cells drive the next source pull
+    catches: class_imbalance, sampling_frame
+
+output:
+  shape: curated workflow cards (provenance-flagged) + a candidate-pattern queue + a coverage map
+  consumed_by: the corpus the creative partner runs on
+
+failure_modes:
+  - signature: unanchored
+    description: >
+      THE central risk — the extractor invents a plausible failure mode the source never reported,
+      and it enters the corpus as if observed. Kills the provenance-over-volume guarantee.
+    caught_by: REPORTED-vs-INFERRED tagging + human audit + gold-set check
+  - signature: confounded
+    description: >
+      The extractor launders its own priors about how workflows "should" work as if extracted from
+      the source (the Pop Problem, in ingestion form).
+    caught_by: cross-family extraction + human audit
+  - signature: sampling_frame
+    description: >
+      You ingest the easy-to-find sources (arXiv, HF), so the corpus over-represents well-documented
+      academic workflows and under-represents messy real-world vendor practice.
+    caught_by: coverage routing (partial — UNGUARDED for the published-vs-practiced bias itself;
+      needs deliberate non-academic source pulls)
+  - signature: inflation
+    description: >
+      The corpus bloats with near-duplicate cards that look like coverage but aren't (many papers
+      describe the same multi-annotator + adjudication skeleton).
+    caught_by: dedup-merge + coverage-by-signature accounting
+  - signature: self_affinity
+    description: >
+      If one model family extracts AND is later used in the tool, its framing dominates the corpus.
+    caught_by: cross-family extraction
+  - signature: class_imbalance
+    description: >
+      Rare task structures (red_team, 3D, transcription) are rare in sources too, so they stay
+      uncovered unless deliberately sought.
+    caught_by: coverage routing
+
+cost_profile:
+  throughput: high on extraction (cheap model passes); gated by human audit
+  bottleneck: the human curator (audit + promotion + dedup) — small but high-skill, exactly like
+    synthetic-with-audit
+  human_cost: build/maintain the gold set (the seed cards) + audit a stratified sample per batch
+
+provenance: >
+  Self-referential: this card designs the workflow that builds the corpus it belongs to. It is
+  almost entirely composed of patterns already in the library (human-audit-sample, cross-family,
+  human-gold-anchor, active-learning), which is the strongest possible evidence the patterns
+  generalize — they describe the tool's own data pipeline.

@@ -1,0 +1,78 @@
+id: instruction-openassistant
+title: Instruction Data — Community Conversation Trees (OpenAssistant)
+modality: text
+task_structure: demonstration
+annotator_structure: crowd
+lineage: openassistant / LAION (Köpf et al. 2023)
+qa_mechanism: [agreement, consensus_threshold]
+failure_signatures: [gaming, sampling_frame, under_specification]
+uses_patterns: [multi-annotator-aggregate, engagement-gate]
+distinctive: >
+  COMMUNITY-sourced — 13,500+ volunteers build conversation TREES (prompt root → branching replies),
+  write both prompter and assistant turns, and RANK assistant replies by preference. Multilingual (35
+  languages, 161k messages, 461k quality ratings). GAMIFIED: points + leaderboards drive contribution;
+  content-moderation + spam filtering guard quality.
+
+provenance_meta:
+  source: "Köpf et al., OpenAssistant Conversations — Democratizing LLM Alignment, arXiv:2304.07327"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "instruction/demonstration data like demonstration-instructgpt; the COMMUNITY-crowd variant (vs OpenAI screened contractors, vs synthetic Self-Instruct)"
+
+decision: >
+  Build an open, multilingual assistant-conversation corpus + preference rankings from a volunteer community,
+  for instruction tuning and alignment.
+
+inputs:
+  - source: volunteer-written prompter + assistant messages in tree structure
+    provenance: 13.5k+ self-selected global volunteers
+    assumption: a motivated community produces useful, on-distribution conversations (self-selection is the risk)
+
+actors:
+  - role: volunteer contributors
+    does: write prompts + replies, label quality, and rank assistant replies
+    type: human (community)
+  - role: moderation pipeline
+    does: content-moderation + spam filtering
+    type: hybrid
+
+steps:
+  - volunteers grow conversation trees (prompt → replies → replies)
+  - peers label quality + rank assistant replies by preference
+  - gamified points/leaderboards reward contribution
+  - moderation + spam filtering clean the data
+
+quality_gates:
+  - gate: peer quality ratings + rankings
+    checks: multiple volunteers rate/rank each message
+    catches: under_specification, low-quality replies [REPORTED]
+  - gate: moderation + spam filtering
+    checks: remove abusive/spam contributions
+    catches: gaming (spam) [REPORTED]
+
+output:
+  shape: conversation trees + quality labels + assistant-reply rankings (multilingual)
+  consumed_by: SFT + reward-model training
+
+failure_modes:
+  - signature: gaming
+    evidence: REPORTED
+    description: Points + leaderboards can incentivize volume over quality; spam/abuse must be filtered.
+    caught_by: moderation + spam filtering
+  - signature: sampling_frame
+    evidence: INFERRED
+    description: Self-selected volunteers skew the topic/language/style distribution away from any given deployment. (Inferred.)
+    caught_by: UNGUARDED
+  - signature: under_specification
+    evidence: INFERRED
+    description: Volunteer 'quality' judgments are subjective and variably skilled. (Inferred.)
+    caught_by: peer ratings (partial)
+
+cost_profile:
+  throughput: community-scale, near-zero marginal cost; bursty (volunteer-driven)
+  bottleneck: sustaining volunteer engagement + moderation
+  human_cost: volunteers; low pay/welfare cost but engagement is the constraint
+
+provenance: >
+  Extracted from arXiv:2304.07327. The COMMUNITY-crowd instruction-data variant. Compare with OpenAI
+  InstructGPT (screened paid contractors) and Self-Instruct (synthetic) via compare --task demonstration.

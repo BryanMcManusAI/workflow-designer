@@ -1,0 +1,76 @@
+id: instruction-self-instruct
+title: Instruction Data — Synthetic Bootstrap (Self-Instruct / Alpaca)
+modality: text
+task_structure: demonstration
+annotator_structure: model_as_annotator
+lineage: self-instruct (Wang et al. 2022); applied by Alpaca
+qa_mechanism: [agreement]
+failure_signatures: [confounded, sampling_frame, unanchored]
+uses_patterns: [dedup-merge, human-gold-anchor]
+distinctive: >
+  SYNTHETIC — start from a tiny human seed (~175 tasks), prompt the LM (8-shot) to GENERATE new
+  instructions + input/output instances, FILTER them (dedupe + quality), add back to the pool, and
+  iterate. Almost no human labeling; instruction data is bootstrapped from the model's own generations.
+
+provenance_meta:
+  source: "Wang et al., Self-Instruct: Aligning Language Models with Self-Generated Instructions, arXiv:2212.10560"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "instruction/demonstration data; the SYNTHETIC variant — model-generated from a small seed (vs OpenAI contractors, vs OpenAssistant community)"
+
+decision: >
+  Generate a large, diverse instruction-tuning set with minimal human effort by bootstrapping off the model's
+  own generations from a small seed pool.
+
+inputs:
+  - source: ~175 hand-written seed tasks
+    provenance: small human-authored seed
+    assumption: a small seed + the model can generate diverse, correct instruction data (the central bet)
+
+actors:
+  - role: seed authors
+    does: write ~175 diverse seed instructions
+    type: human
+  - role: generator LM
+    does: synthesize new instructions + input/output instances (8-shot), iteratively
+    type: model
+
+steps:
+  - hand-write ~175 seed tasks
+  - prompt the LM (few-shot) to generate new instructions + instances
+  - filter generations (dedupe near-duplicates + drop low-quality / invalid)
+  - add survivors to the task pool; repeat
+  - fine-tune on the bootstrapped data
+
+quality_gates:
+  - gate: dedupe + quality filtering
+    checks: remove near-duplicate / low-quality generated instructions
+    catches: inflation (redundant synthetic data) [REPORTED]
+
+output:
+  shape: a large synthetic (instruction, input, output) set
+  consumed_by: instruction fine-tuning (SFT)
+
+failure_modes:
+  - signature: confounded
+    evidence: REPORTED
+    description: The generator's biases + errors propagate into the data; the student inherits the teacher's blind spots.
+    caught_by: UNGUARDED (cross-family generation / human audit would help)
+  - signature: sampling_frame
+    evidence: REPORTED
+    description: Diversity is bounded by the seed + the model; whole task types the model can't imagine stay absent.
+    caught_by: dedupe (spreads coverage; doesn't add what's missing)
+  - signature: unanchored
+    evidence: INFERRED
+    description: Generated instances have no human ground-truth check beyond filtering heuristics. (Inferred.)
+    caught_by: UNGUARDED
+
+cost_profile:
+  throughput: very high — synthetic generation is cheap
+  bottleneck: generation API cost + filtering quality
+  human_cost: tiny (only the ~175-task seed)
+
+provenance: >
+  Extracted from arXiv:2212.10560 (and the Alpaca application). The SYNTHETIC instruction-data variant.
+  Compare --task demonstration: human-expert (InstructGPT) vs community (OpenAssistant) vs synthetic (this) —
+  three radically different cost/quality/coverage trades.

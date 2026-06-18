@@ -1,0 +1,78 @@
+id: clinical-chexpert-labeler
+title: Image Labels from Reports via Rule-Based NLP (CheXpert)
+modality: image
+task_structure: classification
+annotator_structure: programmatic
+lineage: irvin et al. 2019 (CheXpert)
+qa_mechanism: [agreement]
+failure_signatures: [confounded, unanchored, under_specification]
+uses_patterns: [labeling-functions, edge-case-guidelines]
+distinctive: >
+  Don't label the images at all — run the free-text radiology REPORTS through a rule-based NLP labeler
+  (mention-extraction → classification → aggregation, with phrase lists hand-curated by board-certified
+  radiologists + NegBio negation/uncertainty) to emit 14 observation labels per X-ray. Keeps an explicit
+  UNCERTAIN class instead of collapsing it.
+
+provenance_meta:
+  source: "Irvin et al., CheXpert, AAAI 2019 (arXiv:1901.07031)"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "2nd clinical recipe (after clinical-annotation-guidelines); the inverse — automated rule-based labels from text reports, not iterative human image annotation"
+
+decision: >
+  Generate large-scale structured image labels cheaply by extracting observations from the paired radiology
+  reports with a rule-based NLP labeler.
+
+inputs:
+  - source: chest X-rays + their free-text radiology reports
+    provenance: hospital PACS
+    assumption: the report faithfully describes the image (report↔image mismatch is the hidden risk)
+  - source: radiologist-curated phrase lists per observation
+    provenance: board-certified radiologists
+    assumption: the phrase rules cover how findings are actually worded
+
+actors:
+  - role: rule-based NLP labeler
+    does: extract → classify (pos/neg/uncertain) → aggregate mentions of 14 observations
+    type: programmatic
+
+steps:
+  - parse the Impression section of each report
+  - extract observation mentions against curated phrase lists
+  - classify each mention positive / negative / UNCERTAIN (NegBio rules)
+  - aggregate to 14 per-image labels
+
+quality_gates:
+  - gate: explicit uncertainty label
+    checks: keep 'uncertain' as a class, not forced to pos/neg
+    catches: under_specification (preserves genuine ambiguity) [REPORTED]
+  - gate: radiologist-curated phrase rules
+    checks: expert-built mention patterns
+    catches: under_specification [REPORTED]
+
+output:
+  shape: 14 observation labels (pos/neg/uncertain) per X-ray
+  consumed_by: chest-X-ray classifier training; reused for MIMIC-CXR
+
+failure_modes:
+  - signature: confounded
+    evidence: REPORTED
+    description: Labels reflect the REPORT's language, not the image directly; report-image mismatch + uncertain wording propagate as label noise.
+    caught_by: explicit uncertainty label (surfaces, doesn't fix)
+  - signature: unanchored
+    evidence: INFERRED
+    description: Rule-based extraction errors have no per-image human check at scale. (Inferred.)
+    caught_by: UNGUARDED (CheXbert later added expert-validated BERT labeling)
+  - signature: under_specification
+    evidence: REPORTED
+    description: Radiology language is hedged; many findings are genuinely uncertain, kept explicit rather than resolved.
+    caught_by: explicit uncertainty label
+
+cost_profile:
+  throughput: very high — automated text labeling, no image annotation
+  bottleneck: curating + maintaining the phrase rules
+  human_cost: small (radiologists curate rules once); no per-image labeling
+
+provenance: >
+  Extracted from arXiv:1901.07031. 2nd clinical recipe — labels-from-reports via rules, vs iterative expert image
+  annotation. A vivid case of trading human labeling cost for report↔image confounding.

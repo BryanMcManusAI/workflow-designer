@@ -1,0 +1,80 @@
+id: code-humaneval
+title: Execution-Verified Code-Generation Eval Set (HumanEval)
+modality: code
+task_structure: freeform_generation        # model writes free-form code; graded by execution
+annotator_structure: expert                  # authors hand-write problems + tests
+qa_mechanism: [execution_check]              # NOTE: execution_check = CANDIDATE qa_mechanism vocab addition
+failure_signatures: [label_leakage, under_specification, sampling_frame]
+uses_patterns: [execution-verification, human-gold-anchor]
+# execution-verification = CANDIDATE pattern (run tests as ground truth) — single exemplar so far
+
+provenance_meta:
+  source: "Chen et al., Evaluating Large Language Models Trained on Code, arXiv:2107.03374"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "no close skeleton — an expert-authored eval set graded by CODE EXECUTION is structurally new (most cards judge with humans or models, not a runtime)"
+
+decision: >
+  Build an eval set (164 problems) measuring whether generated code is FUNCTIONALLY correct —
+  graded by running unit tests, not by text similarity.
+
+inputs:
+  - source: programming problems (signature + docstring + canonical solution + unit tests)
+    provenance: HAND-WRITTEN by the authors, deliberately not scraped
+    assumption: hand-writing keeps the problems out of the training set (the whole point)
+
+actors:
+  - role: problem authors
+    does: write each problem, its canonical solution, and ~7.7 unit tests
+    type: human (expert)
+  - role: execution sandbox
+    does: run candidate code against the unit tests (gVisor); pass/fail
+    type: automated
+
+steps:
+  - hand-write 164 problems with docstrings, canonical solutions, and unit tests
+  - for each model, sample n candidate solutions per problem
+  - execute each candidate in a sandbox against the problem's unit tests
+  - score pass@k (a sample is correct iff it passes all unit tests)
+
+quality_gates:
+  - gate: hand-authored (anti-contamination)
+    checks: problems written from scratch, not copied from sources already on GitHub
+    catches: label_leakage (train/eval overlap) [REPORTED]
+  - gate: execution against unit tests
+    checks: functional correctness by running tests, not match metrics like BLEU
+    catches: the validity gap of similarity metrics [REPORTED]
+
+output:
+  shape: pass@k functional-correctness scores per model
+  consumed_by: code-model evaluation / comparison
+
+failure_modes:
+  - signature: label_leakage
+    evidence: REPORTED
+    description: >
+      Models train on "a large fraction of GitHub, which already contains solutions" (>10 public repos with
+      Codeforces solutions) — a scraped eval would be contaminated. The hand-writing gate exists to prevent this.
+    caught_by: hand-authored problems
+  - signature: under_specification
+    evidence: INFERRED
+    description: >
+      ~7.7 unit tests/problem may not fully specify correctness — a weak suite can pass a subtly wrong solution.
+      NOTE: the paper does NOT analyze test coverage/adequacy, so this is inferred, not reported.
+    caught_by: UNGUARDED (mutation testing / coverage analysis would help)
+  - signature: sampling_frame
+    evidence: INFERRED
+    description: >
+      Problems are "easy interview" difficulty and may not represent real software tasks. The paper notes the
+      scope but does not claim representativeness; this concern is inferred.
+    caught_by: UNGUARDED
+
+cost_profile:
+  throughput: small set (164) authored once; execution scales cheaply
+  bottleneck: expert authoring of correct problems + comprehensive tests
+  human_cost: skilled authors up front; near-zero at grading time (execution is automated)
+
+provenance: >
+  Extracted from arXiv:2107.03374 via EXTRACTION_PROMPT, audited. First CODE card; fills freeform_generation.
+  Introduces a mechanism unique to code — EXECUTION-based ground truth — surfacing candidate qa_mechanism
+  `execution_check` + candidate pattern `execution-verification`. Vivid REPORTED label_leakage (contamination).

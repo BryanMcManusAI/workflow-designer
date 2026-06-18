@@ -1,0 +1,89 @@
+id: eval-chatbot-arena
+title: Open Crowd Pairwise Battles + LLM-Judge (Chatbot Arena / MT-Bench)
+modality: text
+task_structure: preference_ranking
+annotator_structure: crowd
+lineage: lmsys / Chatbot Arena + MT-Bench (Zheng et al. 2023)
+qa_mechanism: [order_randomization, agreement]
+failure_signatures: [priming, confounded, self_affinity, sampling_frame]
+uses_patterns: [order-randomization, cross-family-judges, human-gold-anchor]
+distinctive: >
+  Preference collection for EVALUATION (ranking models), not training. OPEN, in-the-wild crowd: anonymous
+  A-vs-B battles where anyone votes which response is better → Elo ratings. Paired with MT-Bench, an
+  LLM-as-judge (GPT-4) validated at ~80% agreement with human experts (≈ human-human agreement). Surfaces the
+  judge biases directly: position, verbosity, self-enhancement.
+
+provenance_meta:
+  source: "Zheng et al., Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena, NeurIPS 2023"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "preference_ranking like the RLHF cards, but for EVAL not training; open crowd + Elo + an LLM judge — joins compare --task preference_ranking as the eval-purpose variant"
+
+decision: >
+  Rank models by collecting pairwise human preferences (open crowd battles → Elo) and validate an LLM judge
+  against human agreement so it can scale the evaluation.
+
+inputs:
+  - source: anonymous A-vs-B model response pairs (live user prompts) + 80 curated MT-Bench questions
+    provenance: open crowd votes (Arena) + expert pairs (MT-Bench gold)
+    assumption: aggregate crowd votes + a validated LLM judge approximate true quality (biases must be controlled)
+
+actors:
+  - role: open crowd voters
+    does: vote which of two anonymous responses is better (→ Elo)
+    type: human
+  - role: LLM judge (GPT-4)
+    does: score/compare responses; validated vs human-expert pairs
+    type: model
+  - role: human-expert pairs
+    does: provide the gold agreement baseline (~80%)
+    type: human (expert)
+
+steps:
+  - serve anonymous A/B model responses; crowd votes; compute Elo
+  - run MT-Bench: LLM judge scores multi-turn answers
+  - validate LLM-judge agreement against expert pairs (~80%)
+  - mitigate position / verbosity / self-enhancement biases
+
+quality_gates:
+  - gate: A/B anonymization + position randomization
+    checks: hide model identity; randomize which side is A
+    catches: priming (position bias) [REPORTED]
+  - gate: human-expert agreement baseline
+    checks: validate the LLM judge against human-human agreement (~80%)
+    catches: unanchored (anchors the judge) [REPORTED]
+  - gate: cross-family / bias checks
+    checks: watch for the judge favoring its own family's outputs
+    catches: self_affinity (self-enhancement bias) [REPORTED]
+
+output:
+  shape: model Elo ratings (Arena) + LLM-judge scores (MT-Bench)
+  consumed_by: model ranking / leaderboard
+
+failure_modes:
+  - signature: priming
+    evidence: REPORTED
+    description: Position bias — judges (human or LLM) favor whichever response is shown first; mitigated by randomizing position.
+    caught_by: A/B anonymization + position randomization
+  - signature: confounded
+    evidence: REPORTED
+    description: Verbosity bias — longer answers are preferred regardless of substance (length confounded with quality).
+    caught_by: UNGUARDED (length-control / explicit instruction helps)
+  - signature: self_affinity
+    evidence: REPORTED
+    description: Self-enhancement bias — an LLM judge rates its own family's outputs higher.
+    caught_by: cross-family / bias checks
+  - signature: sampling_frame
+    evidence: INFERRED
+    description: Open crowd voters self-select; the live prompt mix isn't a controlled distribution. (Inferred.)
+    caught_by: UNGUARDED
+
+cost_profile:
+  throughput: very high — open crowd + LLM judge scale cheaply
+  bottleneck: the expert-pair gold baseline + bias mitigation
+  human_cost: open volunteers + a small expert-pair gold set
+
+provenance: >
+  Extracted from Zheng et al. 2023. 2nd alignment-eval recipe — open crowd Elo + validated LLM judge. Ties
+  straight to Bryan's judge-auditor work (position/verbosity/self-enhancement biases) and adds the eval-purpose
+  angle to the preference compare cluster.

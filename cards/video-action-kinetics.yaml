@@ -1,0 +1,90 @@
+id: video-action-kinetics
+title: Crowdsourced Video Action Verification (Kinetics)
+modality: video
+task_structure: classification
+annotator_structure: crowd
+qa_mechanism: [gold_honeypots, consensus_threshold, agreement]
+failure_signatures: [under_specification, class_imbalance, sampling_frame, bottleneck]
+uses_patterns: [multi-annotator-aggregate, gold-honeypots, dedup-merge, active-learning-loop, engagement-gate]  # "does the action last the whole clip?" + accuracy warning
+
+provenance_meta:
+  source: "Kay et al., The Kinetics Human Action Video Dataset, arXiv:1705.06950"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "crowd-verification skeleton like commonvoice/bbox; FIRST video card; a real exemplar for dedup-merge"
+
+decision: >
+  Verify which 10-second YouTube clips actually show a named human action, to build a labeled
+  action-recognition dataset (400 classes).
+
+inputs:
+  - source: 10s clips from YouTube, matched by title + located by image classifiers
+    provenance: automated candidate generation
+    assumption: candidates contain the action (verification exists precisely because many don't)
+
+actors:
+  - role: MTurk workers
+    does: answer "can you see a human performing [action]?" (Yes/No/Unsure/unplayable) + "does it last the whole clip?"
+    type: human (crowd; audio withheld)
+  - role: curation classifiers
+    does: surface top class confusions; flag low-confidence/noisy clips for merge/split/removal
+    type: model
+
+steps:
+  - generate candidate clips (title match + image-classifier localization)
+  - up to 5 workers verify each clip; ≥3 positive => included (early stop once 3 agree)
+  - inject 2 ground-truth clips per 20-clip task; warn workers below 50% accuracy
+  - de-duplicate (one clip/video, then Inception feature cosine >0.97 → ~15% more removed)
+  - iteratively train two-stream classifiers → merge/split/remove ambiguous classes; manually filter the low-confidence tail
+
+quality_gates:
+  - gate: consensus (≥3 positive of ≤5)
+    checks: a clip enters only on multi-worker agreement
+    catches: under_specification, label noise [REPORTED]
+  - gate: injected ground-truth honeypots
+    checks: 2 known clips/task + low-accuracy warning
+    catches: inflation / bad workers [REPORTED]
+  - gate: de-duplication
+    checks: one clip per video + feature-similarity dedup
+    catches: inflation (fake volume), sampling_frame (reused clips) [REPORTED]
+  - gate: classifier-driven class refinement
+    checks: merge/split/remove classes with high confusion
+    catches: under_specification (label-boundary overlap) [REPORTED]
+
+output:
+  shape: verified <clip, action-class> pairs; train 250-1000 / val 50 / test 100 per class
+  consumed_by: action-recognition training (top-5 metric, since clips aren't exhaustively labeled)
+
+failure_modes:
+  - signature: under_specification
+    evidence: REPORTED
+    description: >
+      Class boundaries overlap — "riding mule" vs "riding/walking with horse" 40% confusion; "skipping"
+      (rope vs stones) ambiguous; clips aren't exhaustively annotated → top-5 used instead of top-1.
+    caught_by: classifier-driven class refinement
+  - signature: class_imbalance
+    evidence: REPORTED
+    description: '60 of 400 classes are gender-imbalanced (e.g. "shaving beard" mostly male); bias impact flagged for "more thorough investigation".'
+    caught_by: UNGUARDED
+  - signature: sampling_frame
+    evidence: REPORTED
+    description: >
+      YouTube sourcing + an image-classifier in the candidate pipeline could constrain variety (authors claim
+      empirically it did not); duplicates persist because users reuse clips.
+    caught_by: de-duplication (partial)
+  - signature: bottleneck
+    evidence: INFERRED
+    description: >
+      Video verification is slow + costly per clip (watching >> reading) — exactly the cost finding the
+      text→video modality-shift demo predicted. NOTE: authors do NOT disclose per-clip cost, so this is inferred.
+    caught_by: UNGUARDED
+
+cost_profile:
+  throughput: 400 classes × ≥400 clips; crowd-scalable but viewing-bound
+  bottleneck: worker viewing time (inferred — undisclosed); the curation/dedup passes
+  human_cost: distributed crowd; low welfare risk (benign content) — contrast the content-moderation card
+
+provenance: >
+  Extracted from arXiv:1705.06950 via EXTRACTION_PROMPT, audited. First VIDEO card. Real exemplar for the
+  dedup-merge candidate pattern (→ promoting it); confirms gold-honeypots + consensus in a new modality.
+  The bottleneck mode is honestly INFERRED (cost undisclosed), validating the modality-shift prediction.

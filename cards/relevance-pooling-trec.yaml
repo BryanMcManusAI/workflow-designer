@@ -1,0 +1,82 @@
+id: relevance-pooling-trec
+title: TREC-Style Relevance Judgments via Pooling
+modality: text
+task_structure: relevance
+annotator_structure: expert            # NIST-style assessors, typically one per topic
+lineage: trec / NIST pooling
+qa_mechanism: [order-randomization, input-pooling]   # NOTE: both are CANDIDATE qa_mechanism vocab additions
+failure_signatures: [sampling_frame, priming, confounded, under_specification]
+uses_patterns: [pooled-sampling, order-randomization]   # both CANDIDATE patterns surfaced by this pilot
+
+provenance_meta:
+  source: "TREC pooling methodology; Buckley & Voorhees on pooling bias; assessment-order studies (e.g., arXiv:2211.00981)"
+  extraction_confidence: medium-high
+  provenance: extracted-then-audited
+  dedup_hint: "no close skeleton; expert single-assessor judgment over a constructed pool is structurally new"
+
+decision: >
+  Produce reusable relevance labels (graded 0-2) for query-document pairs so that any retrieval
+  system can be scored, without judging the entire collection.
+
+inputs:
+  - source: documents retrieved by participating systems for each query
+    provenance: top-k of each submitted run, deduplicated into a pool (e.g., depth-15, 32k pairs)
+    assumption: the union of system top-k contains essentially all the relevant documents (the central bias)
+
+actors:
+  - role: relevance assessors
+    does: judge each pooled doc highly-relevant / relevant / nonrelevant / error
+    type: human (expert)
+
+steps:
+  - each system submits a ranked run per query
+  - take top-k from each run; dedupe into one pool per query
+  - present pooled docs to the assessor in RANDOM order (hide rank/popularity)
+  - assessor labels relevance on a graded scale
+  - reuse the judgments to score ALL systems, including ones absent from the pool
+
+quality_gates:
+  - gate: order-randomization
+    checks: docs shown sorted by ID, not by rank/popularity
+    catches: priming (the "hedging" order effect) [REPORTED]
+  - gate: pool depth
+    checks: judge to a fixed depth across systems
+    catches: sampling_frame (partially — deeper pools find more) [REPORTED]
+
+output:
+  shape: graded relevance judgments per query-doc pair (a reusable "qrels" file)
+  consumed_by: scoring/ranking all retrieval systems
+
+failure_modes:
+  - signature: sampling_frame
+    evidence: REPORTED
+    description: >
+      Pooling is biased against systems that did not contribute to the pool — a novel system that
+      returns relevant docs outside the pool is underrated because those docs were never judged.
+    caught_by: pool depth (mitigates, doesn't remove)
+  - signature: priming
+    evidence: REPORTED
+    description: 'Assessors "hedge" on early documents (avoid extreme ratings); order leaks into labels.'
+    caught_by: order-randomization
+  - signature: confounded
+    evidence: REPORTED
+    description: >
+      If docs are shown by "pseudorelevance" (prioritized) instead of random, assessors favor
+      "popular" docs returned by many systems — presentation induces a popularity bias.
+    caught_by: order-randomization (use RND not PRI)
+  - signature: under_specification
+    evidence: REPORTED
+    description: >
+      Assessors disagree on relevance (subjective). NOTABLE: the classic finding is this is
+      DOWNSTREAM-ROBUST — disagreement does not change the *relative* ranking of systems.
+    caught_by: "n/a — present but does not affect the decision (worth recording as such)"
+
+cost_profile:
+  throughput: tens of thousands of judgments per track; bounded by assessor budget
+  bottleneck: assessor time; deeper pools cost more than is affordable for large collections
+  human_cost: expert assessors; the scarce, expensive kind
+
+provenance: >
+  Extracted from the TREC pooling literature via EXTRACTION_PROMPT, audited. Surfaced the
+  order-randomization pattern (which unifies with text-preference-rlhf's A/B position randomization)
+  and a qa_mechanism vocab gap (pool construction + order randomization aren't in the current list).

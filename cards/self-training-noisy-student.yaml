@@ -1,0 +1,79 @@
+id: self-training-noisy-student
+title: Self-Training / Pseudo-Labeling (Noisy Student)
+modality: image
+task_structure: classification
+annotator_structure: model_as_annotator
+lineage: xie et al. 2020 (Noisy Student)
+qa_mechanism: [consensus_threshold]
+failure_signatures: [confounded, unanchored, class_imbalance]
+uses_patterns: [labeling-functions]
+# candidate pattern: `pseudo-labeling` (a model labels unlabeled data; student trained on it, iterate; teacher un-noised, student noised)
+distinctive: >
+  Labels come from the MODEL ITSELF: a teacher trained on labeled data PSEUDO-LABELS 300M UNLABELED images,
+  then a LARGER, NOISED student trains on labeled + pseudo-labeled data; iterate (student becomes teacher).
+  The teacher is kept un-noised for accurate pseudo-labels; the student gets dropout/RandAugment so it
+  generalizes beyond the teacher. No new human labels.
+
+provenance_meta:
+  source: "Xie et al., Self-Training with Noisy Student Improves ImageNet Classification, CVPR 2020 (arXiv:1911.04252)"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "2nd weak-supervision recipe (after Snorkel labeling functions); distinct — the weak labels are the model's OWN predictions on unlabeled data, not heuristics or a KB"
+
+decision: >
+  Turn a large pool of UNLABELED data into training signal by pseudo-labeling it with a teacher model and
+  training a noised student on the union, iteratively.
+
+inputs:
+  - source: a small labeled set + a large UNLABELED pool (e.g., 300M images)
+    provenance: existing labels + scraped unlabeled data
+    assumption: the teacher is good enough that its confident pseudo-labels help more than they mislead
+
+actors:
+  - role: teacher model
+    does: generate pseudo-labels on unlabeled data (un-noised, for accuracy)
+    type: model
+  - role: student model
+    does: train on labeled + pseudo-labeled with injected noise (dropout / RandAugment / stochastic depth)
+    type: model
+
+steps:
+  - train a teacher on the labeled set
+  - pseudo-label the unlabeled pool (teacher un-noised; filter/balance by confidence)
+  - train a larger student on labeled + pseudo-labeled with heavy noise
+  - put the student back as teacher; repeat
+
+quality_gates:
+  - gate: confidence filtering / class balancing of pseudo-labels
+    checks: keep high-confidence pseudo-labels; balance classes
+    catches: class_imbalance, low-quality pseudo-labels [REPORTED]
+  - gate: noised student / un-noised teacher
+    checks: accurate labels from a clean teacher; robustness from a noised student
+    catches: the student merely copying the teacher [REPORTED]
+
+output:
+  shape: pseudo-labeled data + an improved student model (iterated)
+  consumed_by: the next training round (self-training loop)
+
+failure_modes:
+  - signature: confounded
+    evidence: INFERRED
+    description: Pseudo-labels propagate the teacher's biases/errors — confirmation bias can entrench mistakes across iterations. (Inferred.)
+    caught_by: noised student + confidence filtering (partial)
+  - signature: unanchored
+    evidence: INFERRED
+    description: The 300M pseudo-labels have no human ground truth; only the small seed set is real. (Inferred.)
+    caught_by: confidence filtering (weak)
+  - signature: class_imbalance
+    evidence: REPORTED
+    description: Pseudo-labels skew toward classes the teacher is confident on; rare classes get few/none.
+    caught_by: class balancing of pseudo-labels
+
+cost_profile:
+  throughput: very high — pseudo-labeling is automatic; the unlabeled pool is cheap
+  bottleneck: compute (large student, iteration) + a good seed teacher
+  human_cost: only the small labeled seed
+
+provenance: >
+  Extracted from arXiv:1911.04252. 2nd weak-supervision recipe — self-training/pseudo-labeling (the model is its
+  own weak labeler). Contrast with Snorkel (labeling functions) + distant supervision (KB): three sources of cheap labels.

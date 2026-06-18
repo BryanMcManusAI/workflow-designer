@@ -1,0 +1,85 @@
+id: synthetic-with-audit
+title: Model-Generated Labels with Human Audit
+modality: multimodal
+task_structure: classification
+annotator_structure: model_as_annotator
+qa_mechanism: [audit_sampling, gold_honeypots, agreement]
+failure_signatures: [confounded, sampling_frame, label_leakage, self_affinity, class_imbalance]
+uses_patterns: [human-audit-sample, gold-honeypots, cross-family-judges, active-learning-loop]
+
+decision: >
+  Produce labels cheaply at scale by having a model label and a human audit a sample, reliable
+  enough to train on without baking the labeler model's blind spots into the student.
+
+inputs:
+  - source: unlabeled items at scale
+    provenance: collection pipeline
+    assumption: the labeler model is competent on this distribution (the central risk)
+  - source: a small human-gold set
+    provenance: expert-labeled
+    assumption: the gold set covers the cases where the model is weakest
+
+actors:
+  - role: labeler model
+    does: assign a label + confidence to every item
+    type: model
+  - role: human auditors
+    does: review a sample (stratified by confidence + class) against the gold standard
+    type: human
+  - role: second-family checker (optional)
+    does: re-label a slice with a different model family
+    type: model
+
+steps:
+  - model labels all items with a confidence
+  - draw an audit sample stratified by confidence and class (not just random)
+  - humans score the audit sample; estimate model accuracy per stratum
+  - low-confidence / high-disagreement items route to humans
+  - feed corrections back; re-estimate; optionally active-learning the next batch
+  - gate the batch: ship only if audited accuracy per stratum clears bar
+
+quality_gates:
+  - gate: stratified audit sample
+    checks: audit covers low-confidence and rare classes, not just the easy bulk
+    catches: sampling_frame, class_imbalance
+  - gate: cross-family check
+    checks: a different model family re-labels a slice
+    catches: self_affinity, confounded
+  - gate: per-stratum accuracy bar
+    checks: the batch ships only if each stratum clears a threshold
+    catches: unanchored
+
+output:
+  shape: labels + confidences + audited accuracy estimates per stratum
+  consumed_by: student-model training; the bad-data detector as a downstream check
+
+failure_modes:
+  - signature: confounded
+    description: >
+      The labeler model's own biases (it over-predicts the majority class, or keys on a spurious
+      cue) get baked into the training set and inherited by the student.
+    caught_by: cross-family check + stratified audit
+  - signature: sampling_frame
+    description: >
+      Auditing only a random sample makes accuracy look high because the easy bulk dominates,
+      while the hard tail — where the model is wrong — is barely sampled.
+    caught_by: stratified audit sample
+  - signature: label_leakage
+    description: >
+      The model labels using a feature that won't exist at deployment (or that trivially encodes
+      the answer), inflating apparent quality.
+    caught_by: UNGUARDED   # add a leakage check in the gold-set design
+  - signature: self_affinity
+    description: >
+      If the same family later judges the student, it rewards inherited quirks.
+    caught_by: cross-family check
+
+cost_profile:
+  throughput: very high; labeling is near-free, audit is the only human cost
+  bottleneck: the human audit + gold-set construction
+  human_cost: small but high-skill (auditors must catch what the model misses)
+
+provenance: >
+  Canonical synthetic/model-assisted labeling practice, increasingly central to ML data work.
+  The stratified-audit and cross-family points connect directly to Bryan's bad-data detector and
+  judge-auditor work.

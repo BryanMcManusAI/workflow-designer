@@ -1,0 +1,67 @@
+id: search-msmarco
+title: Relevance + Answers from Real Query Logs (MS MARCO)
+modality: text
+task_structure: relevance
+annotator_structure: crowd
+lineage: microsoft / MS MARCO (Nguyen et al. 2016)
+qa_mechanism: [agreement]
+failure_signatures: [sampling_frame, under_specification]
+uses_patterns: [human-gold-anchor]
+distinctive: >
+  Built from ~1M REAL anonymized Bing QUERIES (not curated topics). Crowdworkers answer the query if they
+  can and mark the passages that support the answer — yielding human-WRITTEN answers + SPARSE relevance
+  marks. The opposite trade from TREC pooling: real query distribution, but incomplete judgments.
+
+provenance_meta:
+  source: "Nguyen et al., MS MARCO: A Human-Generated Machine Reading Comprehension Dataset, arXiv:1611.09268"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "2nd RELEVANCE recipe (after relevance-pooling-trec); distinct — real query logs + human-written answers + sparse marks vs curated topics + exhaustive pooling"
+
+decision: >
+  Produce relevance judgments + natural-language answers grounded in real user queries, by having crowdworkers
+  answer queries and mark supporting passages from retrieved web documents.
+
+inputs:
+  - source: ~1M anonymized real Bing queries + Bing-retrieved passages
+    provenance: real search logs (privacy-anonymized)
+    assumption: marked passages capture the relevant set (sparse — many relevant passages go unmarked)
+
+actors:
+  - role: crowdworkers
+    does: answer the query if possible; mark passages that support the answer
+    type: human
+
+steps:
+  - sample real anonymized queries from Bing logs
+  - retrieve candidate passages per query
+  - crowdworkers write an answer + mark supporting passages
+  - (variants) generate well-formed answers; rank passages
+
+quality_gates:
+  - gate: answer must be supported by marked passages
+    checks: tie the answer to specific evidence passages
+    catches: confounded (plausible-but-unsupported answers) [REPORTED]
+
+output:
+  shape: query → human answer + marked relevant passages
+  consumed_by: passage ranking + machine-reading/QA training
+
+failure_modes:
+  - signature: sampling_frame
+    evidence: REPORTED
+    description: Judgments are SPARSE — workers mark some supporting passages, so genuinely relevant unmarked passages count as non-relevant (the inverse of TREC's pooling bias).
+    caught_by: UNGUARDED
+  - signature: under_specification
+    evidence: INFERRED
+    description: Free-form human answers vary in phrasing/completeness; 'the' answer is underdetermined. (Inferred.)
+    caught_by: UNGUARDED
+
+cost_profile:
+  throughput: very large (1M+ queries); crowd-scalable
+  bottleneck: answer-writing effort + privacy handling of real logs
+  human_cost: crowd; low welfare risk
+
+provenance: >
+  Extracted from arXiv:1611.09268. 2nd relevance recipe. Compare with TREC pooling via the compare operator:
+  real-query + sparse-marks vs curated-topic + exhaustive-pooling — opposite ways to bound the judging cost.

@@ -1,0 +1,74 @@
+id: code-swebench
+title: Harvested GitHub Issues, Execution-Verified (SWE-bench)
+modality: code
+task_structure: freeform_generation
+annotator_structure: expert            # gold = real developers' merged fixes + the repo's tests (harvested, not commissioned)
+qa_mechanism: [execution_check]
+failure_signatures: [label_leakage, under_specification, sampling_frame]
+uses_patterns: [execution-verification, human-gold-anchor]
+
+provenance_meta:
+  source: "Jimenez et al., SWE-bench (arXiv:2310.06770); critique stats from Aleithan et al., SWE-Bench+ (arXiv:2410.06992)"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "2nd execution-verification exemplar after code-humaneval; distinct in HARVESTING real issues (vs hand-writing) and in the leakage/weak-test critique"
+
+decision: >
+  Measure whether a model can resolve a real GitHub issue by generating a patch, verified by running the
+  repository's tests (fail-to-pass + pass-to-pass).
+
+inputs:
+  - source: real GitHub issues + the merged PR that fixed them + the repo's tests
+    provenance: harvested automatically from popular repos
+    assumption: the issue text doesn't give away the fix, and the tests actually verify correctness (both violated)
+
+actors:
+  - role: original repo developers (implicit gold)
+    does: their merged PR + tests serve as the reference
+    type: human (harvested)
+  - role: execution harness
+    does: apply the candidate patch, run the tests, pass/fail
+    type: automated
+
+steps:
+  - harvest issues + linked merged PRs + tests from repos
+  - require the PR to add/modify tests (fail-to-pass)
+  - model generates a patch from the issue
+  - apply patch, run tests; resolved iff fail-to-pass tests pass and pass-to-pass still pass
+
+quality_gates:
+  - gate: execution against repo tests
+    checks: patch must flip fail-to-pass tests and not break pass-to-pass
+    catches: the validity gap of match metrics [REPORTED]
+
+output:
+  shape: "% issues resolved (patch passes tests)"
+  consumed_by: code-agent evaluation
+
+failure_modes:
+  - signature: label_leakage
+    evidence: REPORTED
+    description: >
+      ~32.67% of "resolved" instances had the solution outlined directly in the issue report/comments (SWE-Bench+),
+      and 94% of issues predate the LLM knowledge cutoff (contamination risk) — apparent skill is partly leakage/memorization.
+    caught_by: UNGUARDED (SWE-Bench+ adds SolutionLeakDetector + post-cutoff issues → 0% leakage)
+  - signature: under_specification
+    evidence: REPORTED
+    description: >
+      ~31% of passing patches used WEAK tests ("incorrect, incomplete, or applied to different files" changes passed).
+      Filtering weak tests + leakage drops SWE-Agent+GPT-4 resolution 12.47%→3.97% (Full), 22.4%→10.0% (Verified).
+    caught_by: UNGUARDED (SWE-Bench+ TestEnhancer strengthens suites)
+  - signature: sampling_frame
+    evidence: INFERRED
+    description: Issues skew to popular Python repos of a certain era; may not represent software work broadly. (Inferred.)
+    caught_by: UNGUARDED
+
+cost_profile:
+  throughput: large (auto-harvested); execution is automated
+  bottleneck: building reliable per-repo execution environments; test adequacy
+  human_cost: near-zero labeling (harvested); engineering to containerize repos
+
+provenance: >
+  Workflow from arXiv:2310.06770; the leakage/weak-test/contamination numbers from the SWE-Bench+ critique
+  (arXiv:2410.06992), audited. 2nd `execution-verification` exemplar → promoting the pattern. Sharp REPORTED
+  label_leakage (solution-in-issue + pre-cutoff contamination) and test-adequacy under_specification.

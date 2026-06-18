@@ -1,0 +1,74 @@
+id: crowd-aggregation-dawid-skene
+title: Probabilistic Label Aggregation (Dawid-Skene)
+modality: text
+task_structure: classification
+annotator_structure: multi_aggregate
+lineage: dawid & skene 1979
+qa_mechanism: [agreement, consensus_threshold]
+failure_signatures: [underpowered, confounded, unanchored]
+uses_patterns: [multi-annotator-aggregate, inter-annotator-agreement]
+distinctive: >
+  Don't take a naive majority vote — jointly ESTIMATE each annotator's CONFUSION MATRIX and the true labels
+  via EM, then weight annotators by their inferred reliability. The classical principled answer to 'how do I
+  combine noisy, unequally-skilled annotators?' (the constructive counterpart to the MTurk quality crisis).
+
+provenance_meta:
+  source: "Dawid & Skene 1979, Maximum Likelihood Estimation of Observer Error-Rates Using the EM Algorithm"
+  extraction_confidence: medium-high (grounded via the classical method)
+  provenance: extracted-then-audited (a method, not a single dataset)
+  dedup_hint: "2nd crowdsourcing-methods recipe (after the MTurk quality crisis); this is the AGGREGATION-MODEL angle vs the fraud/gaming angle"
+
+decision: >
+  Recover the most likely true labels from multiple noisy annotators by modeling each annotator's error pattern
+  and down-weighting unreliable ones.
+
+inputs:
+  - source: overlapping labels from many annotators on shared items
+    provenance: crowd annotation with redundancy
+    assumption: annotator errors are independent given the true label (correlated workers break this)
+
+actors:
+  - role: annotators
+    does: label shared items (with overlap)
+    type: human
+  - role: aggregation model (EM)
+    does: estimate per-annotator confusion matrices + true label probabilities iteratively
+    type: process
+
+steps:
+  - collect overlapping labels per item
+  - E-step: estimate true-label probabilities given current confusion matrices
+  - M-step: re-estimate each annotator's confusion matrix
+  - iterate to convergence; output weighted consensus labels
+
+quality_gates:
+  - gate: reliability-weighted aggregation
+    checks: weight annotators by inferred confusion matrices, not equally
+    catches: low-skill annotators dragging the consensus [REPORTED]
+
+output:
+  shape: probabilistic consensus labels + per-annotator reliability estimates
+  consumed_by: training data; annotator quality monitoring
+
+failure_modes:
+  - signature: underpowered
+    evidence: INFERRED
+    description: Needs enough overlap per annotator to estimate a confusion matrix; sparse labeling → unreliable estimates. (Inferred.)
+    caught_by: UNGUARDED (require minimum overlap)
+  - signature: confounded
+    evidence: INFERRED
+    description: Assumes conditional independence of annotators; correlated/colluding workers violate it and bias the estimate. (Inferred.)
+    caught_by: UNGUARDED
+  - signature: unanchored
+    evidence: INFERRED
+    description: True labels are estimated, not observed; without any gold, systematic shared error is invisible. (Inferred.)
+    caught_by: UNGUARDED (seed with a few gold items)
+
+cost_profile:
+  throughput: cheap to run; needs label redundancy (the cost is the overlap)
+  bottleneck: redundant labeling to support the estimation
+  human_cost: standard crowd
+
+provenance: >
+  Grounded in the classical Dawid-Skene model. 2nd crowdsourcing-methods recipe — the principled aggregation
+  answer. Pairs with the MTurk quality crisis (the problem) — this is the statistical response.

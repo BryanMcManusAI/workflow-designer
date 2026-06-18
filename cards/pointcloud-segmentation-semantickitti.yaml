@@ -1,0 +1,78 @@
+id: pointcloud-segmentation-semantickitti
+title: Dense Point-Cloud Segmentation over Superimposed Scans (SemanticKITTI)
+modality: 3d_pointcloud
+task_structure: structured_output
+annotator_structure: tiered_review
+lineage: behley et al. 2019 (SemanticKITTI)
+qa_mechanism: [adjudication, consensus_threshold]
+failure_signatures: [bottleneck, under_specification, sampling_frame]
+uses_patterns: [tiered-adjudication]
+# candidate pattern: `scan-aggregation` (superimpose a sequence of scans, label once, propagate to all frames)
+distinctive: >
+  Dense PER-POINT semantic labels (25 classes, 4.5B points) — not boxes. Annotators SUPERIMPOSE a sequence
+  of LiDAR scans into one consistent cloud (SLAM poses), tile into 100×100m regions, label once with a custom
+  OpenGL brush/polygon tool, and propagate — then a two-pass verification enforces temporal+spatial consistency.
+
+provenance_meta:
+  source: "Behley et al., SemanticKITTI, ICCV 2019 (arXiv:1904.01416)"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "2nd autonomous-driving recipe (after nuScenes 3D boxes); distinct — dense point segmentation via scan-superposition + a custom tool, not per-keyframe boxing"
+
+decision: >
+  Produce dense, temporally-consistent point-wise semantic labels for LiDAR sequences by labeling aggregated
+  scans once and propagating across frames.
+
+inputs:
+  - source: sequential LiDAR scans (Velodyne HDL-64E)
+    provenance: KITTI driving sequences
+    assumption: SLAM poses align scans well enough to label the superimposed cloud as one (alignment error risk)
+
+actors:
+  - role: annotators
+    does: brush/polygon-label points on superimposed, tiled scans with a custom tool
+    type: human (expert)
+  - role: verifiers
+    does: two-pass check for temporal + spatial consistency
+    type: human
+
+steps:
+  - estimate poses (SLAM); superimpose a sequence into one cloud; tile into 100×100m regions
+  - label points once with the OpenGL tool (filter by label/position/plane)
+  - propagate labels back to every frame
+  - two-pass verification for consistency
+
+quality_gates:
+  - gate: scan superposition + propagate-once
+    checks: label the aggregated cloud, not each frame, for consistency
+    catches: under_specification / per-frame inconsistency [REPORTED]
+  - gate: two-pass verification
+    checks: temporal + spatial consistency review
+    catches: label noise [REPORTED]
+
+output:
+  shape: per-point semantic labels across LiDAR sequences (25 classes)
+  consumed_by: LiDAR semantic-segmentation / scene-completion training
+
+failure_modes:
+  - signature: bottleneck
+    evidence: REPORTED
+    description: Dense point labeling is extremely slow/laborious even with superposition + tooling.
+    caught_by: scan-aggregation (label once, propagate) — mitigates, doesn't remove
+  - signature: under_specification
+    evidence: INFERRED
+    description: Class + boundary calls on sparse points (moving objects leave traces) are ambiguous. (Inferred.)
+    caught_by: two-pass verification
+  - signature: sampling_frame
+    evidence: INFERRED
+    description: KITTI urban-driving sequences; limited geographic/sensor diversity. (Inferred.)
+    caught_by: UNGUARDED
+
+cost_profile:
+  throughput: low — dense labeling is the canonical AV annotation bottleneck
+  bottleneck: per-point human labeling + verification
+  human_cost: skilled annotators + custom tooling
+
+provenance: >
+  Extracted from arXiv:1904.01416. 2nd autonomous-driving recipe. Contrast with nuScenes (per-keyframe 3D boxes,
+  tiered review): segmentation-via-superposition vs box-via-fusion — two ways to make dense 3D labeling tractable.

@@ -1,0 +1,73 @@
+id: adversarial-nli-anli
+title: Human-and-Model-in-the-Loop Adversarial NLI (ANLI)
+modality: text
+task_structure: classification
+annotator_structure: crowd        # non-expert annotators + a target model in the loop
+qa_mechanism: [agreement]
+failure_signatures: [sampling_frame, under_specification]
+uses_patterns: [model-in-the-loop-adversarial, human-gold-anchor]
+
+provenance_meta:
+  source: "Nie et al., Adversarial NLI: A New Benchmark for Natural Language Understanding (ACL 2020)"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "model-in-the-loop adversarial collection like the red-team card; here humans write hypotheses to FOOL a classifier — 2nd model-in-the-loop-adversarial exemplar"
+
+decision: >
+  Collect hard NLI examples by having humans write hypotheses that fool a target model, producing a benchmark
+  that resists saturation (a "moving target").
+
+inputs:
+  - source: a premise + target label + a target model in the loop
+    provenance: annotators craft hypotheses; the model classifies live
+    assumption: examples that fool the model are valuable (true for hardness; biases the distribution)
+
+actors:
+  - role: annotators (non-expert)
+    does: write a hypothesis that makes the model misclassify the target label
+    type: human
+  - role: target model (BERT-Large R1; RoBERTa R2/R3)
+    does: classify live; a "miss" means the example is kept
+    type: model
+  - role: verifiers
+    does: other annotators verify the example's gold label
+    type: human
+
+steps:
+  - show premise + target label; annotator writes a model-fooling hypothesis
+  - if the model is fooled, keep the example; else retry
+  - independent annotators verify the gold label
+  - retrain the model and repeat (rounds R1→R2→R3, increasing difficulty)
+
+quality_gates:
+  - gate: human verification of gold
+    checks: other annotators confirm the intended label
+    catches: under_specification / mislabeled adversarial items [REPORTED]
+  - gate: model-in-the-loop filter
+    checks: only model-fooling examples are kept
+    catches: easiness (surfaces the hard tail)
+
+output:
+  shape: verified (premise, hypothesis, label) NLI triples, by round
+  consumed_by: NLU training/eval (a renewable benchmark)
+
+failure_modes:
+  - signature: sampling_frame
+    evidence: REPORTED
+    description: >
+      Examples are selected to fool a specific model, so the distribution is adversarial, not natural — strong for
+      stress-testing, not representative of organic NLI (the recurring adversarial-collection caveat).
+    caught_by: UNGUARDED (rounds re-target as models improve, but each round is still model-shaped)
+  - signature: under_specification
+    evidence: INFERRED
+    description: Adversarial hypotheses can be genuinely ambiguous, so even verifiers may disagree on the gold label. (Inferred.)
+    caught_by: human verification (partial)
+
+cost_profile:
+  throughput: moderate — fooling the model takes annotator effort + retries
+  bottleneck: annotator creativity + the in-the-loop model serving
+  human_cost: standard crowd; low welfare risk
+
+provenance: >
+  Extracted from Nie et al. (ACL 2020) via the EXTRACTION_PROMPT, audited. 2nd exemplar for the
+  model-in-the-loop-adversarial pattern (humans craft inputs that beat a live model) → promoting it.

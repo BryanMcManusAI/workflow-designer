@@ -1,0 +1,86 @@
+id: critique-criticgpt
+title: Critique-Rationale Collection via Bug Tampering (CriticGPT)
+modality: code
+task_structure: critique_rationale
+annotator_structure: model_as_annotator    # model writes critiques; human contractors tamper + rate
+qa_mechanism: [gold_honeypots, agreement]    # tampered bugs = planted known-answer gold
+failure_signatures: [unanchored, sampling_frame, under_specification]
+uses_patterns: [tamper-to-ground-truth, multi-annotator-aggregate, human-gold-anchor]
+# tamper-to-ground-truth = CANDIDATE pattern (inject KNOWN defects → a verifiable detection target);
+# note: this is exactly Bryan's bad-data-detector "planted mislabels" move — strong cross-context echo
+
+provenance_meta:
+  source: "McAleese et al. (OpenAI), LLM Critics Help Catch LLM Bugs, arXiv:2407.00215"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "preference-over-critiques skeleton echoes text-preference-rlhf; distinct in producing CRITIQUES and in manufacturing gold via tampering"
+
+decision: >
+  Collect critique-quality data — natural-language feedback that catches bugs in code — to train a
+  critic model (RLHF) that helps humans evaluate model outputs.
+
+inputs:
+  - source: model-written code answers with bugs INSERTED by contractors
+    provenance: contractors edit in subtle bugs + write the explanation as if caught in review
+    assumption: tampered bugs are a useful proxy for the bugs you actually want caught (the central caveat)
+  - source: multiple sampled critiques per (question, answer)
+    provenance: model- and human-generated
+    assumption: contractors can rate critique quality consistently (agreement is low without a reference bug)
+
+actors:
+  - role: contractors (tamper + rate)
+    does: insert known bugs adversarially; compare 4 critiques on comprehensiveness / bug-caught / nitpicks / hallucinations / helpfulness
+    type: human
+  - role: critic model
+    does: write critiques; later trained via reward model + PPO on the preference data
+    type: model
+
+steps:
+  - contractors insert subtle bugs (adversarial: an LLM critic must miss it in ≥1 of 3 samples) + record the planted-bug description
+  - sample several critiques per (question, tampered-answer)
+  - contractors rate critique attributes in a 4-way comparison (reference bug known)
+  - train a reward model on overall-quality rankings; optimize a policy with PPO + Force-Sampling Beam Search
+
+quality_gates:
+  - gate: tamper-to-ground-truth (planted bug)
+    checks: a known reference bug exists, so "did the critique catch it?" is checkable
+    catches: unanchored (gives the critique a verifiable target); raises contractor agreement [REPORTED]
+  - gate: 4-way critique comparison + attribute rubric
+    checks: rate comprehensiveness / nitpicks / hallucinations / helpfulness
+    catches: under_specification (partial) [REPORTED]
+
+output:
+  shape: critique-quality preference data (+ attribute ratings) → reward model
+  consumed_by: training a critic model (RLHF)
+
+failure_modes:
+  - signature: unanchored
+    evidence: REPORTED
+    description: >
+      Critics HALLUCINATE bugs that "could mislead humans into making mistakes"; the absolute rate of nitpicks
+      and hallucinations "is still quite high." Without the planted-bug gold you can't separate a real catch from
+      a confabulated one. (Direct echo of Bryan's CoT-faithfulness / pop-problem confabulation findings.)
+    caught_by: tamper-to-ground-truth (only for the planted bug; UNGUARDED for novel hallucinations)
+  - signature: sampling_frame
+    evidence: REPORTED
+    description: >
+      "The distribution of inserted bugs is quite different from the distribution of natural LLM errors" —
+      tampered bugs are harder/more severe than natural ones, so the gold-creation method itself biases the data.
+    caught_by: UNGUARDED (some unmodified data included to mitigate)
+  - signature: under_specification
+    evidence: REPORTED
+    description: >
+      Contractors "often disagree when they compare two critiques on overall quality" (low agreement, subjective);
+      agreement improves substantially WITH a reference bug description.
+    caught_by: tamper-to-ground-truth (the planted bug anchors the subjective judgment)
+
+cost_profile:
+  throughput: scales with contractor tampering + rating
+  bottleneck: skilled contractors who can insert subtle bugs and judge critiques
+  human_cost: skilled; reviewing buggy code is cognitively heavy (lower welfare risk than abuse content)
+
+provenance: >
+  Extracted from arXiv:2407.00215 via EXTRACTION_PROMPT, audited. Completes the task-structure space
+  (critique_rationale was the last gap). Introduces candidate pattern tamper-to-ground-truth (manufacture
+  verifiable gold by planting known defects) — the same move as Bryan's bad-data-detector planted mislabels.
+  The hallucinated-critique failure is a direct echo of the CoT-faithfulness / pop-problem confabulation work.

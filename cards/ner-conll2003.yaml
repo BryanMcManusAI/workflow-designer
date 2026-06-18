@@ -1,0 +1,73 @@
+id: ner-conll2003
+title: Expert Span Annotation for NER (CoNLL-2003)
+modality: text
+task_structure: extraction
+annotator_structure: tiered_review
+lineage: tjong kim sang & de meulder 2003 (CoNLL-2003)
+qa_mechanism: [agreement, adjudication]
+failure_signatures: [under_specification, sampling_frame]
+uses_patterns: [edge-case-guidelines, inter-annotator-agreement, tiered-adjudication]
+distinctive: >
+  Careful EXPERT span annotation — humans mark named-entity spans (PER / LOC / ORG / MISC) over newswire under
+  explicit guidelines, with inter-annotator agreement tracked (well-run NER reaches ~0.95). The canonical
+  human-gold supervised-NER standard — the opposite of distant supervision's noisy KB-derived labels.
+
+provenance_meta:
+  source: "Tjong Kim Sang & De Meulder, CoNLL-2003 Shared Task: Language-Independent NER"
+  extraction_confidence: medium-high (grounded via the shared-task + NER annotation practice)
+  provenance: extracted-then-audited
+  dedup_hint: "2nd nlp-extraction recipe (after distant supervision); distinct — careful human span labeling with guidelines + adjudication vs programmatic KB alignment"
+
+decision: >
+  Produce gold named-entity spans by having annotators mark entity boundaries + types under shared guidelines,
+  reconciling disagreements.
+
+inputs:
+  - source: newswire text (Reuters)
+    provenance: news corpus
+    assumption: entity boundaries + types are consistently decidable (boundary/type ambiguity is the catch)
+
+actors:
+  - role: annotators
+    does: mark entity spans + types per the guidelines
+    type: human
+  - role: adjudicator
+    does: reconcile disagreements into the gold standard
+    type: human
+
+steps:
+  - write entity guidelines (PER/LOC/ORG/MISC, boundary rules, edge cases)
+  - annotate spans; measure inter-annotator agreement
+  - discuss disagreements, refine guidelines, adjudicate
+  - finalize the gold corpus
+
+quality_gates:
+  - gate: guidelines with edge cases + IAA
+    checks: shared boundary/type rules; track κ
+    catches: under_specification [REPORTED]
+  - gate: adjudication
+    checks: a senior pass resolves disagreements
+    catches: under_specification [REPORTED]
+
+output:
+  shape: gold entity-span annotations (BIO/IOB)
+  consumed_by: supervised NER training/eval
+
+failure_modes:
+  - signature: under_specification
+    evidence: REPORTED
+    description: Entity boundaries + types are ambiguous (spans of tokens make the unit count itself unclear); needs guidelines + adjudication to reach high IAA.
+    caught_by: edge-case guidelines + adjudication
+  - signature: sampling_frame
+    evidence: INFERRED
+    description: Newswire-only → poor transfer to other genres/domains. (Inferred.)
+    caught_by: UNGUARDED
+
+cost_profile:
+  throughput: moderate — careful human span labeling
+  bottleneck: expert annotation + adjudication
+  human_cost: skilled annotators; low welfare risk
+
+provenance: >
+  Grounded in the CoNLL-2003 shared task + NER annotation practice. 2nd nlp-extraction recipe — the human-gold
+  span-annotation standard. Contrast with distant-supervision (cheap, noisy, KB-derived): accuracy vs scale.

@@ -1,0 +1,80 @@
+id: nli-snli-artifacts
+title: NLI Data by Crowd Hypothesis-Writing (SNLI) — the Artifacts Cautionary Tale
+modality: text
+task_structure: classification
+annotator_structure: crowd
+lineage: stanford / SNLI (Bowman et al. 2015)
+qa_mechanism: [agreement]
+failure_signatures: [label_leakage, confounded, sampling_frame]
+uses_patterns: [inter-annotator-agreement]
+# candidate pattern surfaced here: `partial-input-baseline` (predict the label from PART of the input → leakage detector)
+distinctive: >
+  Crowdworkers are shown a premise + a target label and asked to WRITE a hypothesis that entails /
+  contradicts / is neutral to it. Cheap and huge — but the writing protocol leaves label-predictive
+  fingerprints: a hypothesis-ONLY model hits ~67% on SNLI / ~53% on MNLI vs 33% chance. A canonical
+  lesson in how a generation protocol leaks the label.
+
+provenance_meta:
+  source: "Bowman et al. (SNLI, 2015); Gururangan et al., Annotation Artifacts in NLI Data (2018); Poliak et al., Hypothesis-Only Baselines (2018)"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "2nd NLP recipe (after adversarial-nli-anli); the cautionary opposite — cheap crowd writing that introduced label-leaking artifacts (ANLI's model-in-the-loop was a response to exactly this)"
+
+decision: >
+  Build a large NLI corpus cheaply by having crowdworkers write hypotheses for given premise+label — and
+  learn why that protocol bakes in artifacts.
+
+inputs:
+  - source: premises (image captions) + a target label
+    provenance: crowdworkers write 3 hypotheses (one per label) per premise
+    assumption: a written hypothesis reflects the reasoning, not a label-correlated writing habit (FALSE — the core lesson)
+
+actors:
+  - role: crowdworkers (writers)
+    does: write entailment / contradiction / neutral hypotheses for each premise
+    type: human
+  - role: validators
+    does: a subset gets ~5 labels to estimate agreement
+    type: human
+
+steps:
+  - show premise + target label; worker writes a matching hypothesis
+  - collect a 5-way validation label on a subset
+  - (post-hoc, by the field) run hypothesis-only baselines → discover the artifacts
+
+quality_gates:
+  - gate: 5-way validation subset + agreement
+    checks: estimate label agreement on a sample
+    catches: under_specification (measures it) [REPORTED]
+  - gate: partial-input baseline (diagnostic)
+    checks: can a model predict the label from the hypothesis ALONE? if yes, there's leakage
+    catches: label_leakage (detects it — added by the field after the fact) [REPORTED]
+
+output:
+  shape: (premise, hypothesis, label) triples at scale
+  consumed_by: NLI model training/eval
+
+failure_modes:
+  - signature: label_leakage
+    evidence: REPORTED
+    description: >
+      The crowdsourcing protocol leaves clues — negation/specificity/length correlate with label — so a
+      hypothesis-only model reaches ~67% (SNLI) / ~53% (MNLI) vs 33% chance. Models 'pass' by exploiting artifacts.
+    caught_by: partial-input baseline (diagnostic; doesn't remove the artifacts)
+  - signature: confounded
+    evidence: REPORTED
+    description: Specific lexical phenomena (e.g. explicit negation → contradiction) are confounded with the label.
+    caught_by: UNGUARDED (ANLI's model-in-the-loop collection was the field's structural fix)
+  - signature: sampling_frame
+    evidence: INFERRED
+    description: Premises are image captions; the hypothesis space reflects worker habits, not natural inference. (Inferred.)
+    caught_by: UNGUARDED
+
+cost_profile:
+  throughput: very high — cheap crowd writing
+  bottleneck: validation subset
+  human_cost: standard crowd; low welfare risk — the cost here is silent (artifacts), not human
+
+provenance: >
+  Grounded in the SNLI + annotation-artifacts literature. 2nd NLP recipe and a key CAUTIONARY entry: cheap
+  generation protocols can leak the label. Pairs with adversarial-nli-anli (the model-in-the-loop response).

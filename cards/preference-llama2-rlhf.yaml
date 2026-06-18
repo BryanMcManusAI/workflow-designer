@@ -1,0 +1,84 @@
+id: preference-llama2-rlhf
+title: Preference Collection — Meta Llama 2 RLHF
+modality: text
+task_structure: preference_ranking
+annotator_structure: crowd
+lineage: meta / Llama 2 (Touvron et al. 2023)
+qa_mechanism: [order_randomization, agreement]
+failure_signatures: [drift, confounded, inflation]
+uses_patterns: [order-randomization, human-gold-anchor]
+
+provenance_meta:
+  source: "Touvron et al., Llama 2: Open Foundation and Fine-Tuned Chat Models, arXiv:2307.09288 (§3.2)"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "same task; the META house-style variant — degree/margin labels + two separate reward models + weekly batches"
+
+distinctive: >
+  Binary choice PLUS a 4-point DEGREE label (significantly / better / slightly / negligibly-better-or-
+  unsure), fed into a MARGIN term in the ranking loss. TWO separate reward models — Helpfulness RM and
+  Safety RM — because the two objectives trade off. Preference data collected in WEEKLY vendor BATCHES,
+  deliberately re-collected with the latest model to keep RMs in distribution.
+
+inputs:
+  - source: paired model responses
+    provenance: vendor crowd, collected weekly in batches
+    assumption: the degree label is meaningful + helpfulness/safety are better modeled separately
+
+actors:
+  - role: vendor annotators
+    does: pick the better response + rate HOW MUCH better (4-point degree)
+    type: human
+  - role: two reward models
+    does: Helpfulness RM + Safety RM trained separately on the labels
+    type: model
+
+decision: >
+  Collect graded pairwise preferences to train separate helpfulness and safety reward models, refreshed
+  weekly so they track the improving policy.
+
+steps:
+  - annotators choose the better of two responses AND label the degree (significantly→negligibly better)
+  - apply a margin term in the ranking loss scaled by the degree
+  - train Helpfulness RM and Safety RM separately
+  - for safety, bin pairs (both safe / one safe / both unsafe); drop chosen-unsafe-vs-safe pairs
+  - re-collect a new batch weekly with the latest model
+
+quality_gates:
+  - gate: degree/margin label
+    checks: capture how much better, not just which — larger loss margin for clear wins
+    catches: under_specification of near-ties (treats 'barely better' differently) [REPORTED]
+  - gate: separate helpfulness + safety reward models
+    checks: don't force one model to serve trading-off objectives
+    catches: confounded (helpfulness vs safety) [REPORTED]
+  - gate: weekly re-collection
+    checks: refresh preference data against the current model
+    catches: drift [REPORTED]
+
+output:
+  shape: graded preference pairs → Helpfulness RM + Safety RM
+  consumed_by: RLHF
+
+failure_modes:
+  - signature: drift
+    evidence: REPORTED
+    description: Reward models degrade as the policy moves; weekly re-collection with the latest model counters it.
+    caught_by: weekly re-collection
+  - signature: confounded
+    evidence: REPORTED
+    description: Helpfulness and safety trade off; a single RM conflates them — so they split into two.
+    caught_by: separate reward models
+  - signature: inflation
+    evidence: INFERRED
+    description: Degree labels can drift toward the middle without calibration. (Inferred.)
+    caught_by: UNGUARDED
+
+cost_profile:
+  throughput: high; weekly batch cadence
+  bottleneck: vendor annotation throughput + weekly refresh logistics
+  human_cost: vendor crowd; safety pairs carry exposure
+
+provenance: >
+  Extracted from arXiv:2307.09288 §3.2. META's house-style variant. Distinctive: degree/margin labels +
+  TWO reward models + weekly batches. Contrast via the compare operator with HH (separate axes, online),
+  Constitutional-AI (AI feedback), Sparrow (rules), OpenAI (screened contractors).

@@ -1,0 +1,87 @@
+id: image-bbox-adjudicated
+title: Object Bounding-Box Labeling with Redundancy + Adjudication
+modality: image
+task_structure: structured_output
+annotator_structure: tiered_review
+qa_mechanism: [agreement, adjudication, gold_honeypots]
+failure_signatures: [under_specification, bottleneck, class_imbalance, sampling_frame]
+uses_patterns: [multi-annotator-aggregate, tiered-adjudication, gold-honeypots, inter-annotator-agreement]
+
+decision: >
+  Produce tight, consistent object boxes (class + extent) to train a detector, reliable enough
+  that box quality isn't the ceiling on model performance.
+
+inputs:
+  - source: images sampled from the deployment distribution
+    provenance: collection pipeline
+    assumption: the sample covers rare classes and hard scenes (often it doesn't)
+  - source: a labeling guideline (what counts as the object, where the edge goes)
+    provenance: authored by the task owner
+    assumption: the guideline resolves occlusion / truncation / tiny-object cases
+
+actors:
+  - role: annotators (N per image)
+    does: draw boxes independently
+    type: human
+  - role: reviewer / adjudicator
+    does: resolve low-IoU disagreements into the gold box
+    type: human
+  - role: model pre-labeler (optional)
+    does: propose boxes annotators correct
+    type: model
+
+steps:
+  - sample images; flag rare-class scenes for over-sampling
+  - N annotators box each image independently (no peeking)
+  - compute pairwise IoU agreement; high-agreement boxes auto-accept
+  - low-agreement images route to an adjudicator
+  - honeypot images with known boxes are seeded to score annotators
+  - periodically re-audit accepted boxes against the guideline
+
+quality_gates:
+  - gate: redundancy + IoU agreement
+    checks: N independent boxes must agree above an IoU threshold
+    catches: under_specification, label noise
+  - gate: adjudication of disagreements
+    checks: a senior pass resolves the hard cases
+    catches: under_specification
+  - gate: honeypots
+    checks: seeded known-answer images score each annotator
+    catches: inflation, bad actors
+  - gate: rare-class over-sampling
+    checks: deliberate intake of under-represented classes
+    catches: class_imbalance, sampling_frame
+
+output:
+  shape: gold boxes (class + coords) + per-annotator quality scores
+  consumed_by: detector training; later, eval-set construction
+
+failure_modes:
+  - signature: under_specification
+    description: >
+      "Where exactly does the box edge go" on occluded/truncated objects is undefined, so IoU
+      agreement is low and labels aren't learnable. The cure is guideline examples for the hard
+      cases, not more annotators.
+    caught_by: adjudication + tighter guideline
+  - signature: bottleneck
+    description: >
+      A single adjudicator on every low-agreement image throttles the whole campaign.
+    caught_by: tiered-adjudication (only true disagreements escalate)
+  - signature: class_imbalance
+    description: >
+      Rare objects are scarce in a random sample, so the detector never learns them.
+    caught_by: rare-class over-sampling
+  - signature: sampling_frame
+    description: >
+      Boxes look great on easy daytime scenes while night/occluded scenes — the deployment tail —
+      are under-labeled.
+    caught_by: UNGUARDED   # add deployment-stratified sampling
+
+cost_profile:
+  throughput: thousands of images/day; scales with annotator pool
+  bottleneck: adjudication of low-IoU images
+  human_cost: N-way redundancy multiplies per-image cost; adjudicators are scarce
+
+provenance: >
+  Canonical computer-vision annotation practice. The failure modes (edge ambiguity, adjudication
+  bottleneck, rare-class scarcity) are well-documented in the field, not invented.
