@@ -50,6 +50,41 @@ QUESTIONS = {
     "gaming": "How are annotators paid / incentivized? Could they optimize the metric (templates, speed) instead of quality?",
 }
 
+# The subset of failure signatures that threaten the DEFINITION of good itself — the detector's
+# lesson: the gold is the thing most likely to be wrong. Each is a "is your 'good' a proxy?" probe.
+SPEC_THREATS = {
+    "unanchored": (
+        "You have no ground truth — is 'good' just whatever your producer emitted? Without a gold reference you can't tell good from confident-and-wrong.",
+        "build a small expert gold set; measure producer-vs-gold agreement"),
+    "label_leakage": (
+        "Could 'good' be predicted from PART of the input — a length/format/position cue, or eval data the model already trained on? Then the label leaks a proxy.",
+        "partial-input baseline: predict the label from a fragment of the input"),
+    "self_affinity": (
+        "If a model defines or judges 'good', is it perceiving quality or recalling its own family's style? Re-label a slice with a different model family.",
+        "cross-family re-label a slice; measure divergence"),
+    "confounded": (
+        "Is a spurious cue — length, formatting, author, fluency — standing in for 'good'? Hold it fixed and see if the judgment survives.",
+        "length/style-control a slice; check 'good' still holds"),
+    "gaming": (
+        "Can an annotator hit 'good' by templating or speed without producing quality? Then you're capturing the metric, not the good.",
+        "seed honeypots; test whether 'good' is reachable by gaming"),
+    "inflation": (
+        "Does the bar for 'good' creep upward over time? Re-score frozen anchor exemplars and watch the standard drift.",
+        "re-score fixed anchor exemplars across the campaign"),
+    "drift": (
+        "Is your definition of 'good' moving under you as the data/model changes?",
+        "periodic re-score of a held-out gold set"),
+    "under_specification": (
+        "Would two competent people agree 'good' applies? Low agreement means 'good' isn't actually defined yet.",
+        "two raters on the same items; measure IAA"),
+    "over_specification": (
+        "Is 'good' so rigid it mislabels genuinely novel-but-good cases? Test it against the hard tail, not the easy bulk.",
+        "apply the spec to the hard/novel tail"),
+    "sampling_frame": (
+        "Are you only certifying 'good' on the easy cases? 'Good' on a biased sample isn't good at deployment.",
+        "stratified audit across the full distribution, not a random sample"),
+}
+
 W = 96
 
 
@@ -215,6 +250,43 @@ def analyze_interrogate(idx, stub):
                      "patterns": defs, "unguarded": not defs,
                      "example": {"card": ex_cid, "desc": ex_desc}})
     return {"defended": sorted(have), "open": rows}
+
+
+def analyze_backwards(idx, stub):
+    """Run the engine in REVERSE — from the definition of good back to the workflow that produces it.
+
+    'Good data' = data free of the ways it goes bad for this kind of capture (the applicable failure
+    signatures). For each, the gate/pattern that guarantees against it -> a backwards-assembled build
+    list. Plus a spec stress-test: the subset of threats that mean your *definition* of good may be a proxy.
+    """
+    near, far = _near_far(idx, stub)
+    analogue_ids = [cid for _, cid in near] + [cid for _, cid, _ in far]
+    full = risk_counter(idx, analogue_ids)
+    have = defended(idx, stub)
+    good_means, guarantees = [], []
+    for sig, n in full.most_common():
+        good_means.append(sig)
+        defs = patterns_defending(idx, sig)
+        ex_cid, _ = example_card_for(idx, sig, analogue_ids)
+        guarantees.append({
+            "signature": sig, "count": n, "defended": sig in have, "unguarded": not defs,
+            "patterns": [{"id": p, "name": idx["patterns"][p]["name"], "cost": idx["patterns"][p]["cost"]}
+                         for p in defs],
+            "example": ex_cid,
+        })
+    # Tight build list: ONE primary pattern per still-OPEN failure mode (dedup; skip already-defended).
+    needed, seen = [], set(stub.get("uses_patterns", []))
+    for g in guarantees:
+        if g["defended"] or not g["patterns"]:
+            continue
+        p = g["patterns"][0]
+        if p["id"] not in seen:
+            seen.add(p["id"])
+            needed.append({"id": p["id"], "name": p["name"], "for": g["signature"]})
+    spec_threats = [{"signature": s, "question": SPEC_THREATS[s][0], "probe": SPEC_THREATS[s][1]}
+                    for s in good_means if s in SPEC_THREATS]
+    return {"good_means": good_means, "guarantees": guarantees,
+            "needed_patterns": needed, "spec_threats": spec_threats, "already_have": sorted(have)}
 
 
 def analyze_modality_shift(idx, stub, to):
@@ -439,6 +511,35 @@ def cmd_interrogate(idx, stub, args):
         print()
 
 
+def cmd_backwards(idx, stub, args):
+    stub_banner(stub)
+    res = analyze_backwards(idx, stub)
+    task = stub.get("task_structure", "this")
+    header(f'"GOOD" {task} DATA MEANS FREE OF')
+    print("  " + (", ".join(res["good_means"]) or "(no analogues — fill the stub axes)"))
+    header("TO GUARANTEE THAT, THE WORKFLOW NEEDS")
+    for g in res["guarantees"]:
+        tag = "  ✓ already in your design" if g["defended"] else ""
+        print(f"  [{g['signature']}]{tag}")
+        if g["unguarded"]:
+            print("      UNGUARDED — no pattern defends this (a corpus gap)")
+        for p in g["patterns"][:3]:
+            print(f"      -> {p['id']} — {p['name']} (cost: {p['cost']})")
+        if g["example"]:
+            print(f"      seen in `{g['example']}`")
+    header("BACKWARDS-ASSEMBLED BUILD LIST (one defense per open risk)")
+    if res["needed_patterns"]:
+        for p in res["needed_patterns"]:
+            print(f"  + {p['id']} — {p['name']}  (closes: {p['for']})")
+    else:
+        print("  (your design already covers every applicable failure mode)")
+    header("BUT FIRST — IS YOUR 'GOOD' ACTUALLY GOOD?  (stress-test the spec)")
+    for s in res["spec_threats"]:
+        print(f"  [{s['signature']}]")
+        print(wrap(s["question"], "     "))
+        print(f"      probe: {s['probe']}")
+
+
 def cmd_modality_shift(idx, stub, args):
     to = args.to
     stub_banner(stub)
@@ -588,7 +689,7 @@ def main():
     sp.add_argument("--by", default="domain")
     sp = sub.add_parser("compare")
     sp.add_argument("--task", required=True)
-    for name in ("retrieve", "interrogate", "transplant"):
+    for name in ("retrieve", "interrogate", "transplant", "backwards"):
         sp = sub.add_parser(name)
         sp.add_argument("--stub", default=DEFAULT_STUB)
     sp = sub.add_parser("modality-shift")
@@ -618,6 +719,8 @@ def main():
         cmd_retrieve(idx, stub, args)
     elif args.cmd == "interrogate":
         cmd_interrogate(idx, stub, args)
+    elif args.cmd == "backwards":
+        cmd_backwards(idx, stub, args)
     elif args.cmd == "modality-shift":
         cmd_modality_shift(idx, stub, args)
     elif args.cmd == "transplant":

@@ -25,6 +25,7 @@ every command with no third-party dependencies. The small input stub is flat YAM
 
 ```bash
 python3 engine.py list                                   # corpus summary + signature coverage
+python3 engine.py backwards    --stub S                  # ★ good = free of these failures -> the workflow that guarantees it + a spec stress-test
 python3 engine.py retrieve     --stub S                  # near + far analogues
 python3 engine.py interrogate  --stub S                  # mode 3: open risks + patterns that catch them
 python3 engine.py modality-shift --stub S --to video     # re-instantiate the skeleton in another modality

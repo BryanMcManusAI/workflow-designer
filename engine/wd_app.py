@@ -58,6 +58,44 @@ def render():
             "annotator_structure": annotator, "qa_mechanism": qa,
             "uses_patterns": used, "addressed_signatures": addressed, "failure_signatures": []}
 
+    # ---- Backwards from good (the primary view) ----
+    st.markdown("### 🎯 Backwards from good")
+    st.caption("Good data = data free of the ways it goes bad. This works backwards from that: the failure "
+               "modes that threaten 'good' here, the gates that guarantee against each — and a stress-test of "
+               "whether your definition of 'good' is itself a proxy.")
+    bw = engine.analyze_backwards(idx, stub)
+    st.markdown('**"Good" data here means FREE OF:**  '
+                + (", ".join(f"`{s}`" for s in bw["good_means"]) or "_(no analogues — fill the axes above)_"))
+    with st.container(border=True):
+        st.markdown("**To guarantee that, the workflow needs:**")
+        for g in bw["guarantees"]:
+            tag = "  ·  ✓ already in your design" if g["defended"] else ""
+            st.markdown(f"- `{g['signature']}`{tag}")
+            if g["unguarded"]:
+                st.warning(f"UNGUARDED — no pattern defends `{g['signature']}` (a corpus gap).")
+            for p in g["patterns"][:2]:
+                st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;→ **`{p['id']}`** — {p['name']} "
+                            f"<span style='color:#888'>· cost: {p['cost']}</span>", unsafe_allow_html=True)
+            if g["example"]:
+                st.caption(f"&nbsp;&nbsp;&nbsp;&nbsp;seen in `{g['example']}`")
+    if bw["needed_patterns"]:
+        st.markdown("**Backwards-assembled build list — one defense per open risk:**")
+        for p in bw["needed_patterns"]:
+            st.markdown(f"- **`{p['id']}`** — {p['name']} "
+                        f"<span style='color:#888'>· closes `{p['for']}`</span>", unsafe_allow_html=True)
+    else:
+        st.info("Your current design already covers every applicable failure mode. 🎯")
+    if bw["spec_threats"]:
+        with st.container(border=True):
+            st.markdown("**⚠️ But first — is your *good* actually good?**  (stress-test the spec)")
+            st.caption("The detector's lesson: the gold is the thing most likely to be wrong. Each check asks "
+                       "whether your definition of 'good' is secretly a proxy.")
+            for s in bw["spec_threats"]:
+                st.markdown(f"- **`{s['signature']}`** — {s['question']} "
+                            f"<span style='color:#888'>· probe: {s['probe']}</span>", unsafe_allow_html=True)
+    st.divider()
+    st.markdown("##### Other tools")
+
     tabs = st.tabs(["🔎 Interrogate", "🧭 Retrieve", "🔀 Modality-shift",
                     "🧩 Transplant", "♻️ Flip / Substitute", "📚 Browse corpus",
                     "🏛️ Compare orgs", "📖 Cookbook index"])

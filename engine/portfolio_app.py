@@ -75,6 +75,33 @@ st.caption(f"**{stub['goal']}** — `{stub['modality']}` / `{stub['task_structur
            f"`{stub['annotator_structure']}` · starting patterns: "
            + (", ".join(f"`{p}`" for p in stub['uses_patterns']) or "none"))
 
+# ── Backwards from good (the lead) ─────────────────────────────────────────
+st.header("Backwards from good — the core move")
+st.caption("Good data is data *free of the ways it goes bad*. So instead of auditing a finished workflow, the "
+           "tool runs in reverse: from what “good” means here → the workflow that guarantees it → and a "
+           "stress-test of whether your definition of “good” is itself a proxy.")
+bw = engine.analyze_backwards(idx, stub)
+st.markdown("**“Good” data here means free of:** "
+            + ", ".join(f"`{s}`" for s in bw["good_means"][:8])
+            + (" …" if len(bw["good_means"]) > 8 else ""))
+if bw["needed_patterns"]:
+    st.markdown("**The workflow that guarantees it** — one defense per open risk:")
+    for p in bw["needed_patterns"][:6]:
+        st.markdown(f"- **`{p['id']}`** — {p['name']} "
+                    f"<span style='color:#888'>· closes `{p['for']}`</span>", unsafe_allow_html=True)
+elif bw["already_have"]:
+    st.success("Your starting patterns already cover every applicable failure mode.")
+if bw["spec_threats"]:
+    with st.container(border=True):
+        st.markdown("**But first — is your *good* actually good?**")
+        st.caption("The hardest lesson from my detector work: the gold is the thing most likely to be wrong. "
+                   "Each check asks whether “good” is secretly a proxy — length, format, recalled consensus, a lenient label.")
+        for s in bw["spec_threats"][:4]:
+            st.markdown(f"- `{s['signature']}` — {s['question']}  \n"
+                        f"<span style='color:#888'>probe: {s['probe']}</span>", unsafe_allow_html=True)
+st.divider()
+st.caption("Below: the forward tools the backwards pass is built on — analogues, interrogation, creative moves, lab comparison.")
+
 # ── Step 1 — Retrieve ─────────────────────────────────────────────────────
 st.header("1 · It finds analogous prior workflows")
 near, far = engine.analyze_retrieve(idx, stub)
