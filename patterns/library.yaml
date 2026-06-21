@@ -7,6 +7,8 @@ patterns:
 
   - id: multi-annotator-aggregate
     name: Multi-Annotator + Aggregation
+    phase: label
+    play: "Collect N independent labels per item and aggregate (majority / Dawid–Skene); treat disagreement as a noise signal."
     does: >
       Have N annotators label each item independently, then combine (majority, or a model like
       Dawid-Skene) into one label, using disagreement as a noise signal.
@@ -21,6 +23,8 @@ patterns:
 
   - id: tiered-adjudication
     name: Tiered Review / Adjudication
+    phase: resolve
+    play: "Auto-accept high-agreement items; escalate only genuine disagreements to a senior adjudicator who sets gold."
     does: >
       Auto-accept high-agreement items; escalate only true disagreements to a scarce senior
       adjudicator who sets the gold answer.
@@ -34,6 +38,8 @@ patterns:
 
   - id: gold-honeypots
     name: Gold / Honeypot Items
+    phase: audit
+    play: "Seed known-answer honeypots invisibly into the stream to score each annotator continuously and catch drift / bad actors."
     does: >
       Seed known-answer items invisibly into the live stream to score each annotator's accuracy
       continuously and catch bad actors and drift.
@@ -48,6 +54,8 @@ patterns:
 
   - id: qualification-calibration
     name: Qualification + Calibration Test
+    phase: qualify
+    play: "Gate annotators through a gold calibration set before live work; re-test periodically so everyone shares the bar."
     does: >
       Gate annotators through a gold calibration set before live work and re-test periodically,
       so everyone shares the same bar.
@@ -60,6 +68,8 @@ patterns:
 
   - id: inter-annotator-agreement
     name: Inter-Annotator Agreement (IAA)
+    phase: resolve
+    play: "Compute IAA (κ/α) on overlapping items; low agreement means the guideline isn't defined yet — fix it before scaling."
     does: >
       Measure κ/α (or modality analog) between annotators as a standing health metric; low IAA
       means the guidelines are under-specified, not that annotators are bad.
@@ -72,6 +82,8 @@ patterns:
 
   - id: human-gold-anchor
     name: Human-Gold Anchor
+    phase: audit
+    play: "Build a small expert gold set and measure the pipeline against it — the anchor everything else is checked on."
     does: >
       Hold out a small, expert-labeled reference set and validate the automated/crowd labels
       against it — the thing that turns raw scores into trustworthy ones.
@@ -84,6 +96,8 @@ patterns:
 
   - id: cross-family-judges
     name: Cross-Family Judges / Checkers
+    phase: audit
+    play: "Re-label a slice with a different model family to separate quality from self-preference."
     does: >
       When a model labels or judges, have a model of a *different* family re-label a slice, so
       you measure quality rather than self-preference.
@@ -96,6 +110,8 @@ patterns:
 
   - id: human-audit-sample
     name: Stratified Human Audit
+    phase: audit
+    play: "Stratified human audit of a sample across the full distribution (not a random skim), on a fixed cadence."
     does: >
       Review a sample of model-produced labels, stratified by confidence and class (not random),
       to estimate true accuracy where the model is actually weak.
@@ -108,6 +124,8 @@ patterns:
 
   - id: lock-then-score
     name: Lock-Then-Score (Guideline Freeze)
+    phase: convention
+    play: "Freeze the guideline before scoring; changes go through a versioned re-calibration, not silent mid-stream edits."
     does: >
       Freeze the rubric/guidelines and analysis plan before any labels are seen, so the bar can't
       silently move to fit the data.
@@ -120,6 +138,8 @@ patterns:
 
   - id: active-learning-loop
     name: Active-Learning Loop
+    phase: source
+    play: "Route the next batch toward the items the model is most uncertain on (mind the lock-then-score tension)."
     does: >
       Let the model pick the next items to label (most-uncertain / most-informative) instead of
       labeling a static batch, concentrating human effort where it moves the model most.
@@ -132,6 +152,8 @@ patterns:
 
   - id: split-isolation
     name: Entity-Partitioned Splits
+    phase: source
+    play: "Partition train/dev/test by entity (speaker / repo / document) so the same entity can't leak across splits."
     does: >
       Partition data on an entity (speaker, author, document, patient, session) so the same entity
       never appears in more than one of train/dev/test, forcing the model to learn the task instead
@@ -149,6 +171,8 @@ patterns:
 
   - id: powered-eval-split
     name: Power-Sized Eval Split
+    phase: audit
+    play: "Size the dev/test split for the confidence / margin you need before you claim a real difference."
     does: >
       Size the dev/test split to a statistical target (confidence level + margin of error) rather
       than an arbitrary percentage, so eval conclusions are actually supported.
@@ -163,6 +187,8 @@ patterns:
 
   - id: order-randomization
     name: Order / Position Randomization
+    phase: convention
+    play: "Randomize item / A–B position per annotator so presentation order can't leak into the label."
     does: >
       Present items (or A/B options) in random order so the position or popularity of an item can't
       leak into the judgment — kills "hedging" early-item effects and popularity bias.
@@ -177,6 +203,8 @@ patterns:
 
   - id: dedup-merge
     name: De-duplicate / Merge
+    phase: source
+    play: "De-duplicate near-identical inputs before labeling to avoid inflating agreement and wasting budget."
     does: >
       Detect near-duplicate items (exact, hash, or feature-similarity) and remove or merge them so they
       don't inflate apparent volume/coverage or leak the same content across train/test splits.
@@ -191,6 +219,8 @@ patterns:
 
   - id: execution-verification
     name: Execution-Based Verification
+    phase: label
+    play: "Ground truth by execution: run the unit tests / the program; don't have humans eyeball correctness."
     does: >
       Get ground truth by RUNNING the artifact against tests/specs instead of judging it — a candidate is
       correct iff it passes. Available wherever output is executable (code, SQL, configs, formal proofs).
@@ -205,6 +235,8 @@ patterns:
 
   - id: labeling-functions
     name: Labeling Functions / Weak Supervision
+    phase: label
+    play: "Encode noisy heuristics as labeling functions and combine them with a learned label model (weak supervision)."
     does: >
       Replace per-item hand labels with programmatic heuristics (patterns, rules, KB alignment) that vote or
       abstain; combine their noisy outputs (majority or a learned label model) into training labels.
@@ -222,6 +254,8 @@ patterns:
 
   - id: tamper-to-ground-truth
     name: Tamper-to-Ground-Truth (Planted Errors)
+    phase: audit
+    play: "Plant known defects / mislabels and measure recall on them — a verifiable floor for your QA."
     does: >
       Manufacture verifiable gold by deliberately INJECTING known defects (bugs, mislabels, poison) with a
       recorded key, so a detector/critic can be scored on whether it recovers them.
@@ -237,6 +271,8 @@ patterns:
 
   - id: edge-case-guidelines
     name: Edge-Case Guidelines (Iterative Refinement)
+    phase: convention
+    play: "Grow the guideline from real disagreements: add a boundary example every time two competent labelers split."
     does: >
       Write clear guidelines anchored by EXAMPLES — especially boundary cases that "only just" qualify — and refine
       them iteratively: annotate, measure IAA, discuss disagreements, update the rule book, repeat.
@@ -251,11 +287,13 @@ patterns:
 
   - id: annotator-welfare-protocol
     name: Annotator Welfare Protocol
+    phase: convention
+    play: "For harmful content: exposure limits, masking tools, breaks, counseling, and time-based (not quota) pay."
     does: >
       Protect annotators exposed to harmful/distressing content — warnings, exposure limits, breaks, counseling,
       well-being surveys, content-masking tools, and time-based (not quota) pay.
     defends: []   # guards the HUMANS, not a data-quality signature
-    pairs_with: [tiered-adjudication, audit-sampling]
+    pairs_with: [tiered-adjudication, human-audit-sample]
     conflicts_with: []
     cost: "Counseling/wellness programs + reduced throughput from exposure limits; the ethical floor for harmful-content work."
     modality_notes: >
@@ -265,6 +303,8 @@ patterns:
 
   - id: model-in-the-loop-adversarial
     name: Model-in-the-Loop Adversarial Elicitation
+    phase: label
+    play: "Have annotators write inputs that fool a live model; the model-beating cases become the hard data."
     does: >
       Put a target model in the collection loop and have humans craft inputs that fool/beat it — yielding hard,
       discriminative examples (and a moving target as models improve). (Subsumes the earlier `adversarial-pairing` candidate.)
@@ -279,6 +319,8 @@ patterns:
 
   - id: coverage-routing
     name: Coverage Routing
+    phase: source
+    play: "Keep a live coverage map and deliberately source the rare / hard cells, not just the easy bulk."
     does: >
       Track which strata/cells are under-represented and route the NEXT collection/labeling to fill the thinnest
       ones (rare classes, missing modalities, uncovered signatures) — active sampling for COVERAGE, not uncertainty.
@@ -293,6 +335,8 @@ patterns:
 
   - id: engagement-gate
     name: Engagement / Attention Gate
+    phase: qualify
+    play: "Add attention/engagement checks (whole-item exposure, time floors) to filter speed-clicking and gaming."
     does: >
       Verify the annotator actually engaged with THIS item — attention/instructional checks, reverse-coded traps,
       whole-item completion ('did it last the whole clip?'), minimum time-on-task — and drop/flag those who didn't.
@@ -307,6 +351,8 @@ patterns:
 
   - id: pooled-sampling
     name: Pooled Sampling (Judge the Union, Reuse)
+    phase: source
+    play: "Pool the union of candidate outputs/systems and judge that pool, so no source is structurally favored."
     does: >
       Instead of judging the whole space, judge only the UNION of what the candidate systems produced/retrieved,
       then reuse those judgments to score all systems — including ones absent from the pool.
@@ -318,3 +364,21 @@ patterns:
       Canonical in IR (judge top-k of each run, reuse qrels); generalizes to model-comparison eval (judge the union of
       outputs the candidate models produced, reuse the rubric across them). 'Don't judge the whole space' is invariant.
     exemplified_by: [relevance-pooling-trec, judge-eval-study]
+
+  - id: partial-input-baseline
+    name: Partial-Input Baseline (Leakage Diagnostic)
+    phase: audit
+    play: "Try to predict the label from a fragment of the input; if you can, the label is leaking a proxy."
+    does: >
+      Score a baseline that sees only PART of the input — the hypothesis alone, the answer without the
+      question, the caption without the image. If it beats chance, the label is derivable from a fragment
+      that shouldn't suffice: the data has an artifact a model will exploit instead of the intended signal.
+    defends: [label_leakage]
+    pairs_with: [model-in-the-loop-adversarial, human-gold-anchor]
+    conflicts_with: []
+    cost: "Cheap to run, but only DETECTS leakage — removing it needs re-collection (adversarial / model-in-the-loop) or reweighting."
+    modality_notes: >
+      The 'fragment' is modality-specific — hypothesis-only (NLI), answer-only (multiple-choice QA),
+      caption-without-image (vision-language), first-N-tokens (sequence) — but 'predict the label from a
+      part that shouldn't be enough' is invariant. It is a diagnostic, not a fix.
+    exemplified_by: [nli-snli-artifacts, adversarial-nli-anli]

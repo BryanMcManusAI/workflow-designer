@@ -6,8 +6,9 @@ annotator_structure: crowd
 lineage: stanford / SNLI (Bowman et al. 2015)
 qa_mechanism: [agreement]
 failure_signatures: [label_leakage, confounded, sampling_frame]
-uses_patterns: [inter-annotator-agreement]
-# candidate pattern surfaced here: `partial-input-baseline` (predict the label from PART of the input → leakage detector)
+uses_patterns: [inter-annotator-agreement, partial-input-baseline]
+# `partial-input-baseline` (predict the label from PART of the input → leakage detector) was surfaced
+# here and is now PROMOTED to the library (2nd exemplar: adversarial-nli-anli's hypothesis-only baseline).
 distinctive: >
   Crowdworkers are shown a premise + a target label and asked to WRITE a hypothesis that entails /
   contradicts / is neutral to it. Cheap and huge — but the writing protocol leaves label-predictive

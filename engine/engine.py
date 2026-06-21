@@ -26,7 +26,9 @@ Stub format (flat YAML), e.g.:
 """
 import argparse
 import json
+import math
 import os
+import sys
 import textwrap
 from collections import Counter
 
@@ -114,6 +116,24 @@ def load_stub(path):
     return stub
 
 
+def stub_warnings(idx, stub):
+    """Flag stub values outside the corpus vocabulary so a typo in a hand-written stub doesn't
+    silently produce a degraded (generic-fallback) result. Returns a list of human-readable warnings."""
+    v = vocab(idx)
+    warns = []
+    for axis in ("modality", "task_structure", "annotator_structure"):
+        val = stub.get(axis)
+        if val and val not in v.get(axis, []):
+            warns.append(f"{axis}={val!r} is not in the corpus vocab {v.get(axis, [])}")
+    for qa in stub.get("qa_mechanism", []):
+        if qa not in v["qa_mechanism"]:
+            warns.append(f"qa_mechanism {qa!r} is not a known mechanism")
+    for pid in stub.get("uses_patterns", []):
+        if pid not in idx["patterns"]:
+            warns.append(f"uses_patterns {pid!r} is not a known pattern")
+    return warns
+
+
 # ---- helpers -------------------------------------------------------------
 
 def wrap(text, indent="    "):
@@ -129,7 +149,35 @@ def patterns_defending(idx, sig):
     return [pid for pid, p in idx["patterns"].items() if sig in p.get("defends", [])]
 
 
+def signature_idf(idx):
+    """Inverse document frequency of each failure signature across the corpus.
+
+    A signature on few cards (e.g. `gaming`, `self_affinity`) is rare and discriminating; one on
+    many (e.g. `under_specification`) is near-universal. IDF lets far-analogy reward the surprising,
+    high-information shared risk over the banal one.
+    """
+    cards = idx["cards"]
+    n = len(cards) or 1
+    df = Counter()
+    for c in cards.values():
+        for s in set(c["failure_signatures"]):
+            df[s] += 1
+    return {s: math.log(n / k) for s, k in df.items()}
+
+
+# Domains that document/tool the data process rather than BEING an annotation workflow; they make
+# weak analogues for a concrete design, so they're demoted below any thematic match (else e.g. the
+# datasheets card outranks ner-conll2003 as the precedent for an NER task). Unless the stub itself
+# targets one of these, in which case the penalty is dropped.
+META_TOOLING_DOMAINS = {"meta-tooling"}
+META_TOOLING_PENALTY = 3
+
+
 def near_analogues(idx, stub, n=5):
+    stub_qa = set(stub.get("qa_mechanism", []))
+    stub_pat = set(stub.get("uses_patterns", []))
+    stub_domain = stub.get("domain")
+    demote_meta = stub_domain not in META_TOOLING_DOMAINS
     scored = []
     for cid, c in idx["cards"].items():
         s = 0
@@ -139,8 +187,13 @@ def near_analogues(idx, stub, n=5):
             s += 2
         if c["modality"] == stub.get("modality"):
             s += 2
-        s += len(set(c["qa_mechanism"]) & set(stub.get("qa_mechanism", [])))
-        s += len(set(c["uses_patterns"]) & set(stub.get("uses_patterns", [])))
+        if stub_domain and c.get("domain") == stub_domain:
+            s += 1
+        # Shared skeleton PATTERNS are a stronger structural signal than shared raw QA tokens.
+        s += 2 * len(set(c["uses_patterns"]) & stub_pat)
+        s += len(set(c["qa_mechanism"]) & stub_qa)
+        if demote_meta and c.get("domain") in META_TOOLING_DOMAINS:
+            s -= META_TOOLING_PENALTY
         if s > 0:
             scored.append((s, cid))
     scored.sort(key=lambda x: (-x[0], x[1]))
@@ -148,15 +201,22 @@ def near_analogues(idx, stub, n=5):
 
 
 def far_analogues(idx, stub, risk, n=4):
+    idf = signature_idf(idx)
     out = []
     for cid, c in idx["cards"].items():
         same_mod = c["modality"] == stub.get("modality")
         same_task = c["task_structure"] == stub.get("task_structure")
         if same_mod and same_task:
             continue  # not distant enough
-        shared = sorted(set(c["failure_signatures"]) & set(risk))
-        if shared and (not same_mod or not same_task):
-            out.append((len(shared), cid, shared))
+        shared = set(c["failure_signatures"]) & set(risk)
+        if not shared:
+            continue
+        # Rank by the RARITY of the shared risk (sum of IDF), not raw count: a distant card that
+        # shares a rare signature is a more surprising, more valuable creative pull. List the
+        # shared signatures rarest-first too, so the headline reason is the most informative one.
+        score = sum(idf.get(s, 0.0) for s in shared)
+        shared_sorted = sorted(shared, key=lambda s: (-idf.get(s, 0.0), s))
+        out.append((score, cid, shared_sorted))
     out.sort(key=lambda x: (-x[0], x[1]))
     return out[:n]
 
@@ -178,6 +238,38 @@ def defended(idx, stub):
     return d
 
 
+def conflict_pairs(idx, left, right):
+    """Pairs (a, b) where pattern a (in `left`) conflicts_with pattern b (in `right`).
+
+    Symmetric pairs are de-duplicated. With left == right this surfaces the tensions WITHIN a
+    design (e.g. lock-then-score ⟂ active-learning-loop); with right = a target regime it surfaces
+    tensions a flip would introduce.
+    """
+    left, right = set(left), set(right)
+    out, seen = [], set()
+    for p in left:
+        for other in idx["patterns"].get(p, {}).get("conflicts_with", []):
+            if other in right and p != other:
+                key = tuple(sorted((p, other)))
+                if key not in seen:
+                    seen.add(key)
+                    out.append((p, other))
+    return out
+
+
+def suggested_complements(idx, pattern_ids):
+    """Patterns that `pairs_with` what's already adopted but aren't in the design yet —
+    the synergy half of the adopt-loop (the conflict half is conflict_pairs)."""
+    pids = set(pattern_ids)
+    rec = Counter()
+    for p in pids:
+        for other in idx["patterns"].get(p, {}).get("pairs_with", []):
+            if other not in pids and other in idx["patterns"]:
+                rec[other] += 1
+    return [{"id": pid, "name": idx["patterns"][pid]["name"],
+             "cost": idx["patterns"][pid]["cost"], "by": cnt} for pid, cnt in rec.most_common()]
+
+
 def example_card_for(idx, sig, cids):
     fallback = None
     for cid in cids:
@@ -193,14 +285,6 @@ def example_card_for(idx, sig, cids):
     return fallback or (None, "")
 
 
-def cite_patterns(idx, sig):
-    out = []
-    for pid in patterns_defending(idx, sig):
-        p = idx["patterns"][pid]
-        out.append(f"      borrow `{pid}` — {p['name']} (defends {sig}; cost: {p['cost']})")
-    return out
-
-
 def stub_banner(stub):
     print(f"stub: {stub.get('goal','(no goal)')}")
     print(f"      {stub.get('modality','?')} / {stub.get('task_structure','?')} / "
@@ -208,8 +292,8 @@ def stub_banner(stub):
           f"patterns={stub.get('uses_patterns') or '[]'}")
 
 
-# ---- structured analysis (shared by the CLI and the Streamlit UI) --------
-# These return plain data; cmd_* (below) and wd_app.py (Streamlit) both render them.
+# ---- structured analysis (shared by the CLI, the REPL, and the static site) --------
+# These return plain data; the render_* helpers (CLI + REPL) and build_site.py all consume them.
 
 def _near_far(idx, stub):
     near = near_analogues(idx, stub)
@@ -249,7 +333,228 @@ def analyze_interrogate(idx, stub):
                      "question": QUESTIONS.get(sig, f"How will you handle `{sig}`?"),
                      "patterns": defs, "unguarded": not defs,
                      "example": {"card": ex_cid, "desc": ex_desc}})
-    return {"defended": sorted(have), "open": rows}
+    adopted = stub.get("uses_patterns", [])
+    return {"defended": sorted(have), "open": rows,
+            "complements": suggested_complements(idx, adopted),
+            "conflicts": conflict_pairs(idx, adopted, adopted)}
+
+
+def analyze_coverage(idx, stub):
+    """How much of the applicable failure space the current design defends — the adopt-loop's
+    score. Applicable = the union of signatures across the stub's near+far analogues (what 'good'
+    must be free of); covered = those a pattern/addressed_signature in the design already guards.
+    """
+    near, far = _near_far(idx, stub)
+    analogue_ids = [cid for _, cid in near] + [cid for _, cid, _ in far]
+    applicable = set(risk_counter(idx, analogue_ids))
+    have = defended(idx, stub)
+    covered = sorted(applicable & have)
+    open_ = sorted(applicable - have)
+    total = len(applicable)
+    adopted = stub.get("uses_patterns", [])
+    return {"applicable": sorted(applicable), "covered": covered, "open": open_,
+            "n_applicable": total, "n_covered": len(covered),
+            "pct": (len(covered) / total) if total else 1.0,
+            "conflicts": conflict_pairs(idx, adopted, adopted)}
+
+
+# ---- assembling a concrete sample workflow -------------------------------
+# These tables turn the abstract axes + chosen patterns into a buildable spec: the fields each
+# annotator fills (by task), the action they take, the actor structure, and how each pattern slots
+# into the pipeline as a step / convention / audit move.
+
+# Per-item FIELDS the annotator produces, keyed by task_structure.
+TASK_FIELDS = {
+    "classification": ["label (one value from the taxonomy)", "confidence (low/med/high)",
+                       "notes / why (optional)"],
+    "extraction": ["span_text", "char_start", "char_end", "entity_type"],
+    "structured_output": ["region (box / polygon / mask)", "class", "attributes",
+                          "occlusion / truncation flags"],
+    "transcription_translation": ["transcript / translation", "language or dialect",
+                                  "inaudible / uncertain flags", "confidence"],
+    "preference_ranking": ["choice (A / B / tie)", "strength (slight / clear / strong)",
+                           "rationale", "policy-violation flag"],
+    "rubric_rating": ["per-criterion score (vs anchor exemplars)", "overall score",
+                      "evidence span / quote"],
+    "demonstration": ["prompt", "ideal_response", "refuse-if-appropriate flag", "notes"],
+    "critique_rationale": ["critique_text", "defect_severity", "located_span", "suggested_fix"],
+    "relevance": ["relevance_grade (0–3)", "query_id", "doc_id", "justification"],
+    "red_team": ["attack_prompt", "technique / harm_category", "model_response",
+                 "success (y/n)", "severity"],
+    "freeform_generation": ["prompt", "produced_output", "pass / fail",
+                            "failing case or test", "notes"],
+}
+GENERIC_FIELDS = ["item_id", "label / judgment", "confidence", "notes"]
+
+# One-line description of the core labeling ACTION, keyed by task_structure.
+TASK_ACTION = {
+    "classification": "Assign each item exactly one label from the taxonomy (plus confidence).",
+    "extraction": "Mark the spans/entities in each item and tag each with its type.",
+    "structured_output": "Draw the region(s) for each item and label class + attributes.",
+    "transcription_translation": "Transcribe/translate each clip and flag the uncertain parts.",
+    "preference_ranking": "Shown two outputs for one input, pick the better, say how much better and why.",
+    "rubric_rating": "Score each item on every rubric criterion against the anchors, then overall.",
+    "demonstration": "Write the ideal response for each prompt (the SFT demonstration).",
+    "critique_rationale": "Find the defect in each item, locate it, and explain it.",
+    "relevance": "Grade how relevant each document is to the query (0–3).",
+    "red_team": "Craft inputs that elicit the harmful behavior; label success and category.",
+    "freeform_generation": "Produce the output and decide pass/fail against an objective check.",
+}
+
+# How the actor structure runs the LABEL step.
+ANNOTATOR_LABEL = {
+    "crowd": "Crowd annotators label each item, several per item for redundancy.",
+    "multi_aggregate": "Several annotators label each item independently; aggregate into one label.",
+    "tiered_review": "First-pass annotators label; reviewers check; a senior adjudicator sets gold on conflicts.",
+    "expert": "Domain experts label (low throughput, high skill); lighter redundancy.",
+    "model_as_annotator": "A model labels every item; humans audit a sample instead of labeling all.",
+    "model_assisted": "A model pre-labels; humans accept or correct (correct-the-machine).",
+    "programmatic": "Labeling functions emit noisy labels; a learned label model resolves them — no per-item human.",
+    "single": "A single annotator labels each item.",
+}
+# Annotator structures where no human labels each item — the Label step leads with the mechanism.
+NONHUMAN_ANNOTATORS = {"model_as_annotator", "programmatic"}
+# Domains whose work exposes annotators to harmful/distressing content (welfare duty-of-care applies).
+HARMFUL_DOMAINS = {"safety-redteam", "content-moderation"}
+
+# Each pattern's role in an assembled workflow — a pipeline phase (source/qualify/label/resolve),
+# a labeling CONVENTION, or part of the AUDIT strategy — plus an imperative instruction, both now
+# live ON THE PATTERN in patterns/library.yaml (`phase:` / `play:`), so the recipe is grounded in
+# the corpus like everything else rather than in a parallel table here. _play_for reads them;
+# _generic_play is the fallback for any pattern that hasn't declared them yet.
+VALID_PHASES = {"source", "qualify", "label", "resolve", "convention", "audit"}
+
+
+PHASE_BASE = [
+    ("Source & sample", "Assemble candidate inputs and sample them to mirror deployment — not just the easy cases."),
+    ("Write & freeze the guideline", "Draft the labeling guideline with worked examples; freeze it before scoring (see conventions)."),
+    ("Qualify & calibrate", "Train and gate annotators on a calibration set so everyone shares the bar."),
+    ("Label", None),  # filled from task action + annotator structure
+    ("Resolve", "Measure agreement and adjudicate disagreements into final labels."),
+    ("Audit & sign-off", "Run the audit strategy below before any data is accepted."),
+]
+PHASE_KEYS = {"Source & sample": "source", "Qualify & calibrate": "qualify",
+              "Label": "label", "Resolve": "resolve"}
+
+
+def _generic_play(idx, pid):
+    """Fallback (phase, instruction) for a pattern whose library entry hasn't declared `phase`/`play`
+    yet — derived from what it defends, so the assembler stays robust as the corpus grows."""
+    p = idx["patterns"].get(pid, {})
+    defends = set(p.get("defends", []))
+    if defends & {"inflation", "drift", "gaming", "unanchored", "self_affinity", "label_leakage"}:
+        phase = "audit"
+    elif defends & {"under_specification", "over_specification"}:
+        phase = "convention"
+    else:
+        phase = "label"
+    instr = (p.get("does") or "").strip()
+    return phase, (instr[:140] + "…" if len(instr) > 140 else instr) or "(see pattern detail)"
+
+
+def _play_for(idx, pid):
+    """A pattern's role + instruction, read from the corpus (library.yaml `phase`/`play`) with a
+    derived fallback. This is what grounds conventions/audit in the corpus, not a hardcoded table."""
+    p = idx["patterns"].get(pid, {})
+    phase, play = p.get("phase"), p.get("play")
+    if phase in VALID_PHASES and play:
+        return phase, play
+    return _generic_play(idx, pid)
+
+
+def _inspirations(idx, pid, analogue_ids):
+    """Ground a pattern's convention/audit in the actual workflow inspirations: the analogue cards
+    that really use it (`seen_in`), and — where one exists — a concrete quality_gate from such a card
+    that catches a risk this pattern defends (`as_done`), so the recipe quotes how a real workflow did
+    it instead of only a generic instruction. Falls back to the pattern's own exemplar cards."""
+    defends = set(idx["patterns"][pid].get("defends", []))
+    ptoks = set(pid.replace("-", " ").split())
+    insp = [cid for cid in analogue_ids if pid in idx["cards"][cid]["uses_patterns"]]
+    if not insp:
+        insp = [c for c in idx["patterns"][pid].get("exemplified_by", []) if c in idx["cards"]]
+    # Pick the inspiration gate that best matches this pattern: most overlap with what it defends,
+    # tie-broken by name affinity (so gold-honeypots quotes the honeypot gate, not just any gate).
+    best = None  # (score, card, gate)
+    for cid in insp:
+        for g in idx["cards"][cid].get("quality_gates", []):
+            overlap = len(set(g.get("catches", [])) & defends)
+            if not overlap or not g.get("checks"):
+                continue
+            gtoks = set(g.get("gate", "").lower().replace("/", " ").replace("+", " ").split())
+            score = (overlap, len(ptoks & gtoks))
+            if best is None or score > best[0]:
+                best = (score, cid, g)
+    as_done = {"card": best[1], "gate": best[2]["gate"], "checks": best[2]["checks"]} if best else None
+    # de-dup while preserving order, cap to keep the output legible
+    seen, ordered = set(), []
+    for cid in insp:
+        if cid not in seen:
+            seen.add(cid)
+            ordered.append(cid)
+    return {"seen_in": ordered[:3], "as_done": as_done}
+
+
+def analyze_workflow(idx, stub):
+    """Assemble a concrete, buildable sample workflow from the stub + its patterns: the ordered
+    labeling steps, the per-item fields, the suggested conventions, and the audit strategy. The
+    'chosen' patterns are what the design already has PLUS the backwards-from-good build list, so
+    the output is a complete recipe, not just a critique. Each pattern's convention/audit is grounded
+    in the actual inspiration cards (`seen_in` / `as_done`)."""
+    bw = analyze_backwards(idx, stub)
+    near, far = _near_far(idx, stub)
+    analogue_ids = [cid for _, cid in near] + [cid for _, cid, _ in far]
+    adopted = list(stub.get("uses_patterns", []))
+    chosen, seen = [], set()
+    for pid in adopted + [p["id"] for p in bw["needed_patterns"]]:
+        if pid in idx["patterns"] and pid not in seen:
+            seen.add(pid)
+            chosen.append(pid)
+
+    # Welfare is a duty-of-care, not a data-quality signature, so it never enters the signature-driven
+    # build list — but harmful-content work demands it. Surface it for red-teaming / moderation.
+    harmful = (stub.get("task_structure") == "red_team"
+               or any(idx["cards"][cid].get("domain") in HARMFUL_DOMAINS for _, cid in near[:3]))
+    if harmful and "annotator-welfare-protocol" in idx["patterns"] and "annotator-welfare-protocol" not in seen:
+        seen.add("annotator-welfare-protocol")
+        chosen.append("annotator-welfare-protocol")
+
+    plays = {}
+    for pid in chosen:
+        role, instr = _play_for(idx, pid)
+        insp = _inspirations(idx, pid, analogue_ids)
+        plays.setdefault(role, []).append({
+            "id": pid, "name": idx["patterns"][pid]["name"], "instruction": instr,
+            "have": pid in adopted, "cost": idx["patterns"][pid]["cost"],
+            "seen_in": insp["seen_in"], "as_done": insp["as_done"]})
+
+    task = stub.get("task_structure")
+    annot = stub.get("annotator_structure")
+    steps = []
+    for i, (phase, base) in enumerate(PHASE_BASE, 1):
+        if phase == "Label":
+            action = TASK_ACTION.get(task, f"produce the {task} label for each item.")
+            who = ANNOTATOR_LABEL.get(annot, "Annotators label each item.")
+            if annot in NONHUMAN_ANNOTATORS:
+                # No human labels each item, so lead with the mechanism and frame the task as the
+                # target output (avoids "assign each item a label … no per-item human").
+                base = f"{who} Target per item: {action[0].lower() + action[1:]}"
+            else:
+                base = f"{action} {who}"
+        steps.append({"n": i, "phase": phase, "do": base,
+                      "patterns": plays.get(PHASE_KEYS.get(phase, ""), [])})
+
+    return {
+        "goal": stub.get("goal", ""), "modality": stub.get("modality"),
+        "task": task, "annotator": annot,
+        "precedent": near[0][1] if near else None,
+        "steps": steps,
+        "fields": TASK_FIELDS.get(task, GENERIC_FIELDS),
+        "conventions": plays.get("convention", []),
+        "audit": plays.get("audit", []),
+        "spec_threats": bw["spec_threats"],
+        "chosen": chosen, "adopted": adopted,
+        "to_add": [p for p in chosen if p not in adopted],
+    }
 
 
 def analyze_backwards(idx, stub):
@@ -295,9 +600,12 @@ def analyze_modality_shift(idx, stub, to):
         p = idx["patterns"].get(pid)
         kept.append({"id": pid, "name": p["name"] if p else "(unknown)",
                      "notes": p["modality_notes"] if p else ""})
+    if to and to == stub.get("modality"):
+        # Shifting into your own modality is a no-op; emitting "new risks" would be misleading.
+        return {"kept": kept, "same": True, "no_target": False, "new_risks": [], "transplants": []}
     target_cards = [cid for cid, c in idx["cards"].items() if c["modality"] == to]
     if not target_cards:
-        return {"kept": kept, "no_target": True, "new_risks": [], "transplants": []}
+        return {"kept": kept, "same": False, "no_target": True, "new_risks": [], "transplants": []}
     near_ids = [cid for _, cid in near_analogues(idx, stub)][:3]
     current = set(risk_counter(idx, near_ids)) | defended(idx, stub)
     new_risks = []
@@ -315,7 +623,8 @@ def analyze_modality_shift(idx, stub, to):
                 tcount[pid] += 1
     transplants = [{"id": pid, "name": idx["patterns"][pid]["name"], "cost": idx["patterns"][pid]["cost"]}
                    for pid, _ in tcount.most_common(8)]
-    return {"kept": kept, "no_target": False, "new_risks": new_risks, "transplants": transplants}
+    return {"kept": kept, "same": False, "no_target": False,
+            "new_risks": new_risks, "transplants": transplants}
 
 
 def analyze_transplant(idx, stub):
@@ -344,19 +653,19 @@ def analyze_transplant(idx, stub):
 
 
 def analyze_flip(idx, stub, axis, to):
+    if to and to == stub.get(axis):
+        # Flipping an axis to its current value is a no-op; don't report spurious "new" signatures.
+        return {"empty": False, "same": True, "survive": [], "at_risk": [], "conflicts": [], "new_sig": []}
     flipped = [cid for cid, c in idx["cards"].items() if c.get(axis) == to]
     if not flipped:
-        return {"empty": True, "survive": [], "at_risk": [], "conflicts": [], "new_sig": []}
+        return {"empty": True, "same": False, "survive": [], "at_risk": [], "conflicts": [], "new_sig": []}
     flipped_patterns = set()
     for cid in flipped:
         flipped_patterns |= set(idx["cards"][cid]["uses_patterns"])
     kept = stub.get("uses_patterns", [])
     survive = [p for p in kept if p in flipped_patterns]
     at_risk = [p for p in kept if p not in flipped_patterns]
-    conflicts = []
-    for p in kept:
-        for other in set(idx["patterns"].get(p, {}).get("conflicts_with", [])) & flipped_patterns:
-            conflicts.append((p, other))
+    conflicts = conflict_pairs(idx, kept, flipped_patterns)
     near_ids = [cid for _, cid in near_analogues(idx, stub)][:3]
     current = set(risk_counter(idx, near_ids)) | defended(idx, stub)
     new_sig = []
@@ -365,7 +674,7 @@ def analyze_flip(idx, stub, axis, to):
             continue
         defs = patterns_defending(idx, s)
         new_sig.append({"signature": s, "defender": defs[0] if defs else None})
-    return {"empty": False, "survive": survive, "at_risk": at_risk,
+    return {"empty": False, "same": False, "survive": survive, "at_risk": at_risk,
             "conflicts": conflicts, "new_sig": new_sig}
 
 
@@ -430,9 +739,11 @@ def vocab(idx):
     return {k: sorted(v) for k, v in out.items()}
 
 
-# ---- commands ------------------------------------------------------------
+# ---- renderers (shared by the CLI and the REPL) --------------------------
+# Each takes a structured analyze_* result and prints it. The REPL drives these directly, so the
+# terminal output is identical whether you run a one-shot subcommand or the interactive loop.
 
-def cmd_list(idx, args):
+def render_list(idx):
     cards, pats = idx["cards"], idx["patterns"]
     print(f"corpus: {len(cards)} workflow cards, {len(pats)} patterns")
     for axis in ("modality", "task_structure", "annotator_structure"):
@@ -449,71 +760,57 @@ def cmd_list(idx, args):
         print(f"  {s:<22} {n}")
 
 
-def _analogues(idx, stub):
-    near = near_analogues(idx, stub)
-    near_ids = [cid for _, cid in near]
-    risk = risk_counter(idx, near_ids[:3])
-    far = far_analogues(idx, stub, set(risk))
-    return near, far, risk
-
-
-def cmd_retrieve(idx, stub, args):
-    stub_banner(stub)
-    near, far, _ = _analogues(idx, stub)
+def render_retrieve(near, far):
     header("NEAR analogues (shared modality / task / annotator)")
     if not near:
         print("  (none)")
-    for s, cid in near:
-        c = idx["cards"][cid]
-        why = []
-        if c["task_structure"] == stub.get("task_structure"):
-            why.append("task")
-        if c["annotator_structure"] == stub.get("annotator_structure"):
-            why.append("annotator")
-        if c["modality"] == stub.get("modality"):
-            why.append("modality")
-        print(f"  [{s}] {cid}  ({c['modality']}/{c['task_structure']}) — shares: {', '.join(why) or 'qa/patterns'}")
+    for r in near:
+        print(f"  [{r['score']}] {r['id']}  ({r['modality']}/{r['task']}) — "
+              f"shares: {', '.join(r['why'])}")
     header("FAR analogues (distant modality/task, shared RISK — the creative pulls)")
     if not far:
         print("  (none)")
-    for n, cid, shared in far:
-        c = idx["cards"][cid]
-        print(f"  {cid}  ({c['modality']}/{c['task_structure']}) — shares signatures: {', '.join(shared)}")
+    for r in far:
+        print(f"  {r['id']}  ({r['modality']}/{r['task']}) — "
+              f"shares signatures: {', '.join(r['shared'])}")
 
 
-def cmd_interrogate(idx, stub, args):
-    stub_banner(stub)
-    near, far, risk = _analogues(idx, stub)
-    analogue_ids = [cid for _, cid in near] + [cid for _, cid, _ in far]
-    full_risk = risk_counter(idx, analogue_ids)
-    have = defended(idx, stub)
-    open_risks = [(s, n) for s, n in full_risk.most_common() if s not in have]
+def render_synergy(res):
+    """Conflicts + complements among the adopted patterns — the adopt-loop's two halves."""
+    if res.get("conflicts"):
+        header("⟂ CONFLICTS in your current design")
+        for a, b in res["conflicts"]:
+            print(f"  `{a}` ⟂ `{b}` — a real design tension; choose one deliberately.")
+    if res.get("complements"):
+        header("+ COMPLEMENTS (pair cleanly with what you've adopted)")
+        for c in res["complements"][:6]:
+            print(f"  `{c['id']}` — {c['name']} (cost: {c['cost']})")
+
+
+def render_interrogate(res):
     header("MODE 3 — interrogation (answer these before you build)")
-    if have:
-        print(f"  already defended by your patterns/addressed: {', '.join(sorted(have))}\n")
-    if not open_risks:
-        print("  No open risks among your analogues — your patterns cover them. (Rare; double-check coverage.)")
-        return
-    for i, (sig, n) in enumerate(open_risks, 1):
-        q = QUESTIONS.get(sig, f"How will you handle `{sig}`?")
+    if res["defended"]:
+        print(f"  already defended by your patterns/addressed: {', '.join(res['defended'])}\n")
+    if not res["open"]:
+        print("  No open risks among your analogues — your patterns cover them. "
+              "(Rare; double-check coverage.)")
+    for i, r in enumerate(res["open"], 1):
+        sig, n = r["signature"], r["count"]
         print(f"  {i}. [{sig}]  (seen in {n} analogue{'s' if n > 1 else ''})")
-        print(wrap(q, "     "))
-        cites = cite_patterns(idx, sig)
-        if cites:
-            for line in cites:
-                print(line)
-        else:
+        print(wrap(r["question"], "     "))
+        if r["unguarded"]:
             print(f"      UNGUARDED — no pattern in the library defends `{sig}` (a corpus gap).")
-        ex_cid, ex_desc = example_card_for(idx, sig, analogue_ids)
-        if ex_cid:
-            tag = "" if not ex_desc else f": {ex_desc[:120]}"
-            print(f"      seen in `{ex_cid}`{tag}")
+        for p in r["patterns"]:
+            print(f"      borrow `{p['id']}` — {p['name']} (defends {sig}; cost: {p['cost']})")
+        ex = r["example"]
+        if ex["card"]:
+            tag = "" if not ex["desc"] else f": {ex['desc'][:120]}"
+            print(f"      seen in `{ex['card']}`{tag}")
         print()
+    render_synergy(res)
 
 
-def cmd_backwards(idx, stub, args):
-    stub_banner(stub)
-    res = analyze_backwards(idx, stub)
+def render_backwards(stub, res):
     task = stub.get("task_structure", "this")
     header(f'"GOOD" {task} DATA MEANS FREE OF')
     print("  " + (", ".join(res["good_means"]) or "(no analogues — fill the stub axes)"))
@@ -540,121 +837,119 @@ def cmd_backwards(idx, stub, args):
         print(f"      probe: {s['probe']}")
 
 
-def cmd_modality_shift(idx, stub, args):
-    to = args.to
-    stub_banner(stub)
+def render_coverage(res):
+    total = res["n_applicable"]
+    bar_len = 24
+    filled = round(bar_len * res["pct"]) if total else bar_len
+    bar = "#" * filled + "." * (bar_len - filled)
+    header("COVERAGE")
+    print(f"  [{bar}] {res['n_covered']}/{total} applicable risks defended ({res['pct']*100:.0f}%)")
+    if res["covered"]:
+        print(f"  covered: {', '.join(res['covered'])}")
+    if res["open"]:
+        print(f"  open:    {', '.join(res['open'])}")
+    for a, b in res.get("conflicts", []):
+        print(f"  ⟂ conflict: `{a}` vs `{b}` — pick one.")
+
+
+def _print_play(p):
+    tag = "have" if p["have"] else "ADD"
+    print(wrap(f"[{tag}] `{p['id']}` — {p['instruction']}", "  "))
+    if p.get("as_done"):
+        a = p["as_done"]
+        print(wrap(f"as `{a['card']}` does — {a['gate']}: {a['checks']}", "      "))
+    elif p.get("seen_in"):
+        print(f"      seen in: {', '.join(p['seen_in'])}")
+
+
+def render_workflow(res):
+    print(f"\n>>> ASSEMBLED SAMPLE WORKFLOW")
+    print(f"    {res['goal']}")
+    print(f"    {res['modality']} / {res['task']} / {res['annotator']}"
+          + (f"  ·  closest precedent: {res['precedent']}" if res["precedent"] else ""))
+    header("LABELING STEPS")
+    for s in res["steps"]:
+        print(f"  {s['n']}. {s['phase']} — {s['do']}")
+        for p in s["patterns"]:
+            tag = "have" if p["have"] else "ADD"
+            print(wrap(f"[{tag}] `{p['id']}`: {p['instruction']}", "       "))
+    header("FIELDS the annotator fills per item")
+    for f in res["fields"]:
+        print(f"  - {f}")
+    header("SUGGESTED CONVENTIONS")
+    if not res["conventions"]:
+        print("  (none beyond a frozen, example-driven guideline)")
+    for p in res["conventions"]:
+        _print_play(p)
+    header("AUDIT STRATEGY")
+    if not res["audit"]:
+        print("  (add a gold anchor + a stratified human audit)")
+    for p in res["audit"]:
+        _print_play(p)
+    if res["spec_threats"]:
+        print("  — and stress-test that 'good' isn't a proxy:")
+        for s in res["spec_threats"]:
+            print(wrap(f"{s['signature']}: {s['probe']}", "      "))
+
+
+def render_modality_shift(res, to):
     print(f"\n>>> MODALITY-SHIFT to: {to}\n")
-    kept = stub.get("uses_patterns", [])
+    if res.get("same"):
+        print(f"  (that's already your modality — pick a different one to shift into)")
+        return
     header("KEEP (modality-independent skeleton) — and what swaps for " + to)
-    if not kept:
+    if not res["kept"]:
         print("  (stub lists no patterns — fill uses_patterns to carry a skeleton across)")
-    for pid in kept:
-        p = idx["patterns"].get(pid)
-        if not p:
-            print(f"  {pid}  (unknown pattern)")
-            continue
-        print(f"  {pid} — {p['name']}")
-        print(wrap("swaps: " + (p["modality_notes"] or "(no modality notes)"), "      "))
-    target_cards = [cid for cid, c in idx["cards"].items() if c["modality"] == to]
-    if not target_cards:
+    for k in res["kept"]:
+        print(f"  {k['id']} — {k['name']}")
+        print(wrap("swaps: " + (k["notes"] or "(no modality notes)"), "      "))
+    if res["no_target"]:
         print(f"\n  (no {to} cards in the corpus yet — can't derive modality-specific risks)")
         return
-    near_ids = [cid for _, cid in near_analogues(idx, stub)][:3]
-    current = set(risk_counter(idx, near_ids)) | defended(idx, stub)
-    target_sigs = risk_counter(idx, target_cards)
-    new_risks = [s for s, _ in target_sigs.most_common() if s not in current]
     header(f"NEW failure modes {to} introduces (re-derive these)")
-    for s in new_risks:
-        ex_cid, ex_desc = example_card_for(idx, s, target_cards)
-        defs = patterns_defending(idx, s)
-        guard = (f"borrow `{defs[0]}`" if defs else "UNGUARDED — corpus gap")
-        print(f"  [{s}] {guard}" + (f" — e.g. {ex_cid}" if ex_cid else ""))
-    kept_set = set(kept)
-    transplants = []
-    for cid in target_cards:
-        for pid in idx["cards"][cid]["uses_patterns"]:
-            if pid not in kept_set and pid in idx["patterns"]:
-                transplants.append(pid)
+    for nr in res["new_risks"]:
+        guard = (f"borrow `{nr['defender']}`" if nr["defender"] else "UNGUARDED — corpus gap")
+        print(f"  [{nr['signature']}] {guard}" + (f" — e.g. {nr['example']}" if nr["example"] else ""))
     header(f"TRANSPLANT candidates ({to} workflows use these; your stub doesn't)")
-    for pid in [p for p, _ in Counter(transplants).most_common(8)]:
-        p = idx["patterns"][pid]
-        print(f"  `{pid}` — {p['name']} (cost: {p['cost']})")
+    for t in res["transplants"]:
+        print(f"  `{t['id']}` — {t['name']} (cost: {t['cost']})")
 
 
-def cmd_transplant(idx, stub, args):
-    stub_banner(stub)
-    near, far, risk = _analogues(idx, stub)
-    analogue_ids = [cid for _, cid in near] + [cid for _, cid, _ in far]
-    full_risk = risk_counter(idx, analogue_ids)
-    have = defended(idx, stub)
-    open_risks = [s for s, _ in full_risk.most_common() if s not in have]
+def render_transplant(rows):
     header("TRANSPLANT — patterns from DISTANT workflows that defend your open risks")
-    stub_mod, stub_task = stub.get("modality"), stub.get("task_structure")
-    shown = set()
-    for sig in open_risks:
-        for pid in patterns_defending(idx, sig):
-            if pid in shown:
-                continue
-            p = idx["patterns"][pid]
-            distant = [c for c in p["exemplified_by"]
-                       if c in idx["cards"]
-                       and (idx["cards"][c]["modality"] != stub_mod
-                            or idx["cards"][c]["task_structure"] != stub_task)]
-            if not distant:
-                continue
-            shown.add(pid)
-            print(f"  `{pid}` — {p['name']}")
-            print(wrap(f"imports a defense for `{sig}` from {distant[0]} "
-                       f"({idx['cards'][distant[0]]['modality']}/{idx['cards'][distant[0]]['task_structure']}); "
-                       f"cost: {p['cost']}", "      "))
-    if not shown:
+    if not rows:
         print("  (no distant transplants found — your open risks may need new patterns)")
+    for t in rows:
+        print(f"  `{t['id']}` — {t['name']}")
+        print(wrap(f"imports a defense for `{t['signature']}` from {t['from']} "
+                   f"({t['from_mod']}/{t['from_task']}); cost: {t['cost']}", "      "))
 
 
-def cmd_flip(idx, stub, args, actor=False):
-    axis = "annotator_structure" if actor else args.axis
-    to = args.to
-    stub_banner(stub)
+def render_flip(res, axis, to, actor=False):
     label = "ACTOR-SUBSTITUTE" if actor else "FLIP"
     print(f"\n>>> {label}: {axis} -> {to}\n")
-    flipped = [cid for cid, c in idx["cards"].items() if c[axis] == to]
-    if not flipped:
+    if res.get("same"):
+        print(f"  (your {axis} is already {to} — pick a different value to flip into)")
+        return
+    if res["empty"]:
         print(f"  (no cards with {axis}={to} — can't derive the flipped regime)")
         return
-    flipped_patterns = set()
-    for cid in flipped:
-        flipped_patterns |= set(idx["cards"][cid]["uses_patterns"])
-    kept = stub.get("uses_patterns", [])
-    survive = [p for p in kept if p in flipped_patterns]
-    at_risk = [p for p in kept if p not in flipped_patterns]
-    conflicts = []
-    for p in kept:
-        cw = set(idx["patterns"].get(p, {}).get("conflicts_with", []))
-        for other in cw & flipped_patterns:
-            conflicts.append((p, other))
-    near_ids = [cid for _, cid in near_analogues(idx, stub)][:3]
-    current = set(risk_counter(idx, near_ids)) | defended(idx, stub)
-    new_sig = [s for s, _ in risk_counter(idx, flipped).most_common() if s not in current]
     header("patterns that SURVIVE (also used by the flipped regime)")
-    print("  " + (", ".join(survive) if survive else "(none of your patterns)"))
+    print("  " + (", ".join(res["survive"]) if res["survive"] else "(none of your patterns)"))
     header("patterns that may NOT carry over (not seen in the flipped regime)")
-    print("  " + (", ".join(at_risk) if at_risk else "(none)"))
-    if conflicts:
+    print("  " + (", ".join(res["at_risk"]) if res["at_risk"] else "(none)"))
+    if res["conflicts"]:
         header("CONFLICTS introduced")
-        for a, b in conflicts:
+        for a, b in res["conflicts"]:
             print(f"  `{a}` conflicts_with `{b}` (which the {to} regime uses)")
     header(f"NEW signatures the {to} regime tends to hit")
-    for s in new_sig:
-        defs = patterns_defending(idx, s)
-        print(f"  [{s}] " + (f"borrow `{defs[0]}`" if defs else "UNGUARDED"))
+    for ns in res["new_sig"]:
+        print(f"  [{ns['signature']}] "
+              + (f"borrow `{ns['defender']}`" if ns["defender"] else "UNGUARDED"))
 
 
-def cmd_cookbook(idx, args):
-    if args.by not in COOKBOOK_ANGLES:
-        print(f"  --by must be one of: {', '.join(COOKBOOK_ANGLES)}")
-        return
-    res = analyze_cookbook(idx, args.by)
-    print(f"\n>>> COOKBOOK index — recipes by {args.by}\n")
+def render_cookbook(res):
+    print(f"\n>>> COOKBOOK index — recipes by {res['by']}\n")
     for val, items in res["groups"].items():
         header(f"{val}  ({len(items)})")
         for it in items:
@@ -662,11 +957,10 @@ def cmd_cookbook(idx, args):
             print(f"  {it['id']}  ({it['modality']}/{it['task']}){extra}")
 
 
-def cmd_compare(idx, args):
-    res = analyze_compare(idx, args.task)
-    print(f"\n>>> COMPARE org / house-style approaches to: {args.task}\n")
+def render_compare(idx, res):
+    print(f"\n>>> COMPARE org / house-style approaches to: {res['task']}\n")
     if res["few"]:
-        print(f"  (need >=2 cards with task_structure={args.task}; "
+        print(f"  (need >=2 cards with task_structure={res['task']}; "
               f"types with variants: {', '.join(tasks_with_variants(idx))})")
         return
     header("shared across ALL approaches (the invariant core)")
@@ -681,6 +975,60 @@ def cmd_compare(idx, args):
         print(f"  risks only this lab carries: {', '.join(v['distinct_sigs']) or '(none unique)'}")
 
 
+# ---- commands (thin CLI wrappers: load -> analyze -> render) --------------
+
+def cmd_list(idx, args):
+    render_list(idx)
+
+
+def cmd_retrieve(idx, stub, args):
+    stub_banner(stub)
+    near, far = analyze_retrieve(idx, stub)
+    render_retrieve(near, far)
+
+
+def cmd_interrogate(idx, stub, args):
+    stub_banner(stub)
+    render_interrogate(analyze_interrogate(idx, stub))
+
+
+def cmd_backwards(idx, stub, args):
+    stub_banner(stub)
+    render_backwards(stub, analyze_backwards(idx, stub))
+
+
+def cmd_modality_shift(idx, stub, args):
+    stub_banner(stub)
+    render_modality_shift(analyze_modality_shift(idx, stub, args.to), args.to)
+
+
+def cmd_transplant(idx, stub, args):
+    stub_banner(stub)
+    render_transplant(analyze_transplant(idx, stub))
+
+
+def cmd_flip(idx, stub, args, actor=False):
+    axis = "annotator_structure" if actor else args.axis
+    stub_banner(stub)
+    render_flip(analyze_flip(idx, stub, axis, args.to), axis, args.to, actor)
+
+
+def cmd_cookbook(idx, args):
+    if args.by not in COOKBOOK_ANGLES:
+        print(f"  --by must be one of: {', '.join(COOKBOOK_ANGLES)}")
+        return
+    render_cookbook(analyze_cookbook(idx, args.by))
+
+
+def cmd_compare(idx, args):
+    render_compare(idx, analyze_compare(idx, args.task))
+
+
+def cmd_workflow(idx, stub, args):
+    stub_banner(stub)
+    render_workflow(analyze_workflow(idx, stub))
+
+
 def main():
     ap = argparse.ArgumentParser(description="Workflow Designer engine (deterministic, stdlib).")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -689,7 +1037,7 @@ def main():
     sp.add_argument("--by", default="domain")
     sp = sub.add_parser("compare")
     sp.add_argument("--task", required=True)
-    for name in ("retrieve", "interrogate", "transplant", "backwards"):
+    for name in ("retrieve", "interrogate", "transplant", "backwards", "workflow"):
         sp = sub.add_parser(name)
         sp.add_argument("--stub", default=DEFAULT_STUB)
     sp = sub.add_parser("modality-shift")
@@ -715,12 +1063,16 @@ def main():
         cmd_cookbook(idx, args)
         return
     stub = load_stub(args.stub)
+    for w in stub_warnings(idx, stub):
+        print(f"warning: {w}", file=sys.stderr)
     if args.cmd == "retrieve":
         cmd_retrieve(idx, stub, args)
     elif args.cmd == "interrogate":
         cmd_interrogate(idx, stub, args)
     elif args.cmd == "backwards":
         cmd_backwards(idx, stub, args)
+    elif args.cmd == "workflow":
+        cmd_workflow(idx, stub, args)
     elif args.cmd == "modality-shift":
         cmd_modality_shift(idx, stub, args)
     elif args.cmd == "transplant":

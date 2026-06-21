@@ -19,7 +19,8 @@
    ],
    "uses_patterns": [
     "model-in-the-loop-adversarial",
-    "human-gold-anchor"
+    "human-gold-anchor",
+    "partial-input-baseline"
    ],
    "decision": "Collect hard NLI examples by having humans write hypotheses that fool a target model, producing a benchmark that resists saturation (a \"moving target\").",
    "failure_modes": [
@@ -35,7 +36,37 @@
      "description": "Adversarial hypotheses can be genuinely ambiguous, so even verifiers may disagree on the gold label. (Inferred.)",
      "caught_by": "human verification (partial)"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "human verification of gold",
+     "checks": "other annotators confirm the intended label",
+     "catches": [
+      "under_specification",
+      "/",
+      "mislabeled",
+      "adversarial",
+      "items",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "model-in-the-loop filter",
+     "checks": "only model-fooling examples are kept",
+     "catches": [
+      "easiness",
+      "(surfaces",
+      "the",
+      "hard",
+      "tail)"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "moderate — fooling the model takes annotator effort + retries",
+    "bottleneck": "annotator creativity + the in-the-loop model serving",
+    "human_cost": "standard crowd; low welfare risk"
+   }
   },
   "audio-transcription-commonvoice": {
    "id": "audio-transcription-commonvoice",
@@ -102,7 +133,50 @@
      "description": "Validity is pure crowd consensus with no expert/gold reference; no ground truth on the validators. Not reported.",
      "caught_by": "UNGUARDED"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "sentence pre-approval (2-of-3 + auto-checks)",
+     "checks": "only clean in-language sentences become recordable",
+     "catches": [
+      "under_specification",
+      "(bad",
+      "prompts)",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "2-of-3 clip vote (early-stopping consensus)",
+     "checks": "a clip is valid only on majority agreement",
+     "catches": [
+      "under_specification",
+      "label",
+      "noise",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "speaker-bucketing across splits",
+     "checks": "no speaker in more than one of train/dev/test",
+     "catches": [
+      "label_leakage",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "powered split sizing",
+     "checks": "dev/test sized for a target confidence / margin",
+     "catches": [
+      "underpowered",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "massive, fully crowdsourced; near-zero marginal cost per clip",
+    "bottleneck": "validator attention in low-resource languages (too few contributors to reach 2 votes)",
+    "human_cost": "distributed across volunteers; scarce resource = contributors per language"
+   }
   },
   "benchmark-bigbench": {
    "id": "benchmark-bigbench",
@@ -145,7 +219,25 @@
      "description": "Some skills are over-covered (popular topics), rare capabilities under-covered. (Inferred.)",
      "caught_by": "UNGUARDED"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "peer review of contributions",
+     "checks": "reviewers vet each task before merge",
+     "catches": [
+      "under_specification",
+      "/",
+      "invalid",
+      "tasks",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "community-scale, bursty; near-zero central labeling cost",
+    "bottleneck": "review capacity + sustaining contributions",
+    "human_cost": "volunteer researchers"
+   }
   },
   "clinical-annotation-guidelines": {
    "id": "clinical-annotation-guidelines",
@@ -184,7 +276,32 @@
      "description": "Physician annotator + adjudicator time is scarce and expensive; the gold corpus is slow to build.",
      "caught_by": "UNGUARDED"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "edge-case guidelines (iterative)",
+     "checks": "discuss disagreements, add edge-case rules, re-annotate until IAA stable",
+     "catches": [
+      "under_specification",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "double-annotation + adjudication",
+     "checks": "two annotators + a third-expert adjudicator",
+     "catches": [
+      "under_specification",
+      "label",
+      "noise",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "low — expert-bound, multiple iterations",
+    "bottleneck": "physician annotation + adjudication + guideline iterations",
+    "human_cost": "scarce medical experts; the iterative process is the cost"
+   }
   },
   "clinical-chexpert-labeler": {
    "id": "clinical-chexpert-labeler",
@@ -228,7 +345,33 @@
      "description": "Radiology language is hedged; many findings are genuinely uncertain, kept explicit rather than resolved.",
      "caught_by": "explicit uncertainty label"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "explicit uncertainty label",
+     "checks": "keep 'uncertain' as a class, not forced to pos/neg",
+     "catches": [
+      "under_specification",
+      "(preserves",
+      "genuine",
+      "ambiguity)",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "radiologist-curated phrase rules",
+     "checks": "expert-built mention patterns",
+     "catches": [
+      "under_specification",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "very high — automated text labeling, no image annotation",
+    "bottleneck": "curating + maintaining the phrase rules",
+    "human_cost": "small (radiologists curate rules once); no per-image labeling"
+   }
   },
   "code-humaneval": {
    "id": "code-humaneval",
@@ -272,7 +415,37 @@
      "description": "Problems are \"easy interview\" difficulty and may not represent real software tasks. The paper notes the scope but does not claim representativeness; this concern is inferred.",
      "caught_by": "UNGUARDED"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "hand-authored (anti-contamination)",
+     "checks": "problems written from scratch, not copied from sources already on GitHub",
+     "catches": [
+      "label_leakage",
+      "(train/eval",
+      "overlap)",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "execution against unit tests",
+     "checks": "functional correctness by running tests, not match metrics like BLEU",
+     "catches": [
+      "the",
+      "validity",
+      "gap",
+      "of",
+      "similarity",
+      "metrics",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "small set (164) authored once; execution scales cheaply",
+    "bottleneck": "expert authoring of correct problems + comprehensive tests",
+    "human_cost": "skilled authors up front; near-zero at grading time (execution is automated)"
+   }
   },
   "code-swebench": {
    "id": "code-swebench",
@@ -316,7 +489,27 @@
      "description": "Issues skew to popular Python repos of a certain era; may not represent software work broadly. (Inferred.)",
      "caught_by": "UNGUARDED"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "execution against repo tests",
+     "checks": "patch must flip fail-to-pass tests and not break pass-to-pass",
+     "catches": [
+      "the",
+      "validity",
+      "gap",
+      "of",
+      "match",
+      "metrics",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "large (auto-harvested); execution is automated",
+    "bottleneck": "building reliable per-repo execution environments; test adequacy",
+    "human_cost": "near-zero labeling (harvested); engineering to containerize repos"
+   }
   },
   "content-moderation-abuse": {
    "id": "content-moderation-abuse",
@@ -384,7 +577,41 @@
      "description": "Datasets are \"radically unrepresentative\" of real (<1%) abuse prevalence, so eval ≠ deployment.",
      "caught_by": "UNGUARDED"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "multi-annotator majority vote",
+     "checks": "combine ≥3 annotators; vote proportion as soft severity",
+     "catches": [
+      "under_specification",
+      "(averages",
+      "out",
+      "subjectivity)"
+     ]
+    },
+    {
+     "gate": "inter-annotator agreement",
+     "checks": "report κ/α (often low for non-binary taxonomies)",
+     "catches": [
+      "under_specification",
+      "(measures",
+      "it)"
+     ]
+    },
+    {
+     "gate": "edge-case guidelines",
+     "checks": "clear guidelines WITH examples that \"only just cross the line\"",
+     "catches": [
+      "under_specification",
+      "over_specification"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "varies (crowd cheap/fast; expert slow)",
+    "bottleneck": "\"high-quality data requires volumes of painstaking labour and deep expertise\"; ethical crowd pay ≈ expert cost",
+    "human_cost": "WELFARE-CRITICAL — authors stress the \"harmful and potentially triggering effects of annotating online abuse\" and urge emotional/practical support + fair pay. (Welfare captured here per the cost_profile convention.)"
+   }
   },
   "content-moderation-welfare-ops": {
    "id": "content-moderation-welfare-ops",
@@ -429,7 +656,39 @@
      "description": "Burnout / secondary-trauma degrade consistency (rushed or numbed decisions). (Inferred from the welfare findings.)",
      "caught_by": "annotator-welfare-protocol (partial)"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "annotator-welfare-protocol",
+     "checks": "exposure limits, breaks, content-masking, counseling, time-based pay",
+     "catches": [
+      "(guards",
+      "the",
+      "moderators;",
+      "also",
+      "limits",
+      "fatigue-driven",
+      "error)",
+      "[REPORTED",
+      "—",
+      "wellness",
+      "interventions]"
+     ]
+    },
+    {
+     "gate": "QA audit + appeals",
+     "checks": "sample audits + appeal overturns",
+     "catches": [
+      "under_specification",
+      "inflation"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "very high (continuous queues)",
+    "bottleneck": "sustainable moderator capacity",
+    "human_cost": "SEVERE & WELFARE-CRITICAL — ~100k commercial moderators face repeated graphic exposure with documented PTSD symptoms, secondary traumatic stress, compassion fatigue, anxiety/depression (Steiger et al. 2021). Wellness interventions (psychological + technological, e.g. content masking) are part of the workflow, not optional."
+   }
   },
   "corpus-ingestion": {
    "id": "corpus-ingestion",
@@ -501,7 +760,57 @@
      "description": "Rare task structures (red_team, 3D, transcription) are rare in sources too, so they stay uncovered unless deliberately sought.",
      "caught_by": "coverage routing"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "gold-set check",
+     "checks": "extracted cards are compared against the hand-built seed cards as a gold standard",
+     "catches": [
+      "unanchored"
+     ]
+    },
+    {
+     "gate": "REPORTED-vs-INFERRED tagging + human audit",
+     "checks": "every failure mode is tagged by source-evidence; only REPORTED ones make a war-story card",
+     "catches": [
+      "unanchored",
+      "confounded",
+      "(hallucinated",
+      "failure",
+      "modes)"
+     ]
+    },
+    {
+     "gate": "cross-family extraction on a slice",
+     "checks": "a second model family re-extracts; framing divergence is flagged",
+     "catches": [
+      "self_affinity",
+      "confounded"
+     ]
+    },
+    {
+     "gate": "dedup/merge",
+     "checks": "near-duplicate skeletons become exemplars, not new cards",
+     "catches": [
+      "inflation",
+      "(fake",
+      "coverage)"
+     ]
+    },
+    {
+     "gate": "coverage routing",
+     "checks": "thin signature/modality cells drive the next source pull",
+     "catches": [
+      "class_imbalance",
+      "sampling_frame"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "high on extraction (cheap model passes); gated by human audit",
+    "bottleneck": "the human curator (audit + promotion + dedup) — small but high-skill, exactly like synthetic-with-audit",
+    "human_cost": "build/maintain the gold set (the seed cards) + audit a stratified sample per batch"
+   }
   },
   "critique-criticgpt": {
    "id": "critique-criticgpt",
@@ -547,7 +856,40 @@
      "description": "Contractors \"often disagree when they compare two critiques on overall quality\" (low agreement, subjective); agreement improves substantially WITH a reference bug description.",
      "caught_by": "tamper-to-ground-truth (the planted bug anchors the subjective judgment)"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "tamper-to-ground-truth (planted bug)",
+     "checks": "a known reference bug exists, so \"did the critique catch it?\" is checkable",
+     "catches": [
+      "unanchored",
+      "(gives",
+      "the",
+      "critique",
+      "a",
+      "verifiable",
+      "target);",
+      "raises",
+      "contractor",
+      "agreement",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "4-way critique comparison + attribute rubric",
+     "checks": "rate comprehensiveness / nitpicks / hallucinations / helpfulness",
+     "catches": [
+      "under_specification",
+      "(partial)",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "scales with contractor tampering + rating",
+    "bottleneck": "skilled contractors who can insert subtle bugs and judge critiques",
+    "human_cost": "skilled; reviewing buggy code is cognitively heavy (lower welfare risk than abuse content)"
+   }
   },
   "crowd-aggregation-dawid-skene": {
    "id": "crowd-aggregation-dawid-skene",
@@ -592,7 +934,26 @@
      "description": "True labels are estimated, not observed; without any gold, systematic shared error is invisible. (Inferred.)",
      "caught_by": "UNGUARDED (seed with a few gold items)"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "reliability-weighted aggregation",
+     "checks": "weight annotators by inferred confusion matrices, not equally",
+     "catches": [
+      "low-skill",
+      "annotators",
+      "dragging",
+      "the",
+      "consensus",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "cheap to run; needs label redundancy (the cost is the overlap)",
+    "bottleneck": "redundant labeling to support the estimation",
+    "human_cost": "standard crowd"
+   }
   },
   "crowd-quality-mturk": {
    "id": "crowd-quality-mturk",
@@ -638,7 +999,39 @@
      "description": "Speed-clickers default to easy/midpoint responses, compressing signal. (Plausible; not the papers' focus.)",
      "caught_by": "UNGUARDED"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "attention checks / honeypots",
+     "checks": "trap items + reverse-coded questions catch inattentive/gaming workers",
+     "catches": [
+      "gaming",
+      "(PARTIAL",
+      "—",
+      "reported",
+      "INSUFFICIENT)",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "qualification / location restriction",
+     "checks": "restrict to qualified US workers",
+     "catches": [
+      "sampling_frame",
+      "(PARTIAL",
+      "—",
+      "circumvented",
+      "by",
+      "VPNs)",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "high/cheap — the appeal that created the crisis",
+    "bottleneck": "post-hoc quality screening + replacement of bad responses",
+    "human_cost": "low welfare risk; the cost is silent data corruption"
+   }
   },
   "data-quality-cleanlab": {
    "id": "data-quality-cleanlab",
@@ -683,7 +1076,38 @@
      "description": "Errors the model is confident about get flagged; errors it's also uncertain on slip through. (Inferred.)",
      "caught_by": "UNGUARDED"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "human validation of flags",
+     "checks": "humans confirm flagged candidates (only ~51% are real)",
+     "catches": [
+      "unanchored",
+      "/",
+      "false",
+      "flags",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "out-of-sample / cross-family predictions",
+     "checks": "use a model that didn't train on the item (ideally a different family)",
+     "catches": [
+      "confounded",
+      "(model",
+      "'confidently'",
+      "reproducing",
+      "the",
+      "error)",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "high — algorithmic flagging; humans only validate the top candidates",
+    "bottleneck": "human validation of flagged subset + getting good out-of-sample probabilities",
+    "human_cost": "small, targeted validation"
+   }
   },
   "datasheets-documentation": {
    "id": "datasheets-documentation",
@@ -724,7 +1148,25 @@
      "description": "Creators can rationalize or omit unflattering provenance. (Inferred.)",
      "caught_by": "UNGUARDED"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "standardized question set (frozen template)",
+     "checks": "every dataset answers the same provenance/use/limitation questions",
+     "catches": [
+      "under_specification",
+      "/",
+      "undocumented",
+      "provenance",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "one datasheet per dataset",
+    "bottleneck": "creator diligence",
+    "human_cost": "creator time; high leverage (documents everyone else's work)"
+   }
   },
   "demonstration-instructgpt": {
    "id": "demonstration-instructgpt",
@@ -771,7 +1213,53 @@
      "description": "\"Most comparisons labeled by 1 contractor for cost reasons\" — no redundancy to even measure per-item disagreement.",
      "caught_by": "UNGUARDED (authors note multi-labeling would help)"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "screening + qualification",
+     "checks": "select labelers by sensitivity-test performance + agreement-with-researchers",
+     "catches": [
+      "under_specification",
+      "[REPORTED]",
+      "—",
+      "but",
+      "INDUCES",
+      "sampling_frame",
+      "(homogenizes",
+      "to",
+      "researcher",
+      "views)"
+     ]
+    },
+    {
+     "gate": "held-out labeler generalization",
+     "checks": "unscreened raters who produced no training data confirm the model isn't overfit to training labelers",
+     "catches": [
+      "sampling_frame",
+      "(partial",
+      "—",
+      "tests",
+      "doesn't",
+      "broaden",
+      "the",
+      "pool)",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "inter-labeler agreement",
+     "checks": "report IAA as a health metric",
+     "catches": [
+      "under_specification",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "tens of thousands of demos/comparisons from ~40 contractors",
+    "bottleneck": "screening + the close researcher-labeler collaboration",
+    "human_cost": "skilled contractors; single-labeling chosen to control cost"
+   }
   },
   "detector-planted-mislabels": {
    "id": "detector-planted-mislabels",
@@ -817,7 +1305,54 @@
      "description": "If the planting heuristic and the detector share assumptions, the detector \"catches\" its own planting style. (Inferred.)",
      "caught_by": "cross-family / held-out check"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "tamper-to-ground-truth (planted key)",
+     "checks": "a recorded ground-truth flip exists, so detector recall is directly measurable",
+     "catches": [
+      "unanchored",
+      "(gives",
+      "the",
+      "detector",
+      "a",
+      "verifiable",
+      "target)",
+      "[REPORTED",
+      "—",
+      "demo",
+      "recovers",
+      "4/4",
+      "planted",
+      "lenient",
+      "mislabels]"
+     ]
+    },
+    {
+     "gate": "cross-family / held-out check",
+     "checks": "don't evaluate the detector only with its own family/heuristic",
+     "catches": [
+      "self_affinity",
+      "confounded"
+     ]
+    },
+    {
+     "gate": "data-batch gate (--max-bad-rate)",
+     "checks": "block a batch from training when flagged-bad rate exceeds the bar",
+     "catches": [
+      "shipping",
+      "a",
+      "corrupted",
+      "batch",
+      "downstream"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "high — planting + detection automated; the public demo is stdlib/deterministic",
+    "bottleneck": "designing realistic planted-error types; auditing natural errors to validate the proxy",
+    "human_cost": "low; the skill is in making planted errors resemble real ones"
+   }
   },
   "eval-chatbot-arena": {
    "id": "eval-chatbot-arena",
@@ -870,7 +1405,45 @@
      "description": "Open crowd voters self-select; the live prompt mix isn't a controlled distribution. (Inferred.)",
      "caught_by": "UNGUARDED"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "A/B anonymization + position randomization",
+     "checks": "hide model identity; randomize which side is A",
+     "catches": [
+      "priming",
+      "(position",
+      "bias)",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "human-expert agreement baseline",
+     "checks": "validate the LLM judge against human-human agreement (~80%)",
+     "catches": [
+      "unanchored",
+      "(anchors",
+      "the",
+      "judge)",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "cross-family / bias checks",
+     "checks": "watch for the judge favoring its own family's outputs",
+     "catches": [
+      "self_affinity",
+      "(self-enhancement",
+      "bias)",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "very high — open crowd + LLM judge scale cheaply",
+    "bottleneck": "the expert-pair gold baseline + bias mitigation",
+    "human_cost": "open volunteers + a small expert-pair gold set"
+   }
   },
   "image-bbox-adjudicated": {
    "id": "image-bbox-adjudicated",
@@ -925,7 +1498,47 @@
      "description": "Boxes look great on easy daytime scenes while night/occluded scenes — the deployment tail — are under-labeled.",
      "caught_by": "UNGUARDED"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "redundancy + IoU agreement",
+     "checks": "N independent boxes must agree above an IoU threshold",
+     "catches": [
+      "under_specification",
+      "label",
+      "noise"
+     ]
+    },
+    {
+     "gate": "adjudication of disagreements",
+     "checks": "a senior pass resolves the hard cases",
+     "catches": [
+      "under_specification"
+     ]
+    },
+    {
+     "gate": "honeypots",
+     "checks": "seeded known-answer images score each annotator",
+     "catches": [
+      "inflation",
+      "bad",
+      "actors"
+     ]
+    },
+    {
+     "gate": "rare-class over-sampling",
+     "checks": "deliberate intake of under-represented classes",
+     "catches": [
+      "class_imbalance",
+      "sampling_frame"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "thousands of images/day; scales with annotator pool",
+    "bottleneck": "adjudication of low-IoU images",
+    "human_cost": "N-way redundancy multiplies per-image cost; adjudicators are scarce"
+   }
   },
   "image-classification-imagenet": {
    "id": "image-classification-imagenet",
@@ -970,7 +1583,36 @@
      "description": "WordNet synsets vary enormously in available web images. (Inferred.)",
      "caught_by": "UNGUARDED"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "dynamic-confidence voting",
+     "checks": "collect votes until a confidence threshold (more for ambiguous synsets)",
+     "catches": [
+      "under_specification",
+      "(spend",
+      "effort",
+      "where",
+      "annotators",
+      "disagree)",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "multi-vote consensus",
+     "checks": "≥~10 independent votes per image",
+     "catches": [
+      "label",
+      "noise",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "massive crowd; cost scales with the dynamic vote budget",
+    "bottleneck": "vote volume on ambiguous synsets",
+    "human_cost": "distributed crowd; low welfare risk"
+   }
   },
   "instruction-openassistant": {
    "id": "instruction-openassistant",
@@ -1015,7 +1657,33 @@
      "description": "Volunteer 'quality' judgments are subjective and variably skilled. (Inferred.)",
      "caught_by": "peer ratings (partial)"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "peer quality ratings + rankings",
+     "checks": "multiple volunteers rate/rank each message",
+     "catches": [
+      "under_specification",
+      "low-quality",
+      "replies",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "moderation + spam filtering",
+     "checks": "remove abusive/spam contributions",
+     "catches": [
+      "gaming",
+      "(spam)",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "community-scale, near-zero marginal cost; bursty (volunteer-driven)",
+    "bottleneck": "sustaining volunteer engagement + moderation",
+    "human_cost": "volunteers; low pay/welfare cost but engagement is the constraint"
+   }
   },
   "instruction-self-instruct": {
    "id": "instruction-self-instruct",
@@ -1059,7 +1727,25 @@
      "description": "Generated instances have no human ground-truth check beyond filtering heuristics. (Inferred.)",
      "caught_by": "UNGUARDED"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "dedupe + quality filtering",
+     "checks": "remove near-duplicate / low-quality generated instructions",
+     "catches": [
+      "inflation",
+      "(redundant",
+      "synthetic",
+      "data)",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "very high — synthetic generation is cheap",
+    "bottleneck": "generation API cost + filtering quality",
+    "human_cost": "tiny (only the ~175-task seed)"
+   }
   },
   "judge-eval-study": {
    "id": "judge-eval-study",
@@ -1122,7 +1808,52 @@
      "description": "A confident model-ranking claim drawn from too few cells. Tight nulls and chance-level adjacencies hide in small n.",
      "caught_by": "power check"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "lock-then-score",
+     "checks": "rubric and analysis plan are frozen before any scores are seen",
+     "catches": [
+      "drift",
+      "inflation",
+      "confounded"
+     ]
+    },
+    {
+     "gate": "blind scoring",
+     "checks": "judge and humans cannot see model identity or position",
+     "catches": [
+      "priming",
+      "self_affinity"
+     ]
+    },
+    {
+     "gate": "cross-family judges",
+     "checks": "a second judge from a different model family scores the same cells",
+     "catches": [
+      "self_affinity"
+     ]
+    },
+    {
+     "gate": "human gold IRR",
+     "checks": "model judge agreement with blind human raters on a sample",
+     "catches": [
+      "unanchored"
+     ]
+    },
+    {
+     "gate": "power check",
+     "checks": "enough cells/reps for the effect being claimed",
+     "catches": [
+      "underpowered"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "hundreds of cells per run; cheap if the judge is a model",
+    "bottleneck": "the human gold sample (slowest, but the gate everything else leans on)",
+    "human_cost": "rubric authoring up front + blind gold scoring of a sample"
+   }
   },
   "ner-conll2003": {
    "id": "ner-conll2003",
@@ -1161,7 +1892,30 @@
      "description": "Newswire-only → poor transfer to other genres/domains. (Inferred.)",
      "caught_by": "UNGUARDED"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "guidelines with edge cases + IAA",
+     "checks": "shared boundary/type rules; track κ",
+     "catches": [
+      "under_specification",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "adjudication",
+     "checks": "a senior pass resolves disagreements",
+     "catches": [
+      "under_specification",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "moderate — careful human span labeling",
+    "bottleneck": "expert annotation + adjudication",
+    "human_cost": "skilled annotators; low welfare risk"
+   }
   },
   "nli-snli-artifacts": {
    "id": "nli-snli-artifacts",
@@ -1182,7 +1936,8 @@
     "sampling_frame"
    ],
    "uses_patterns": [
-    "inter-annotator-agreement"
+    "inter-annotator-agreement",
+    "partial-input-baseline"
    ],
    "decision": "Build a large NLI corpus cheaply by having crowdworkers write hypotheses for given premise+label — and learn why that protocol bakes in artifacts.",
    "failure_modes": [
@@ -1204,7 +1959,42 @@
      "description": "Premises are image captions; the hypothesis space reflects worker habits, not natural inference. (Inferred.)",
      "caught_by": "UNGUARDED"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "5-way validation subset + agreement",
+     "checks": "estimate label agreement on a sample",
+     "catches": [
+      "under_specification",
+      "(measures",
+      "it)",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "partial-input baseline (diagnostic)",
+     "checks": "can a model predict the label from the hypothesis ALONE? if yes, there's leakage",
+     "catches": [
+      "label_leakage",
+      "(detects",
+      "it",
+      "—",
+      "added",
+      "by",
+      "the",
+      "field",
+      "after",
+      "the",
+      "fact)",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "very high — cheap crowd writing",
+    "bottleneck": "validation subset",
+    "human_cost": "standard crowd; low welfare risk — the cost here is silent (artifacts), not human"
+   }
   },
   "pointcloud-detection-nuscenes": {
    "id": "pointcloud-detection-nuscenes",
@@ -1250,7 +2040,39 @@
      "description": "Label reliability degrades with distance/occlusion/night (as few as 1 lidar point at range; visibility <40% boxes \"may be unreliable\") — the box is ambiguous to place when the sensor barely sees the object.",
      "caught_by": "multi-round validation (partial)"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "multi-round expert validation",
+     "checks": "each annotation passes multiple review rounds",
+     "catches": [
+      "under_specification",
+      "label",
+      "noise",
+      "[REPORTED",
+      "—",
+      "\"multiple",
+      "validation",
+      "steps\"]"
+     ]
+    },
+    {
+     "gate": "sensor-coverage rule",
+     "checks": "annotate only objects with ≥1 lidar/radar point",
+     "catches": [
+      "hallucinated",
+      "/",
+      "unsupported",
+      "boxes",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "1.4M boxes / 40k keyframes; large expert effort",
+    "bottleneck": "expert 3D annotation + multi-round validation; manual face/plate labeling \"prohibitively expensive\"",
+    "human_cost": "skilled 3D annotators; cost/timeline not disclosed"
+   }
   },
   "pointcloud-segmentation-semantickitti": {
    "id": "pointcloud-segmentation-semantickitti",
@@ -1294,7 +2116,34 @@
      "description": "KITTI urban-driving sequences; limited geographic/sensor diversity. (Inferred.)",
      "caught_by": "UNGUARDED"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "scan superposition + propagate-once",
+     "checks": "label the aggregated cloud, not each frame, for consistency",
+     "catches": [
+      "under_specification",
+      "/",
+      "per-frame",
+      "inconsistency",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "two-pass verification",
+     "checks": "temporal + spatial consistency review",
+     "catches": [
+      "label",
+      "noise",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "low — dense labeling is the canonical AV annotation bottleneck",
+    "bottleneck": "per-point human labeling + verification",
+    "human_cost": "skilled annotators + custom tooling"
+   }
   },
   "preference-anthropic-hh": {
    "id": "preference-anthropic-hh",
@@ -1340,7 +2189,42 @@
      "description": "Relative pairwise choice without absolute anchors can drift in stringency over a long campaign. (Inferred.)",
      "caught_by": "UNGUARDED"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "separate helpful / harmless collection",
+     "checks": "each axis is its own task, not a blended judgment",
+     "catches": [
+      "confounded",
+      "(don't",
+      "average",
+      "two",
+      "objectives",
+      "into",
+      "one",
+      "score)",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "online re-collection",
+     "checks": "refresh preference data against the current policy each round",
+     "catches": [
+      "drift",
+      "(keeps",
+      "the",
+      "reward",
+      "model",
+      "in-distribution)",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "crowd-scalable",
+    "bottleneck": "the online re-collection cadence (must keep pace with model iterations)",
+    "human_cost": "standard crowd; the harmless/red-team task carries some exposure (welfare protocol advisable)"
+   }
   },
   "preference-constitutional-cai": {
    "id": "preference-constitutional-cai",
@@ -1386,7 +2270,28 @@
      "description": "Coverage is bounded by the constitution + the prompts the model is probed on. (Inferred.)",
      "caught_by": "UNGUARDED"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "explicit written constitution (frozen principles)",
+     "checks": "judgments trace to stated principles, not implicit taste",
+     "catches": [
+      "drift",
+      "/",
+      "hidden",
+      "criteria",
+      "(lock-then-score",
+      "on",
+      "principles)",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "very high — harm preferences are AI-generated, minimal human labeling",
+    "bottleneck": "authoring + maintaining the constitution",
+    "human_cost": "LOW exposure — AI labels harms, sparing humans the distressing content (a welfare advantage)"
+   }
   },
   "preference-llama2-rlhf": {
    "id": "preference-llama2-rlhf",
@@ -1431,7 +2336,47 @@
      "description": "Degree labels can drift toward the middle without calibration. (Inferred.)",
      "caught_by": "UNGUARDED"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "degree/margin label",
+     "checks": "capture how much better, not just which — larger loss margin for clear wins",
+     "catches": [
+      "under_specification",
+      "of",
+      "near-ties",
+      "(treats",
+      "'barely",
+      "better'",
+      "differently)",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "separate helpfulness + safety reward models",
+     "checks": "don't force one model to serve trading-off objectives",
+     "catches": [
+      "confounded",
+      "(helpfulness",
+      "vs",
+      "safety)",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "weekly re-collection",
+     "checks": "refresh preference data against the current model",
+     "catches": [
+      "drift",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "high; weekly batch cadence",
+    "bottleneck": "vendor annotation throughput + weekly refresh logistics",
+    "human_cost": "vendor crowd; safety pairs carry exposure"
+   }
   },
   "preference-sparrow": {
    "id": "preference-sparrow",
@@ -1477,7 +2422,50 @@
      "description": "Plausible answers unsupported by evidence; evidence-grounded judgments separate plausibility from support.",
      "caught_by": "evidence-grounded judgments"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "rule decomposition (standalone rules)",
+     "checks": "split fuzzy goals into specific, individually-understandable rules",
+     "catches": [
+      "under_specification",
+      "(turns",
+      "'harmless'",
+      "into",
+      "checkable",
+      "rules)",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "per-rule targeted probing",
+     "checks": "probe each specific failure mode rather than relying on general harm judgments",
+     "catches": [
+      "sampling_frame",
+      "(deliberately",
+      "surfaces",
+      "each",
+      "rule's",
+      "failures)",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "evidence-grounded judgments",
+     "checks": "rate whether claims are supported by provided evidence",
+     "catches": [
+      "confounded",
+      "(plausible-but-unsupported",
+      "answers)",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "moderate — two judgment pipelines (probing + preference)",
+    "bottleneck": "authoring + maintaining the rule set; running targeted probing per rule",
+    "human_cost": "standard crowd; adversarial probing of harm rules carries some exposure"
+   }
   },
   "redteam-adversarial-dialogue": {
    "id": "redteam-adversarial-dialogue",
@@ -1539,7 +2527,52 @@
      "description": "The harmlessness PM is noisy and out-of-distribution on task descriptions; self-report vs PM correlation imperfect.",
      "caught_by": "UNGUARDED (two noisy metrics, no gold)"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "post-hoc multi-rater review + IAA",
+     "checks": "3-4 raters re-rate a sample; Fleiss κ computed",
+     "catches": [
+      "under_specification",
+      "(measures",
+      "it;",
+      "κ=0.32",
+      "raw",
+      "0.49",
+      "binarized",
+      "—",
+      "poor/fair)",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "prolific-worker statistical control",
+     "checks": "linear mixed models control for the ~50 workers who produced ~80% of attacks",
+     "catches": [
+      "confounded",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "annotator-welfare-protocol",
+     "checks": "warnings, opt-out, breaks, well-being surveys, time-based (not quota) pay",
+     "catches": [
+      "(no",
+      "data-quality",
+      "signature",
+      "—",
+      "guards",
+      "the",
+      "HUMANS)",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "38,961 attacks; >$60K crowd cost (full cost an order of magnitude more)",
+    "bottleneck": "annotation cost + harm coverage + worker well-being",
+    "human_cost": "HIGH and SENSITIVE — exposure to harmful content; welfare protocol is part of the design, not optional"
+   }
   },
   "redteam-automated-perez": {
    "id": "redteam-automated-perez",
@@ -1590,7 +2623,26 @@
      "description": "\"Offensive/harmful\" is a fuzzy boundary the classifier encodes implicitly. (Inferred.)",
      "caught_by": "UNGUARDED"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "harm classifier",
+     "checks": "automatically label target responses offensive/harmful",
+     "catches": [
+      "scales",
+      "detection",
+      "beyond",
+      "human",
+      "throughput",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "very high — fully automated",
+    "bottleneck": "red-LM diversity + classifier accuracy",
+    "human_cost": "near-zero at runtime (a welfare advantage vs human red-teaming); humans build the classifier"
+   }
   },
   "redteam-external-gpt4": {
    "id": "redteam-external-gpt4",
@@ -1634,7 +2686,42 @@
      "description": "Vetted domain-expert time is scarce and slow vs crowd or automated red-teaming. (Inferred.)",
      "caught_by": "UNGUARDED"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "domain + language + geographic breadth of experts",
+     "checks": "cover many risk types deliberately (coverage routing over expertise)",
+     "catches": [
+      "sampling_frame",
+      "(partial",
+      "—",
+      "breadth",
+      "of",
+      "expert",
+      "coverage)",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "findings → structured measurements",
+     "checks": "convert qualitative probes into repeatable measurements",
+     "catches": [
+      "unanchored",
+      "(turns",
+      "one-off",
+      "probes",
+      "into",
+      "trackable",
+      "metrics)",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "low — expert-bound, pre-deployment",
+    "bottleneck": "recruiting + scheduling vetted domain experts",
+    "human_cost": "high-skill experts; exposure to harmful content (welfare protocol advisable)"
+   }
   },
   "relevance-pooling-trec": {
    "id": "relevance-pooling-trec",
@@ -1647,8 +2734,8 @@
    "lineage": "trec / NIST pooling",
    "distinctive": "",
    "qa_mechanism": [
-    "order-randomization",
-    "input-pooling"
+    "order_randomization",
+    "input_pooling"
    ],
    "failure_signatures": [
     "sampling_frame",
@@ -1686,7 +2773,40 @@
      "description": "Assessors disagree on relevance (subjective). NOTABLE: the classic finding is this is DOWNSTREAM-ROBUST — disagreement does not change the *relative* ranking of systems.",
      "caught_by": "n/a — present but does not affect the decision (worth recording as such)"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "order-randomization",
+     "checks": "docs shown sorted by ID, not by rank/popularity",
+     "catches": [
+      "priming",
+      "(the",
+      "\"hedging\"",
+      "order",
+      "effect)",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "pool depth",
+     "checks": "judge to a fixed depth across systems",
+     "catches": [
+      "sampling_frame",
+      "(partially",
+      "—",
+      "deeper",
+      "pools",
+      "find",
+      "more)",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "tens of thousands of judgments per track; bounded by assessor budget",
+    "bottleneck": "assessor time; deeper pools cost more than is affordable for large collections",
+    "human_cost": "expert assessors; the scarce, expensive kind"
+   }
   },
   "search-msmarco": {
    "id": "search-msmarco",
@@ -1722,7 +2842,24 @@
      "description": "Free-form human answers vary in phrasing/completeness; 'the' answer is underdetermined. (Inferred.)",
      "caught_by": "UNGUARDED"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "answer must be supported by marked passages",
+     "checks": "tie the answer to specific evidence passages",
+     "catches": [
+      "confounded",
+      "(plausible-but-unsupported",
+      "answers)",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "very large (1M+ queries); crowd-scalable",
+    "bottleneck": "answer-writing effort + privacy handling of real logs",
+    "human_cost": "crowd; low welfare risk"
+   }
   },
   "self-training-noisy-student": {
    "id": "self-training-noisy-student",
@@ -1765,7 +2902,37 @@
      "description": "Pseudo-labels skew toward classes the teacher is confident on; rare classes get few/none.",
      "caught_by": "class balancing of pseudo-labels"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "confidence filtering / class balancing of pseudo-labels",
+     "checks": "keep high-confidence pseudo-labels; balance classes",
+     "catches": [
+      "class_imbalance",
+      "low-quality",
+      "pseudo-labels",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "noised student / un-noised teacher",
+     "checks": "accurate labels from a clean teacher; robustness from a noised student",
+     "catches": [
+      "the",
+      "student",
+      "merely",
+      "copying",
+      "the",
+      "teacher",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "very high — pseudo-labeling is automatic; the unlabeled pool is cheap",
+    "bottleneck": "compute (large student, iteration) + a good seed teacher",
+    "human_cost": "only the small labeled seed"
+   }
   },
   "speech-librispeech": {
    "id": "speech-librispeech",
@@ -1808,7 +2975,24 @@
      "description": "Text normalization (numbers, punctuation, disfluencies) is ambiguous when reusing book text. (Inferred.)",
      "caught_by": "UNGUARDED"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "alignment-confidence filtering",
+     "checks": "discard segments where forced alignment is low-confidence",
+     "catches": [
+      "mis-aligned",
+      "(bad)",
+      "labels",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "very high — automated alignment, no human transcription",
+    "bottleneck": "alignment quality + sourcing public-domain audio+text pairs",
+    "human_cost": "near-zero (volunteers already read the books); the trade is read-speech bias"
+   }
   },
   "synthetic-textbooks-phi": {
    "id": "synthetic-textbooks-phi",
@@ -1852,7 +3036,26 @@
      "description": "Diversity is bounded by what the generator can imagine + what the filter calls 'educational'. (Inferred.)",
      "caught_by": "dedupe (spreads, doesn't add missing coverage)"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "model-as-quality-filter",
+     "checks": "keep only data a strong model rates educationally valuable",
+     "catches": [
+      "low-value",
+      "/",
+      "noisy",
+      "web",
+      "data",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "very high — generation + model-filtering, no human labeling",
+    "bottleneck": "generation/filtering API cost; contamination auditing",
+    "human_cost": "minimal"
+   }
   },
   "synthetic-with-audit": {
    "id": "synthetic-with-audit",
@@ -1908,7 +3111,37 @@
      "description": "If the same family later judges the student, it rewards inherited quirks.",
      "caught_by": "cross-family check"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "stratified audit sample",
+     "checks": "audit covers low-confidence and rare classes, not just the easy bulk",
+     "catches": [
+      "sampling_frame",
+      "class_imbalance"
+     ]
+    },
+    {
+     "gate": "cross-family check",
+     "checks": "a different model family re-labels a slice",
+     "catches": [
+      "self_affinity",
+      "confounded"
+     ]
+    },
+    {
+     "gate": "per-stratum accuracy bar",
+     "checks": "the batch ships only if each stratum clears a threshold",
+     "catches": [
+      "unanchored"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "very high; labeling is near-free, audit is the only human cost",
+    "bottleneck": "the human audit + gold-set construction",
+    "human_cost": "small but high-skill (auditors must catch what the model misses)"
+   }
   },
   "tabular-weak-supervision-snorkel": {
    "id": "tabular-weak-supervision-snorkel",
@@ -1952,7 +3185,33 @@
      "description": "Labels are learned WITHOUT any ground truth, from LF agreement alone; results land within ~3.60% of hand-curated supervision — an inherent gap, and no gold exists to detect when LFs jointly mislead.",
      "caught_by": "UNGUARDED (by design — the trade for not hand-labeling)"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "label-model denoising (agreement structure)",
+     "checks": "weight LFs by learned accuracy; down-weight correlated ones",
+     "catches": [
+      "confounded",
+      "(correlated",
+      "sources",
+      "double-counting)",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "structure learning",
+     "checks": "automatically identify statistically dependent LFs",
+     "catches": [
+      "confounded",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "very high — labels whole corpora from a handful of LFs",
+    "bottleneck": "SME time writing + iterating labeling functions",
+    "human_cost": "shifts human effort from per-item labeling to writing reusable heuristics"
+   }
   },
   "text-preference-rlhf": {
    "id": "text-preference-rlhf",
@@ -2014,7 +3273,40 @@
      "description": "Without gold pairs you can't tell whether raters track the rubric or their own taste.",
      "caught_by": "human-gold-anchor (gold pairs)"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "qualification + calibration",
+     "checks": "raters pass a gold set before and during live work",
+     "catches": [
+      "unanchored",
+      "inflation"
+     ]
+    },
+    {
+     "gate": "A/B position randomization",
+     "checks": "which side is \"A\" is random",
+     "catches": [
+      "priming",
+      "(position",
+      "bias)"
+     ]
+    },
+    {
+     "gate": "honeypots + agreement tracking",
+     "checks": "known-answer pairs and inter-rater agreement over time",
+     "catches": [
+      "drift",
+      "bad",
+      "actors"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "tens of thousands of pairs; crowd-scalable",
+    "bottleneck": "calibration-set authoring + rater qualification",
+    "human_cost": "spread across a qualified crowd; cheap per pair, expensive to keep calibrated"
+   }
   },
   "text-relation-distant-supervision": {
    "id": "text-relation-distant-supervision",
@@ -2058,7 +3350,27 @@
      "description": "KB coverage is uneven across relations; rare relations get few/no aligned sentences. (Inferred.)",
      "caught_by": "UNGUARDED"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "bag-level aggregation",
+     "checks": "combine many sentences per entity pair to dilute individual mislabels",
+     "catches": [
+      "confounded",
+      "(PARTIAL)",
+      "[REPORTED",
+      "—",
+      "the",
+      "multi-instance",
+      "idea]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "very high — labels a whole corpus from a KB, no per-item human cost",
+    "bottleneck": "KB coverage + the heuristic's precision",
+    "human_cost": "shifts effort from labeling to curating the KB + heuristic"
+   }
   },
   "video-action-kinetics": {
    "id": "video-action-kinetics",
@@ -2114,7 +3426,58 @@
      "description": "Video verification is slow + costly per clip (watching >> reading) — exactly the cost finding the text→video modality-shift demo predicted. NOTE: authors do NOT disclose per-clip cost, so this is inferred.",
      "caught_by": "UNGUARDED"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "consensus (≥3 positive of ≤5)",
+     "checks": "a clip enters only on multi-worker agreement",
+     "catches": [
+      "under_specification",
+      "label",
+      "noise",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "injected ground-truth honeypots",
+     "checks": "2 known clips/task + low-accuracy warning",
+     "catches": [
+      "inflation",
+      "/",
+      "bad",
+      "workers",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "de-duplication",
+     "checks": "one clip per video + feature-similarity dedup",
+     "catches": [
+      "inflation",
+      "(fake",
+      "volume)",
+      "sampling_frame",
+      "(reused",
+      "clips)",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "classifier-driven class refinement",
+     "checks": "merge/split/remove classes with high confusion",
+     "catches": [
+      "under_specification",
+      "(label-boundary",
+      "overlap)",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "400 classes × ≥400 clips; crowd-scalable but viewing-bound",
+    "bottleneck": "worker viewing time (inferred — undisclosed); the curation/dedup passes",
+    "human_cost": "distributed crowd; low welfare risk (benign content) — contrast the content-moderation card"
+   }
   },
   "video-something-something": {
    "id": "video-something-something",
@@ -2158,13 +3521,35 @@
      "description": "Worker-specific backgrounds/objects can correlate with templates. (Inferred.)",
      "caught_by": "split-isolation (partial)"
     }
-   ]
+   ],
+   "quality_gates": [
+    {
+     "gate": "split-isolation by worker",
+     "checks": "all videos from one worker go to a single split",
+     "catches": [
+      "label_leakage",
+      "(worker/setup",
+      "style",
+      "leaking",
+      "across",
+      "splits)",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "high — crowd records to order",
+    "bottleneck": "recording effort + object-naming consistency",
+    "human_cost": "crowd; low welfare risk"
+   }
   }
  },
  "patterns": {
   "multi-annotator-aggregate": {
    "id": "multi-annotator-aggregate",
    "name": "Multi-Annotator + Aggregation",
+   "phase": "label",
+   "play": "Collect N independent labels per item and aggregate (majority / Dawid–Skene); treat disagreement as a noise signal.",
    "does": "Have N annotators label each item independently, then combine (majority, or a model like Dawid-Skene) into one label, using disagreement as a noise signal.",
    "defends": [
     "under_specification",
@@ -2185,6 +3570,8 @@
   "tiered-adjudication": {
    "id": "tiered-adjudication",
    "name": "Tiered Review / Adjudication",
+   "phase": "resolve",
+   "play": "Auto-accept high-agreement items; escalate only genuine disagreements to a senior adjudicator who sets gold.",
    "does": "Auto-accept high-agreement items; escalate only true disagreements to a scarce senior adjudicator who sets the gold answer.",
    "defends": [
     "under_specification",
@@ -2204,6 +3591,8 @@
   "gold-honeypots": {
    "id": "gold-honeypots",
    "name": "Gold / Honeypot Items",
+   "phase": "audit",
+   "play": "Seed known-answer honeypots invisibly into the stream to score each annotator continuously and catch drift / bad actors.",
    "does": "Seed known-answer items invisibly into the live stream to score each annotator's accuracy continuously and catch bad actors and drift.",
    "defends": [
     "inflation",
@@ -2224,6 +3613,8 @@
   "qualification-calibration": {
    "id": "qualification-calibration",
    "name": "Qualification + Calibration Test",
+   "phase": "qualify",
+   "play": "Gate annotators through a gold calibration set before live work; re-test periodically so everyone shares the bar.",
    "does": "Gate annotators through a gold calibration set before live work and re-test periodically, so everyone shares the same bar.",
    "defends": [
     "inflation",
@@ -2244,6 +3635,8 @@
   "inter-annotator-agreement": {
    "id": "inter-annotator-agreement",
    "name": "Inter-Annotator Agreement (IAA)",
+   "phase": "resolve",
+   "play": "Compute IAA (κ/α) on overlapping items; low agreement means the guideline isn't defined yet — fix it before scaling.",
    "does": "Measure κ/α (or modality analog) between annotators as a standing health metric; low IAA means the guidelines are under-specified, not that annotators are bad.",
    "defends": [
     "under_specification",
@@ -2265,6 +3658,8 @@
   "human-gold-anchor": {
    "id": "human-gold-anchor",
    "name": "Human-Gold Anchor",
+   "phase": "audit",
+   "play": "Build a small expert gold set and measure the pipeline against it — the anchor everything else is checked on.",
    "does": "Hold out a small, expert-labeled reference set and validate the automated/crowd labels against it — the thing that turns raw scores into trustworthy ones.",
    "defends": [
     "unanchored"
@@ -2285,6 +3680,8 @@
   "cross-family-judges": {
    "id": "cross-family-judges",
    "name": "Cross-Family Judges / Checkers",
+   "phase": "audit",
+   "play": "Re-label a slice with a different model family to separate quality from self-preference.",
    "does": "When a model labels or judges, have a model of a *different* family re-label a slice, so you measure quality rather than self-preference.",
    "defends": [
     "self_affinity",
@@ -2305,6 +3702,8 @@
   "human-audit-sample": {
    "id": "human-audit-sample",
    "name": "Stratified Human Audit",
+   "phase": "audit",
+   "play": "Stratified human audit of a sample across the full distribution (not a random skim), on a fixed cadence.",
    "does": "Review a sample of model-produced labels, stratified by confidence and class (not random), to estimate true accuracy where the model is actually weak.",
    "defends": [
     "sampling_frame",
@@ -2326,6 +3725,8 @@
   "lock-then-score": {
    "id": "lock-then-score",
    "name": "Lock-Then-Score (Guideline Freeze)",
+   "phase": "convention",
+   "play": "Freeze the guideline before scoring; changes go through a versioned re-calibration, not silent mid-stream edits.",
    "does": "Freeze the rubric/guidelines and analysis plan before any labels are seen, so the bar can't silently move to fit the data.",
    "defends": [
     "drift",
@@ -2348,6 +3749,8 @@
   "active-learning-loop": {
    "id": "active-learning-loop",
    "name": "Active-Learning Loop",
+   "phase": "source",
+   "play": "Route the next batch toward the items the model is most uncertain on (mind the lock-then-score tension).",
    "does": "Let the model pick the next items to label (most-uncertain / most-informative) instead of labeling a static batch, concentrating human effort where it moves the model most.",
    "defends": [
     "class_imbalance",
@@ -2369,6 +3772,8 @@
   "split-isolation": {
    "id": "split-isolation",
    "name": "Entity-Partitioned Splits",
+   "phase": "source",
+   "play": "Partition train/dev/test by entity (speaker / repo / document) so the same entity can't leak across splits.",
    "does": "Partition data on an entity (speaker, author, document, patient, session) so the same entity never appears in more than one of train/dev/test, forcing the model to learn the task instead of memorizing the entity.",
    "defends": [
     "label_leakage"
@@ -2388,6 +3793,8 @@
   "powered-eval-split": {
    "id": "powered-eval-split",
    "name": "Power-Sized Eval Split",
+   "phase": "audit",
+   "play": "Size the dev/test split for the confidence / margin you need before you claim a real difference.",
    "does": "Size the dev/test split to a statistical target (confidence level + margin of error) rather than an arbitrary percentage, so eval conclusions are actually supported.",
    "defends": [
     "underpowered"
@@ -2407,6 +3814,8 @@
   "order-randomization": {
    "id": "order-randomization",
    "name": "Order / Position Randomization",
+   "phase": "convention",
+   "play": "Randomize item / A–B position per annotator so presentation order can't leak into the label.",
    "does": "Present items (or A/B options) in random order so the position or popularity of an item can't leak into the judgment — kills \"hedging\" early-item effects and popularity bias.",
    "defends": [
     "priming",
@@ -2427,6 +3836,8 @@
   "dedup-merge": {
    "id": "dedup-merge",
    "name": "De-duplicate / Merge",
+   "phase": "source",
+   "play": "De-duplicate near-identical inputs before labeling to avoid inflating agreement and wasting budget.",
    "does": "Detect near-duplicate items (exact, hash, or feature-similarity) and remove or merge them so they don't inflate apparent volume/coverage or leak the same content across train/test splits.",
    "defends": [
     "inflation",
@@ -2449,6 +3860,8 @@
   "execution-verification": {
    "id": "execution-verification",
    "name": "Execution-Based Verification",
+   "phase": "label",
+   "play": "Ground truth by execution: run the unit tests / the program; don't have humans eyeball correctness.",
    "does": "Get ground truth by RUNNING the artifact against tests/specs instead of judging it — a candidate is correct iff it passes. Available wherever output is executable (code, SQL, configs, formal proofs).",
    "defends": [
     "unanchored"
@@ -2469,6 +3882,8 @@
   "labeling-functions": {
    "id": "labeling-functions",
    "name": "Labeling Functions / Weak Supervision",
+   "phase": "label",
+   "play": "Encode noisy heuristics as labeling functions and combine them with a learned label model (weak supervision).",
    "does": "Replace per-item hand labels with programmatic heuristics (patterns, rules, KB alignment) that vote or abstain; combine their noisy outputs (majority or a learned label model) into training labels.",
    "defends": [
     "bottleneck"
@@ -2489,6 +3904,8 @@
   "tamper-to-ground-truth": {
    "id": "tamper-to-ground-truth",
    "name": "Tamper-to-Ground-Truth (Planted Errors)",
+   "phase": "audit",
+   "play": "Plant known defects / mislabels and measure recall on them — a verifiable floor for your QA.",
    "does": "Manufacture verifiable gold by deliberately INJECTING known defects (bugs, mislabels, poison) with a recorded key, so a detector/critic can be scored on whether it recovers them.",
    "defends": [
     "unanchored"
@@ -2509,6 +3926,8 @@
   "edge-case-guidelines": {
    "id": "edge-case-guidelines",
    "name": "Edge-Case Guidelines (Iterative Refinement)",
+   "phase": "convention",
+   "play": "Grow the guideline from real disagreements: add a boundary example every time two competent labelers split.",
    "does": "Write clear guidelines anchored by EXAMPLES — especially boundary cases that \"only just\" qualify — and refine them iteratively: annotate, measure IAA, discuss disagreements, update the rule book, repeat.",
    "defends": [
     "under_specification",
@@ -2532,11 +3951,13 @@
   "annotator-welfare-protocol": {
    "id": "annotator-welfare-protocol",
    "name": "Annotator Welfare Protocol",
+   "phase": "convention",
+   "play": "For harmful content: exposure limits, masking tools, breaks, counseling, and time-based (not quota) pay.",
    "does": "Protect annotators exposed to harmful/distressing content — warnings, exposure limits, breaks, counseling, well-being surveys, content-masking tools, and time-based (not quota) pay.",
    "defends": [],
    "pairs_with": [
     "tiered-adjudication",
-    "audit-sampling"
+    "human-audit-sample"
    ],
    "conflicts_with": [],
    "cost": "Counseling/wellness programs + reduced throughput from exposure limits; the ethical floor for harmful-content work.",
@@ -2549,6 +3970,8 @@
   "model-in-the-loop-adversarial": {
    "id": "model-in-the-loop-adversarial",
    "name": "Model-in-the-Loop Adversarial Elicitation",
+   "phase": "label",
+   "play": "Have annotators write inputs that fool a live model; the model-beating cases become the hard data.",
    "does": "Put a target model in the collection loop and have humans craft inputs that fool/beat it — yielding hard, discriminative examples (and a moving target as models improve). (Subsumes the earlier `adversarial-pairing` candidate.)",
    "defends": [],
    "pairs_with": [
@@ -2566,6 +3989,8 @@
   "coverage-routing": {
    "id": "coverage-routing",
    "name": "Coverage Routing",
+   "phase": "source",
+   "play": "Keep a live coverage map and deliberately source the rare / hard cells, not just the easy bulk.",
    "does": "Track which strata/cells are under-represented and route the NEXT collection/labeling to fill the thinnest ones (rare classes, missing modalities, uncovered signatures) — active sampling for COVERAGE, not uncertainty.",
    "defends": [
     "class_imbalance",
@@ -2587,6 +4012,8 @@
   "engagement-gate": {
    "id": "engagement-gate",
    "name": "Engagement / Attention Gate",
+   "phase": "qualify",
+   "play": "Add attention/engagement checks (whole-item exposure, time floors) to filter speed-clicking and gaming.",
    "does": "Verify the annotator actually engaged with THIS item — attention/instructional checks, reverse-coded traps, whole-item completion ('did it last the whole clip?'), minimum time-on-task — and drop/flag those who didn't.",
    "defends": [
     "gaming",
@@ -2607,6 +4034,8 @@
   "pooled-sampling": {
    "id": "pooled-sampling",
    "name": "Pooled Sampling (Judge the Union, Reuse)",
+   "phase": "source",
+   "play": "Pool the union of candidate outputs/systems and judge that pool, so no source is structurally favored.",
    "does": "Instead of judging the whole space, judge only the UNION of what the candidate systems produced/retrieved, then reuse those judgments to score all systems — including ones absent from the pool.",
    "defends": [
     "bottleneck"
@@ -2621,6 +4050,27 @@
    "exemplified_by": [
     "relevance-pooling-trec",
     "judge-eval-study"
+   ]
+  },
+  "partial-input-baseline": {
+   "id": "partial-input-baseline",
+   "name": "Partial-Input Baseline (Leakage Diagnostic)",
+   "phase": "audit",
+   "play": "Try to predict the label from a fragment of the input; if you can, the label is leaking a proxy.",
+   "does": "Score a baseline that sees only PART of the input — the hypothesis alone, the answer without the question, the caption without the image. If it beats chance, the label is derivable from a fragment that shouldn't suffice: the data has an artifact a model will exploit instead of the intended signal.",
+   "defends": [
+    "label_leakage"
+   ],
+   "pairs_with": [
+    "model-in-the-loop-adversarial",
+    "human-gold-anchor"
+   ],
+   "conflicts_with": [],
+   "cost": "Cheap to run, but only DETECTS leakage — removing it needs re-collection (adversarial / model-in-the-loop) or reweighting.",
+   "modality_notes": "The 'fragment' is modality-specific — hypothesis-only (NLI), answer-only (multiple-choice QA), caption-without-image (vision-language), first-N-tokens (sequence) — but 'predict the label from a part that shouldn't be enough' is invariant. It is a diagnostic, not a fix.",
+   "exemplified_by": [
+    "nli-snli-artifacts",
+    "adversarial-nli-anli"
    ]
   }
  }

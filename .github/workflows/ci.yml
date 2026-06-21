@@ -19,24 +19,47 @@ jobs:
       - name: Smoke-run every mode on a cold clone
         run: |
           python engine/engine.py list
+          python engine/engine.py workflow
           python engine/engine.py backwards
           python engine/engine.py interrogate
           python engine/engine.py modality-shift --to video
           python engine/engine.py compare --task preference_ranking
           python engine/engine.py cookbook --by domain
       - name: Compile all modules
-        run: python -m py_compile engine/engine.py engine/wd_app.py engine/portfolio_app.py engine/build_index.py
+        run: python -m py_compile engine/engine.py engine/repl.py engine/serve.py engine/build_index.py engine/build_site.py
 
-  ui:
-    name: public demo renders headless
+  tests:
+    name: pytest (invariants + goldens + REPL)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install pyyaml streamlit
+      - run: pip install -r engine/requirements.txt
+      - name: Build index.json from the YAML corpus
+        run: python engine/build_index.py
+      - run: pytest -q
+
+  site:
+    name: static site builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyyaml
       - run: python engine/build_index.py
-      - name: Render engine/portfolio_app.py via Streamlit AppTest
+      - name: Pre-render docs/index.html
+        run: python engine/build_site.py
+      - name: Assert the page is non-trivial and Streamlit-free
         run: |
-          PYTHONPATH=engine python -c "from streamlit.testing.v1 import AppTest; at = AppTest.from_file('engine/portfolio_app.py', default_timeout=90).run(); assert not at.exception, at.exception; print('portfolio_app render OK -', len(at.markdown), 'markdown blocks')"
+          python - <<'PY'
+          t = open("docs/index.html").read()
+          assert len(t) > 5000, "page too small"
+          assert "<!DOCTYPE html>" in t
+          assert "streamlit" not in t.lower(), "static site must not reference streamlit"
+          assert t.count('class="example') == 3, "expected 3 curated examples"
+          print("docs/index.html OK -", len(t), "bytes")
+          PY

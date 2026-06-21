@@ -107,6 +107,19 @@ def main():
                 "description": flat(fm.get("description")),
                 "caught_by": flat(fm.get("caught_by")),
             })
+        # quality_gates: how this workflow actually defends each risk — the inspiration the assembled
+        # workflow quotes so conventions/audit reflect the real cards, not a generic instruction.
+        gates = []
+        for g in as_list(d.get("quality_gates")):
+            if not isinstance(g, dict):
+                continue
+            catches = g.get("catches")
+            catches = [s.strip() for s in str(catches or "").replace(",", " ").split() if s.strip()]
+            gates.append({"gate": flat(g.get("gate")), "checks": flat(g.get("checks")),
+                          "catches": catches})
+        cp = d.get("cost_profile")
+        cost_profile = ({k: flat(v) for k, v in cp.items()} if isinstance(cp, dict)
+                        else ({"note": flat(cp)} if cp else {}))
         cards[d["id"]] = {
             "id": d["id"],
             "title": d.get("title", ""),
@@ -122,6 +135,8 @@ def main():
             "uses_patterns": as_list(d.get("uses_patterns")),
             "decision": flat(d.get("decision")),
             "failure_modes": fms,
+            "quality_gates": gates,
+            "cost_profile": cost_profile,
         }
 
     with open(PATTERNS_FILE) as f:
@@ -133,6 +148,8 @@ def main():
         patterns[p["id"]] = {
             "id": p["id"],
             "name": p.get("name", ""),
+            "phase": flat(p.get("phase")),
+            "play": flat(p.get("play")),
             "does": flat(p.get("does")),
             "defends": as_list(p.get("defends")),
             "pairs_with": as_list(p.get("pairs_with")),

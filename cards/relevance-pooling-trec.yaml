@@ -4,7 +4,7 @@ modality: text
 task_structure: relevance
 annotator_structure: expert            # NIST-style assessors, typically one per topic
 lineage: trec / NIST pooling
-qa_mechanism: [order-randomization, input-pooling]   # NOTE: both are CANDIDATE qa_mechanism vocab additions
+qa_mechanism: [order_randomization, input_pooling]   # canonical SCHEMA vocab (underscored)
 failure_signatures: [sampling_frame, priming, confounded, under_specification]
 uses_patterns: [pooled-sampling, order-randomization]   # both CANDIDATE patterns surfaced by this pilot
 

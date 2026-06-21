@@ -5,7 +5,9 @@ task_structure: classification
 annotator_structure: crowd        # non-expert annotators + a target model in the loop
 qa_mechanism: [agreement]
 failure_signatures: [sampling_frame, under_specification]
-uses_patterns: [model-in-the-loop-adversarial, human-gold-anchor]
+uses_patterns: [model-in-the-loop-adversarial, human-gold-anchor, partial-input-baseline]
+# partial-input-baseline: ANLI reports hypothesis-only baselines to SHOW the adversarial collection
+# cut the partial-input artifacts SNLI had — the same diagnostic, used here to confirm the fix worked.
 
 provenance_meta:
   source: "Nie et al., Adversarial NLI: A New Benchmark for Natural Language Understanding (ACL 2020)"

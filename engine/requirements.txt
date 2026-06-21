@@ -1,4 +1,6 @@
-# Public portfolio demo (engine/portfolio_app.py) — runtime deps only.
-# The engine is stdlib + reads the committed index.json, so streamlit is all that's needed.
-# (PyYAML is only needed at build time to regenerate index.json via build_index.py.)
-streamlit>=1.40
+# Dev/build dependencies only. The engine, REPL, and static-site generator are pure stdlib and
+# read the committed index.json, so RUNNING the tool needs nothing installed.
+#   - PyYAML  : build_index.py compiles the YAML corpus -> index.json
+#   - pytest  : the test suite (tests/)
+pyyaml>=6.0
+pytest>=8.0
