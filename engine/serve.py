@@ -18,7 +18,8 @@ import engine
 import build_site  # reuse the shared CSS + the curated examples (presets)
 
 IDX = engine.load_index()
-LIST_KEYS = ("qa_mechanism", "uses_patterns", "addressed_signatures", "failure_signatures")
+LIST_KEYS = ("qa_mechanism", "uses_patterns", "addressed_signatures", "failure_signatures",
+             "high_cost_signatures", "tolerable_signatures")
 
 
 def _norm(stub):
@@ -144,6 +145,16 @@ button.preset{padding:9px 15px;margin:4px 6px 4px 0;}
 .summary{padding:16px 18px;}
 .summary .pill{margin:3px 3px;}
 label.fld{margin:22px 0 3px;}
+.prow{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;}
+.pmain{flex:1;min-width:0;}
+.prow .adopt{flex:none;}
+.modeseg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;margin:6px 0 10px;}
+.seg{background:transparent;border:none;padding:9px 16px;font:inherit;font-size:.88rem;color:var(--muted);cursor:pointer;}
+.seg.on{background:var(--accent);color:#fff;}
+.sev{font-size:.66rem;font-weight:700;text-transform:uppercase;border-radius:5px;padding:1px 6px;vertical-align:1px;}
+.sev.high{background:var(--risk);color:var(--risk-fg);}
+.sev.med{background:var(--warn);color:var(--warn-fg);}
+.sev.low{background:var(--code);color:var(--muted);}
 </style></head>
 <body><div class="wrap">
   <div class="row" style="align-items:baseline">
@@ -185,11 +196,16 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const chip = (t,k='') => `<span class="chip ${k}">${esc(t)}</span>`;
 const badge = h => h?'<span class="badge have">have</span>':'<span class="badge add">add</span>';
-let META=null, DATA=null, STEP=0, SHOW_SOURCES=false;
+let META=null, DATA=null, STEP=0, SHOW_SOURCES=false, MODE='forward';
 const stub = {goal:"Evaluate AI-generated marketing copy with an LLM judge",
   modality:"text", task_structure:"rubric_rating", annotator_structure:"model_as_annotator",
   qa_mechanism:[], uses_patterns:[], addressed_signatures:[], failure_signatures:[]};
-const STEPS = ["Describe","Find & close risks","Your recipe","Why it works"];
+const FLOWS = {
+  forward: [["Describe",renderDescribe],["Find & close risks",renderRisks],["Your recipe",renderRecipe],["The rationale",renderWhy]],
+  reverse: [["Describe",renderDescribe],["Define ‘good’",renderGoodMeans],["Reverse-engineer",renderBuildList],["Your recipe",renderRecipe]],
+};
+const steps = () => FLOWS[MODE];
+const eb = () => `<p class="eyebrow">Step ${STEP+1} of 4</p>`;
 const HELP = {modality:"what the data is — text, image, audio, code…",
   task_structure:"the shape of the judgment — classify, rank, rate, extract…",
   annotator_structure:"who labels — a crowd, an expert, or a model"};
@@ -203,14 +219,15 @@ async function analyze(){
   DATA = await (await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({stub})})).json();
 }
-function go(s){ STEP=Math.max(0,Math.min(3,s)); render(); }
+function go(s){ STEP=Math.max(0,Math.min(steps().length-1,s)); render(); }
 
 function renderStepper(){
-  $('#stepper').innerHTML = STEPS.map((l,i)=>{
+  const S=steps();
+  $('#stepper').innerHTML = S.map(([l],i)=>{
     const cls = i<STEP?'done':(i===STEP?'cur':'');
     const dot = i<STEP?'<i class="ti ti-check"></i>':(i+1);
-    return `<span class="st ${cls}" data-s="${i}"><span class="dot">${dot}</span><span class="lbl">${l}</span></span>`
-      + (i<3?'<span class="sbar"></span>':'');
+    return `<span class="st ${cls}" data-s="${i}"><span class="dot">${dot}</span><span class="lbl">${esc(l)}</span></span>`
+      + (i<S.length-1?'<span class="sbar"></span>':'');
   }).join('');
   document.querySelectorAll('.st').forEach(e=>e.onclick=()=>go(+e.dataset.s));
 }
@@ -244,17 +261,12 @@ function twocol(main){ return `<div class="twocol">${summary()}<div class="stepm
 function navbar(prev,next){
   return `<div class="nav">
     ${prev!=null?`<button class="btn ghost" data-s="${prev}"><i class="ti ti-arrow-left"></i> back</button>`:'<span></span>'}
-    ${next!=null?`<button class="btn primary" data-s="${next}">${next>STEP?STEPS[next]:'continue'} <i class="ti ti-arrow-right"></i></button>`:'<span></span>'}
+    ${next!=null?`<button class="btn primary" data-s="${next}">${next>STEP?steps()[next][0]:'continue'} <i class="ti ti-arrow-right"></i></button>`:'<span></span>'}
   </div>`;
 }
+function nav(){ return navbar(STEP>0?STEP-1:null, STEP<steps().length-1?STEP+1:null); }
 
-function render(){
-  renderStepper();
-  if(STEP===0) return renderDescribe();
-  if(STEP===1) return renderRisks();
-  if(STEP===2) return renderRecipe();
-  return renderWhy();
-}
+function render(){ renderStepper(); steps()[STEP][1](); }
 
 function renderDescribe(){
   const v=META.vocab;
@@ -262,14 +274,19 @@ function renderDescribe(){
   const sel = (k)=>`<label class="fld">${k.replace(/_/g,' ')}</label><p class="help">${HELP[k]}</p>
     <select id="${k}">${opt(v[k], stub[k])}</select>`;
   const qa = v.qa_mechanism.map(q=>`<label><input type="checkbox" value="${esc(q)}" ${stub.qa_mechanism.includes(q)?'checked':''}>${esc(q)}</label>`).join('');
-  $('#content').innerHTML = `<p class="eyebrow">Step 1 of 4</p><p class="steptitle">Describe the workflow you want to build</p>
-    <p class="help" style="margin-bottom:10px">Start from an example, then tweak — or fill it in yourself.</p>
+  const modeline = MODE==='forward'
+    ? 'Describe a workflow; the tool finds its risks and assembles a recipe.'
+    : 'Start from your goal; the tool works backward from what “good” data means to the workflow that guarantees it.';
+  $('#content').innerHTML = eb()+`<p class="steptitle">Describe the workflow you want to build</p>
+    <div class="modeseg"><button class="seg ${MODE==='forward'?'on':''}" data-mode="forward">Design forward</button><button class="seg ${MODE==='reverse'?'on':''}" data-mode="reverse">Reverse-engineer from good</button></div>
+    <p class="help" style="margin-bottom:12px">${modeline}</p>
     <div style="margin-bottom:8px">${presets}</div>
     <label class="fld">Goal</label><input type="text" id="goal" value="${esc(stub.goal)}">
     ${sel('modality')}${sel('task_structure')}${sel('annotator_structure')}
     <label class="fld">QA mechanisms already in place</label><p class="help">optional — checks you already run</p>
     <div class="qa" id="qa">${qa}</div>
-    ${navbar(null,1)}`;
+    ${nav()}`;
+  document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{MODE=b.dataset.mode; render();});
   $('#goal').oninput=e=>{stub.goal=e.target.value;};
   ['modality','task_structure','annotator_structure'].forEach(k=>$('#'+k).onchange=async e=>{stub[k]=e.target.value; await analyze(); render();});
   $('#qa').onchange=async()=>{stub.qa_mechanism=[...$('#qa').querySelectorAll('input:checked')].map(i=>i.value); await analyze(); render();};
@@ -281,12 +298,12 @@ function renderDescribe(){
 
 function renderRisks(){
   const r=DATA.interrogate;
-  let h=`<p class="eyebrow">Step 2 of 4</p><p class="steptitle">Close each open risk</p>
+  let h=eb()+`<p class="steptitle">Close each open risk</p>
     <p class="help">${r.open.length} risk${r.open.length===1?'':'s'} similar workflows hit. Adopt a defense for each — coverage climbs as you go.</p>`;
   if(r.defended.length) h+=`<p class="ok" style="font-size:.88rem">Already covered: ${r.defended.map(s=>`<code>${esc(s)}</code>`).join(', ')}</p>`;
   if(!r.open.length) h+='<p class="ok">No open risks left — your design covers them all. 🎯</p>';
   h+=r.open.map(o=>`<div class="risk-card">
-      <p class="riskq"><span class="chip risk">${esc(o.signature)}</span> ${esc(o.question)}</p>`
+      <p class="riskq"><span class="sev ${o.severity}">${o.severity}-cost</span> <span class="chip risk">${esc(o.signature)}</span> ${esc(o.question)}</p>`
     + (o.unguarded?'<p class="warn" style="font-size:.82rem;margin:6px 0 0">UNGUARDED — a corpus gap.</p>':'')
     + (o.patterns.length?`<p class="optlabel">${o.patterns.length>1?'Adopt one defense:':'Adopt the defense:'}</p>`:'')
     + `<div class="opts">`
@@ -294,44 +311,71 @@ function renderRisks(){
         <span class="optname" title="cost: ${esc(p.cost)}"><code>${esc(p.id)}</code> <span class="muted">${esc(p.name)}</span></span>
         <button class="adopt" data-adopt="${esc(p.id)}"><i class="ti ti-plus"></i> adopt</button></div>`).join('')
     + `</div></div>`).join('');
-  $('#content').innerHTML = twocol(h)+navbar(0,2);
+  $('#content').innerHTML = twocol(h)+nav();
   wire();
 }
 
-function patLine(p, tag){
+function patLine(p, tag, adoptable){
   let src='';
   if(SHOW_SOURCES && p.as_done) src=`<div class="src">as <code>${esc(p.as_done.card)}</code> — ${esc(p.as_done.gate)}: ${esc(p.as_done.checks)}</div>`;
   else if(SHOW_SOURCES && p.seen_in&&p.seen_in.length) src=`<div class="src">seen in ${p.seen_in.map(c=>`<code>${esc(c)}</code>`).join(', ')}</div>`;
-  return `<li><code>${esc(p.id)}</code> <span class="tag">${esc(tag[p.id]||'')}</span> — ${esc(p.instruction)}${src}</li>`;
+  const act = (adoptable && !p.have) ? `<button class="adopt" data-adopt="${esc(p.id)}"><i class="ti ti-plus"></i> adopt</button>` : '';
+  return `<li class="prow"><span class="pmain"><code>${esc(p.id)}</code> <span class="tag">${esc(tag[p.id]||'')}</span> — ${esc(p.instruction)}${src}</span>${act}</li>`;
 }
-function renderRecipe(){
-  const wf=DATA.workflow;
-  // one role tag per pattern (which part of the workflow it belongs to)
-  const tag={};
+function recipeParts(){
+  const wf=DATA.workflow; const tag={};
   wf.steps.forEach(s=>s.patterns.forEach(p=>tag[p.id]=s.phase.split(' ')[0].toLowerCase()));
   wf.conventions.forEach(p=>tag[p.id]='convention'); wf.audit.forEach(p=>tag[p.id]='audit');
   const all={}; [...wf.steps.flatMap(s=>s.patterns),...wf.conventions,...wf.audit].forEach(p=>all[p.id]=p);
-  const items=Object.values(all), add=items.filter(p=>!p.have), have=items.filter(p=>p.have);
-  const skeleton=wf.steps.map((s,i)=>`<li><strong>${esc(s.phase)}</strong> — ${esc(s.do)}</li>`).join('');
-  const main=`<p class="eyebrow">Step 3 of 4</p><p class="steptitle">Your assembled workflow</p>
+  const items=Object.values(all);
+  return {wf,tag,add:items.filter(p=>!p.have),have:items.filter(p=>p.have)};
+}
+function renderGoodMeans(){
+  const bw=DATA.backwards;
+  let h=eb()+`<p class="steptitle">What “good” data means here</p>
+    <p class="help">Good data is data free of the ways it goes bad. Working backward, first pin what “good” means for your task — then guarantee it.</p>
+    <p style="margin:12px 0"><strong>“Good” ${esc(stub.task_structure||'')} data is free of:</strong> ${bw.good_means.map(s=>chip(s,'risk')).join(' ')}</p>`;
+  if(bw.spec_threats.length){ h+=`<div class="callout"><strong>But first — is your <em>good</em> actually good?</strong>
+    <p class="muted" style="font-size:.85rem;margin:4px 0">The gold is the thing most likely to be wrong. Each check asks whether “good” is secretly a proxy.</p><ul>`
+    +bw.spec_threats.map(s=>`<li><code>${esc(s.signature)}</code> — ${esc(s.question)} <span class="muted">probe: ${esc(s.probe)}</span></li>`).join('')+`</ul></div>`; }
+  $('#content').innerHTML = twocol(h)+nav();
+  wire();
+}
+function renderBuildList(){
+  const need=DATA.backwards.needed_patterns;  // one defense per open risk, costliest first
+  const {have}=recipeParts();
+  const row=p=>`<li class="prow"><span class="pmain"><span class="sev ${p.severity}">${p.severity}</span> <code>${esc(p.id)}</code> <span class="muted">closes <code>${esc(p.for)}</code></span></span><button class="adopt" data-adopt="${esc(p.id)}"><i class="ti ti-plus"></i> adopt</button></li>`;
+  let h=eb()+`<p class="steptitle">Reverse-engineer the workflow</p>
+    <p class="help">One defense per open risk guarantees the “good” you defined — costliest first. Adopt them to build the workflow backward; coverage climbs toward 100%.</p>
+    <div class="block todo"><p class="colhead"><i class="ti ti-circle-plus"></i> Defenses to add — ${need.length}</p>
+      ${need.length?`<ul class="plist">${need.map(row).join('')}</ul>`:'<p class="ok" style="font-size:.9rem">Every defense is in place — the workflow guarantees your “good.” 🎯</p>'}</div>
+    <div class="block donelist"><p class="colhead"><i class="ti ti-circle-check"></i> Already in place — ${have.length}</p>
+      ${have.length?`<ul class="plist">${have.map(p=>`<li><code>${esc(p.id)}</code></li>`).join('')}</ul>`:'<p class="muted" style="font-size:.88rem">none yet</p>'}</div>`;
+  $('#content').innerHTML = twocol(h)+nav();
+  wire();
+}
+function renderRecipe(){
+  const {wf,tag,add,have}=recipeParts();
+  const skeleton=wf.steps.map(s=>`<li><strong>${esc(s.phase)}</strong> — ${esc(s.do)}</li>`).join('');
+  const main=eb()+`<p class="steptitle">Your assembled workflow</p>
     <div class="row" style="margin-bottom:12px"><p class="help" style="margin:0">A buildable recipe for your design.`
     +(wf.precedent?` Closest precedent <code>${esc(wf.precedent)}</code>.`:'')+`</p>
       <label class="srctoggle"><input type="checkbox" id="srcToggle" ${SHOW_SOURCES?'checked':''}> show sources</label></div>
     <div class="block todo"><p class="colhead"><i class="ti ti-circle-plus"></i> To add — ${add.length} recommended</p>
-      ${add.length?`<ul class="plist">${add.map(p=>patLine(p,tag)).join('')}</ul>`:'<p class="muted" style="font-size:.88rem">Nothing — your design already covers every applicable risk.</p>'}</div>
+      ${add.length?`<ul class="plist">${add.map(p=>patLine(p,tag,true)).join('')}</ul>`:'<p class="muted" style="font-size:.88rem">Nothing — your design already covers every applicable risk.</p>'}</div>
     <div class="block donelist"><p class="colhead"><i class="ti ti-circle-check"></i> Already in your design — ${have.length}</p>
-      ${have.length?`<ul class="plist">${have.map(p=>patLine(p,tag)).join('')}</ul>`:'<p class="muted" style="font-size:.88rem">none yet — adopt patterns in step 2</p>'}</div>
+      ${have.length?`<ul class="plist">${have.map(p=>patLine(p,tag,false)).join('')}</ul>`:'<p class="muted" style="font-size:.88rem">none yet — adopt patterns above</p>'}</div>
     <p class="colhead">The workflow</p><ol class="skel">${skeleton}</ol>
     <p class="colhead">Fields per item</p><div>${wf.fields.map(f=>`<span class="chip">${esc(f)}</span>`).join(' ')}</div>`;
-  $('#content').innerHTML = twocol(main)+navbar(1,3);
+  $('#content').innerHTML = twocol(main)+nav();
   const t=$('#srcToggle'); if(t) t.onchange=()=>{SHOW_SOURCES=t.checked; render();};
   wire();
 }
 
 function renderWhy(){
   const bw=DATA.backwards, {near,far}=DATA.retrieve;
-  let h=`<p class="eyebrow">Step 4 of 4</p><p class="steptitle">Why it works — backwards from good</p>
-    <p class="help" style="margin-bottom:10px">Good data is data free of the ways it goes bad. This is the reasoning the recipe was built from.</p>
+  let h=eb()+`<p class="steptitle">The rationale</p>
+    <p class="help" style="margin-bottom:10px">Why these defenses — the backwards-from-good reasoning the recipe was built on.</p>
     <p><strong>“Good” here means free of:</strong> ${bw.good_means.map(s=>chip(s,'risk')).join(' ')}</p>`;
   if(bw.spec_threats.length){ h+=`<div class="callout"><strong>But first — is your <em>good</em> actually good?</strong><ul>`
     +bw.spec_threats.map(s=>`<li><code>${esc(s.signature)}</code> — ${esc(s.question)} <span class="muted">probe: ${esc(s.probe)}</span></li>`).join('')+`</ul></div>`; }
@@ -341,7 +385,7 @@ function renderWhy(){
     +`</ul></div><div style="flex:1;min-width:240px"><p class="colhead" style="font-weight:500">Far — same rare risk</p><ul>`
     +far.slice(0,4).map(r=>`<li><code>${esc(r.id)}</code> ${r.shared.slice(0,2).map(s=>chip(s,'risk')).join(' ')}</li>`).join('')
     +`</ul></div></div>`;
-  $('#content').innerHTML = twocol(h)+navbar(2,null);
+  $('#content').innerHTML = twocol(h)+nav();
   wire();
 }
 init();
