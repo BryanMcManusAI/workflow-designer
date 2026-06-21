@@ -2,10 +2,10 @@
 """Local interactive web UI for the Workflow Designer — the "test and view in a browser" tool.
 
 A tiny stdlib HTTP server: the SAME deterministic Python engine, exposed as a JSON API, with a
-vanilla-JS page where you pick the axes + patterns and watch the assembled workflow, interrogation,
-backwards-from-good, and coverage update live — adopt a pattern and the open risks shrink as the
-coverage bar rises. No Streamlit, no build step, no dependencies; the engine logic stays in Python
-(the browser only renders what the API returns).
+vanilla-JS page that walks you through designing a workflow in four steps — Describe → Find & close
+risks → Your recipe → Why it works — with your design + coverage pinned so adopting a pattern
+visibly climbs the bar. No Streamlit, no build step, no dependencies; the engine logic stays in
+Python (the browser only renders what the API returns).
 
 Run:   python3 engine/serve.py [--port 8011]
 Open:  http://localhost:8011
@@ -15,7 +15,7 @@ import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import engine
-import build_site  # reuse the shared CSS so the local app and the static site look the same
+import build_site  # reuse the shared CSS + the curated examples (presets)
 
 IDX = engine.load_index()
 LIST_KEYS = ("qa_mechanism", "uses_patterns", "addressed_signatures", "failure_signatures")
@@ -50,57 +50,104 @@ def meta():
     v = engine.vocab(IDX)
     patterns = [{"id": pid, "name": p["name"]} for pid, p in sorted(IDX["patterns"].items())]
     return {"vocab": v, "patterns": patterns,
+            "examples": build_site.EXAMPLES,
             "n_cards": len(IDX["cards"]), "n_patterns": len(IDX["patterns"])}
 
 
 PAGE = """<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Workflow Designer — interactive</title>
+<title>Workflow Designer</title>
 <style>__CSS__
-.layout{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;}
-.controls{flex:0 0 280px;position:sticky;top:16px;}
-.main{flex:1;min-width:320px;}
-label.fld{display:block;font-weight:600;margin:12px 0 3px;font-size:.9rem;}
-select,input[type=text]{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;
+.stepper{display:flex;align-items:center;gap:4px;margin:10px 0 22px;flex-wrap:wrap;}
+.st{display:flex;align-items:center;gap:7px;cursor:pointer;}
+.st .dot{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+font-size:13px;border:1px solid var(--line);color:var(--muted);}
+.st.done .dot{background:var(--ok);color:var(--ok-fg);border-color:transparent;}
+.st.cur .dot{background:var(--accent);color:#fff;border-color:transparent;font-weight:600;}
+.st .lbl{font-size:13px;color:var(--muted);} .st.cur .lbl{color:var(--fg);font-weight:600;}
+.st .bar{display:none;} .sbar{flex:1;height:1px;background:var(--line);min-width:14px;}
+.twocol{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;}
+.summary{flex:0 0 230px;position:sticky;top:12px;background:var(--card);border:1px solid var(--line);
+border-radius:12px;padding:12px 14px;}
+.stepmain{flex:1;min-width:300px;}
+.nav{display:flex;justify-content:space-between;align-items:center;margin-top:18px;}
+.eyebrow{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:0 0 2px;}
+label.fld{display:block;font-weight:500;margin:14px 0 1px;font-size:14px;}
+.help{font-size:12px;color:var(--muted);margin:0 0 5px;}
+select,input[type=text]{width:100%;padding:8px 9px;border:1px solid var(--line);border-radius:8px;
 background:var(--bg);color:var(--fg);font:inherit;}
-.qa{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:4px;}
-.qa label{font-weight:400;font-size:.85rem;display:flex;gap:5px;align-items:center;}
-.design-chips{margin:6px 0;min-height:24px;}
+.qa{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:4px;}
+.qa label{font-weight:400;font-size:13px;display:flex;gap:5px;align-items:center;}
 .pill{display:inline-flex;align-items:center;gap:6px;background:var(--chip);color:var(--chip-fg);
 border-radius:20px;padding:2px 6px 2px 10px;font-size:.78rem;margin:2px;}
 .pill button{background:none;border:none;color:var(--chip-fg);cursor:pointer;font-size:1rem;line-height:1;padding:0;}
-button.btn{background:var(--accent);color:#fff;border:none;border-radius:7px;padding:6px 12px;
-font:inherit;cursor:pointer;font-size:.85rem;} button.btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);}
-button.adopt{background:var(--ok);color:var(--ok-fg);border:none;border-radius:6px;padding:2px 9px;
-font-size:.75rem;font-weight:700;cursor:pointer;}
-.covbar{height:14px;border-radius:7px;background:var(--code);overflow:hidden;margin:6px 0;}
-.covbar>i{display:block;height:100%;background:var(--accent);}
-.risk-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:8px 0;}
+button.btn{background:transparent;color:var(--fg);border:1px solid var(--line);border-radius:8px;
+padding:7px 14px;font:inherit;cursor:pointer;font-size:.9rem;} button.btn:hover{background:var(--card);}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+button.ghost{border:none;color:var(--muted);}
+button.preset{margin:3px;font-size:.85rem;padding:6px 11px;}
+button.adopt{background:var(--ok);color:var(--ok-fg);border:none;border-radius:6px;padding:3px 10px;
+font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap;}
+.covbar{height:8px;border-radius:999px;background:var(--code);overflow:hidden;margin:6px 0;}
+.covbar>i{display:block;height:100%;background:#1D9E75;}
+.risk-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px 0;}
+.risk-card.covered{border-color:var(--ok-fg);}
 .row{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;}
+.wrap{max-width:900px;}
+#content{line-height:1.65;}
+.intro{color:var(--muted);font-size:.95rem;line-height:1.6;margin:8px 0 0;max-width:680px;}
+details.how{margin:14px 0 4px;border:1px solid var(--line);border-radius:10px;background:var(--card);}
+details.how summary{cursor:pointer;padding:11px 14px;font-size:.9rem;list-style:none;}
+details.how summary::-webkit-details-marker{display:none;}
+details.how summary::before{content:"\203A";display:inline-block;margin-right:9px;color:var(--muted);transition:transform .15s;}
+details.how[open] summary::before{transform:rotate(90deg);}
+details.how .body{padding:2px 16px 14px;font-size:.88rem;color:var(--muted);line-height:1.7;}
+details.how ol{margin:4px 0 10px;padding-left:20px;} details.how li{margin:6px 0;}
+.stepper{margin:18px 0 28px;}
+.steptitle{font-size:1.2rem;font-weight:500;margin:2px 0 6px;}
+.eyebrow{margin-bottom:5px;}
+.help{line-height:1.6;margin:0 0 16px;}
+.risk-card{padding:14px 16px;margin:14px 0;line-height:1.55;}
+.risk-card .row{line-height:1.55;}
+.summary{padding:14px 16px;line-height:1.5;}
+label.fld{margin:18px 0 2px;}
+select,input[type=text]{padding:9px 11px;}
+.stepmain ol li,.stepmain ul li{line-height:1.6;margin:7px 0;}
+.stepmain .colhead{margin:18px 0 6px;}
+.nav{margin-top:24px;}
+button.btn{padding:8px 16px;}
 </style></head>
 <body><div class="wrap">
-  <h1>🧬 Workflow Designer <span style="font-size:.5em;font-weight:500;color:var(--muted)">interactive</span></h1>
-  <p class="muted" id="corpus"></p>
-  <div class="layout">
-    <aside class="controls">
-      <label class="fld">Goal</label>
-      <input type="text" id="goal" placeholder="what data are you building?">
-      <label class="fld">Modality</label><select id="modality"></select>
-      <label class="fld">Task structure</label><select id="task_structure"></select>
-      <label class="fld">Annotator structure</label><select id="annotator_structure"></select>
-      <label class="fld">QA mechanisms in place</label><div class="qa" id="qa"></div>
-      <label class="fld">Your design (adopted patterns)</label>
-      <div class="design-chips" id="design"></div>
-      <button class="btn ghost" id="reset">↺ Reset design</button>
-    </aside>
-    <main class="main">
-      <div class="row"><strong>Coverage</strong><span class="muted" id="covtext"></span></div>
-      <div class="covbar"><i id="covfill"></i></div>
-      <div class="tabs" id="tabs"></div>
-      <div id="panel"></div>
-    </main>
+  <div class="row" style="align-items:baseline">
+    <h1 style="margin:0">Workflow designer</h1>
+    <span class="muted" id="corpus" style="font-size:.85rem"></span>
   </div>
+  <p class="intro">Describe a data workflow, close the risks similar workflows hit, and get a
+  buildable recipe — every suggestion traceable to a real prior workflow. Deterministic: no LLM,
+  nothing it can't source.</p>
+  <details class="how">
+    <summary>How this works &amp; what each step does</summary>
+    <div class="body">
+      <ol>
+        <li><strong>Describe</strong> the workflow you want to build — pick a modality, task and
+        annotator setup, or load one of the examples to start.</li>
+        <li><strong>Find &amp; close risks</strong> — it surfaces the failure modes that similar
+        prior workflows actually hit. Click <em>adopt</em> on a defense and the coverage bar climbs;
+        whatever's left is risk you're consciously accepting.</li>
+        <li><strong>Your recipe</strong> — the assembled workflow: ordered labeling steps, the
+        fields each annotator fills, suggested conventions, and an audit strategy. Each item shows
+        whether it's already in your design (<em>have</em>) or recommended (<em>add</em>), and cites
+        a real workflow that does it.</li>
+        <li><strong>Why it works</strong> — the backwards-from-good reasoning: what "good" data means
+        here, and a stress-test of whether your definition of good is itself a proxy.</li>
+      </ol>
+      You can jump between steps anytime by clicking them above; your design and coverage stay pinned
+      on the left.
+    </div>
+  </details>
+  <div class="stepper" id="stepper"></div>
+  <div id="content"></div>
 </div>
 <script>__JS__</script>
 </body></html>
@@ -108,127 +155,158 @@ font-size:.75rem;font-weight:700;cursor:pointer;}
 
 JS = r"""
 const $ = s => document.querySelector(s);
-const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const chip = (t,k='') => `<span class="chip ${k}">${esc(t)}</span>`;
-let META=null, DATA=null, TAB='workflow';
-const stub = {goal:"Evaluate AI-generated marketing copy at scale with an LLM judge",
+const badge = h => h?'<span class="badge have">have</span>':'<span class="badge add">add</span>';
+let META=null, DATA=null, STEP=0;
+const stub = {goal:"Evaluate AI-generated marketing copy with an LLM judge",
   modality:"text", task_structure:"rubric_rating", annotator_structure:"model_as_annotator",
   qa_mechanism:[], uses_patterns:[], addressed_signatures:[], failure_signatures:[]};
-const TABS = [["workflow","Assembled workflow"],["interrogate","Interrogate"],
-  ["backwards","Backwards-from-good"],["retrieve","Analogues"]];
-
-function opt(sel, vals, cur){ sel.innerHTML = vals.map(v=>`<option ${v===cur?'selected':''}>${esc(v)}</option>`).join(''); }
+const STEPS = ["Describe","Find & close risks","Your recipe","Why it works"];
+const HELP = {modality:"what the data is — text, image, audio, code…",
+  task_structure:"the shape of the judgment — classify, rank, rate, extract…",
+  annotator_structure:"who labels — a crowd, an expert, or a model"};
 
 async function init(){
   META = await (await fetch('/api/meta')).json();
   $('#corpus').textContent = `${META.n_cards} recipes · ${META.n_patterns} patterns · deterministic, no LLM`;
-  opt($('#modality'), META.vocab.modality, stub.modality);
-  opt($('#task_structure'), META.vocab.task_structure, stub.task_structure);
-  opt($('#annotator_structure'), META.vocab.annotator_structure, stub.annotator_structure);
-  $('#qa').innerHTML = META.vocab.qa_mechanism.map(q=>
-    `<label><input type="checkbox" value="${esc(q)}">${esc(q)}</label>`).join('');
-  $('#goal').value = stub.goal;
-  $('#tabs').innerHTML = TABS.map(([id,l])=>`<button data-tab="${id}" class="${id===TAB?'active':''}">${l}</button>`).join('');
-  $('#goal').oninput = e => { stub.goal = e.target.value; };
-  ['modality','task_structure','annotator_structure'].forEach(k=>
-    $('#'+k).onchange = e => { stub[k]=e.target.value; analyze(); });
-  $('#qa').onchange = () => { stub.qa_mechanism = [...$('#qa').querySelectorAll('input:checked')].map(i=>i.value); analyze(); };
-  $('#reset').onclick = () => { stub.uses_patterns=[]; analyze(); };
-  $('#tabs').onclick = e => { const t=e.target.dataset.tab; if(!t) return; TAB=t;
-    document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active', b.dataset.tab===t)); render(); };
-  analyze();
+  await analyze(); render();
 }
-
 async function analyze(){
   DATA = await (await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({stub})})).json();
-  renderDesign(); renderCoverage(); render();
 }
+function go(s){ STEP=Math.max(0,Math.min(3,s)); render(); }
 
-function renderDesign(){
-  $('#design').innerHTML = stub.uses_patterns.length
-    ? stub.uses_patterns.map(p=>`<span class="pill">${esc(p)}<button data-drop="${esc(p)}">×</button></span>`).join('')
-    : '<span class="muted" style="font-size:.85rem">none yet — adopt from Interrogate</span>';
-  $('#design').querySelectorAll('[data-drop]').forEach(b=>b.onclick=()=>{
-    stub.uses_patterns = stub.uses_patterns.filter(x=>x!==b.dataset.drop); analyze(); });
+function renderStepper(){
+  $('#stepper').innerHTML = STEPS.map((l,i)=>{
+    const cls = i<STEP?'done':(i===STEP?'cur':'');
+    const dot = i<STEP?'<i class="ti ti-check"></i>':(i+1);
+    return `<span class="st ${cls}" data-s="${i}"><span class="dot">${dot}</span><span class="lbl">${l}</span></span>`
+      + (i<3?'<span class="sbar"></span>':'');
+  }).join('');
+  document.querySelectorAll('.st').forEach(e=>e.onclick=()=>go(+e.dataset.s));
 }
+function opt(vals,cur){ return vals.map(v=>`<option ${v===cur?'selected':''}>${esc(v)}</option>`).join(''); }
 
-function renderCoverage(){
-  const c = DATA.coverage, pct = Math.round(c.pct*100);
-  $('#covfill').style.width = pct+'%';
-  $('#covtext').textContent = `${c.n_covered}/${c.n_applicable} applicable risks defended (${pct}%)`;
+function summary(){
+  const c=DATA.coverage, pct=Math.round(c.pct*100);
+  const chips = stub.uses_patterns.length
+    ? stub.uses_patterns.map(p=>`<span class="pill">${esc(p)}<button data-drop="${esc(p)}" title="remove">×</button></span>`).join('')
+    : '<span class="muted" style="font-size:.82rem">none yet</span>';
+  return `<div class="summary">
+    <div class="row"><span class="muted" style="font-size:.82rem">Your design</span>
+      <button class="ghost" style="font-size:.8rem;padding:0" data-s="0">edit</button></div>
+    <p style="margin:6px 0 8px;font-size:.9rem;line-height:1.45">${esc(stub.goal||'(untitled)')}</p>
+    <div style="margin-bottom:10px">${[stub.modality,stub.task_structure,stub.annotator_structure].map(x=>chip(x)).join(' ')}</div>
+    <div style="border-top:1px solid var(--line);padding-top:8px">
+      <p style="margin:0 0 4px;font-size:.82rem;color:var(--muted)">Adopted (${stub.uses_patterns.length})</p>${chips}</div>
+    <div style="border-top:1px solid var(--line);padding-top:8px;margin-top:8px">
+      <div class="row" style="font-size:.85rem"><span class="muted">Coverage</span><span>${c.n_covered} / ${c.n_applicable} · ${pct}%</span></div>
+      <div class="covbar"><i style="width:${pct}%"></i></div></div>
+  </div>`;
 }
-
-function badge(have){ return have?'<span class="badge have">have</span>':'<span class="badge add">add</span>'; }
+function wire(){
+  document.querySelectorAll('[data-drop]').forEach(b=>b.onclick=async()=>{
+    stub.uses_patterns=stub.uses_patterns.filter(x=>x!==b.dataset.drop); await analyze(); render();});
+  document.querySelectorAll('[data-s]').forEach(b=>{ if(b.tagName==='BUTTON') b.onclick=()=>go(+b.dataset.s);});
+  document.querySelectorAll('[data-adopt]').forEach(b=>b.onclick=async()=>{
+    if(!stub.uses_patterns.includes(b.dataset.adopt)){stub.uses_patterns.push(b.dataset.adopt); await analyze(); render();}});
+}
+function twocol(main){ return `<div class="twocol">${summary()}<div class="stepmain">${main}</div></div>`; }
+function navbar(prev,next){
+  return `<div class="nav">
+    ${prev!=null?`<button class="btn ghost" data-s="${prev}"><i class="ti ti-arrow-left"></i> back</button>`:'<span></span>'}
+    ${next!=null?`<button class="btn primary" data-s="${next}">${next>STEP?STEPS[next]:'continue'} <i class="ti ti-arrow-right"></i></button>`:'<span></span>'}
+  </div>`;
+}
 
 function render(){
-  if(TAB==='workflow') return renderWorkflow();
-  if(TAB==='interrogate') return renderInterrogate();
-  if(TAB==='backwards') return renderBackwards();
-  if(TAB==='retrieve') return renderRetrieve();
+  renderStepper();
+  if(STEP===0) return renderDescribe();
+  if(STEP===1) return renderRisks();
+  if(STEP===2) return renderRecipe();
+  return renderWhy();
+}
+
+function renderDescribe(){
+  const v=META.vocab;
+  const presets = Object.keys(META.examples).map(n=>`<button class="btn preset" data-ex="${esc(n)}">${esc(n)}</button>`).join('');
+  const sel = (k)=>`<label class="fld">${k.replace(/_/g,' ')}</label><p class="help">${HELP[k]}</p>
+    <select id="${k}">${opt(v[k], stub[k])}</select>`;
+  const qa = v.qa_mechanism.map(q=>`<label><input type="checkbox" value="${esc(q)}" ${stub.qa_mechanism.includes(q)?'checked':''}>${esc(q)}</label>`).join('');
+  $('#content').innerHTML = `<p class="eyebrow">Step 1 of 4</p><p class="steptitle">Describe the workflow you want to build</p>
+    <p class="help" style="margin-bottom:10px">Start from an example, then tweak — or fill it in yourself.</p>
+    <div style="margin-bottom:8px">${presets}</div>
+    <label class="fld">Goal</label><input type="text" id="goal" value="${esc(stub.goal)}">
+    ${sel('modality')}${sel('task_structure')}${sel('annotator_structure')}
+    <label class="fld">QA mechanisms already in place</label><p class="help">optional — checks you already run</p>
+    <div class="qa" id="qa">${qa}</div>
+    ${navbar(null,1)}`;
+  $('#goal').oninput=e=>{stub.goal=e.target.value;};
+  ['modality','task_structure','annotator_structure'].forEach(k=>$('#'+k).onchange=async e=>{stub[k]=e.target.value; await analyze(); render();});
+  $('#qa').onchange=async()=>{stub.qa_mechanism=[...$('#qa').querySelectorAll('input:checked')].map(i=>i.value); await analyze(); render();};
+  document.querySelectorAll('[data-ex]').forEach(b=>b.onclick=async()=>{
+    const ex=META.examples[b.dataset.ex]; Object.assign(stub,{qa_mechanism:[],uses_patterns:[],addressed_signatures:[],failure_signatures:[]},ex);
+    await analyze(); render();});
+  wire();
+}
+
+function renderRisks(){
+  const r=DATA.interrogate;
+  let h=`<p class="eyebrow">Step 2 of 4</p><p class="steptitle">Close each open risk</p>
+    <p class="help" style="margin-bottom:10px">Each risk your analogues hit. Adopt a defense — coverage climbs as you do; what's left is what you've consciously accepted.</p>`;
+  if(r.defended.length) h+=`<p class="ok" style="font-size:.88rem">Already covered: ${r.defended.map(s=>`<code>${esc(s)}</code>`).join(', ')}</p>`;
+  if(!r.open.length) h+='<p class="ok">No open risks left — your design covers them all. 🎯</p>';
+  h+=r.open.map(o=>`<div class="risk-card"><div class="row">
+      <span style="font-size:.9rem"><span class="chip risk">${esc(o.signature)}</span> ${esc(o.question)}</span></div>`
+    + (o.unguarded?'<p class="warn" style="font-size:.82rem;margin:6px 0 0">UNGUARDED — a corpus gap.</p>':'')
+    + o.patterns.slice(0,2).map(p=>`<div class="row" style="margin-top:8px">
+        <span style="font-size:.85rem">borrow <code>${esc(p.id)}</code> — ${esc(p.name)} <span class="muted">· cost: ${esc(p.cost)}</span></span>
+        <button class="adopt" data-adopt="${esc(p.id)}"><i class="ti ti-plus"></i> adopt</button></div>`).join('')
+    + `</div>`).join('');
+  $('#content').innerHTML = twocol(h)+navbar(0,2);
+  wire();
 }
 
 function play(p){
-  let g = '';
-  if(p.as_done){ g = `<br><span class="muted seen">as <code>${esc(p.as_done.card)}</code> does — ${esc(p.as_done.gate)}: ${esc(p.as_done.checks)}</span>`; }
-  else if(p.seen_in && p.seen_in.length){ g = `<br><span class="muted seen">seen in ${p.seen_in.map(c=>`<code>${esc(c)}</code>`).join(', ')}</span>`; }
-  return `<li>${badge(p.have)} <code>${esc(p.id)}</code> — ${esc(p.instruction)}${g}</li>`;
+  let g='';
+  if(p.as_done) g=`<div class="muted" style="font-size:.8rem;margin-left:18px">as <code>${esc(p.as_done.card)}</code> does — ${esc(p.as_done.gate)}: ${esc(p.as_done.checks)}</div>`;
+  else if(p.seen_in&&p.seen_in.length) g=`<div class="muted" style="font-size:.8rem;margin-left:18px">seen in ${p.seen_in.map(c=>`<code>${esc(c)}</code>`).join(', ')}</div>`;
+  return `<li style="margin:5px 0">${badge(p.have)} <code>${esc(p.id)}</code> — ${esc(p.instruction)}${g}</li>`;
+}
+function renderRecipe(){
+  const wf=DATA.workflow;
+  const steps=wf.steps.map(s=>`<li style="margin:7px 0"><strong>${esc(s.phase)}</strong> — ${esc(s.do)}`
+    +(s.patterns.length?`<ul style="list-style:none;padding-left:0;margin:4px 0">${s.patterns.map(play).join('')}</ul>`:'')+`</li>`).join('');
+  const conv=wf.conventions.length?wf.conventions.map(play).join(''):'<li class="muted">a frozen, example-driven guideline is the baseline</li>';
+  const audit=wf.audit.map(play).join('');
+  const main=`<p class="eyebrow">Step 3 of 4</p><p class="steptitle">Your assembled workflow</p>
+    <p class="help" style="margin-bottom:10px">${badge(true)} in your design · ${badge(false)} from the build list`
+    +(wf.precedent?` · closest precedent <code>${esc(wf.precedent)}</code>`:'')+`</p>
+    <p class="colhead" style="font-weight:500">Labeling steps</p><ol style="padding-left:20px">${steps}</ol>
+    <p class="colhead" style="font-weight:500">Fields per item</p><ul>${wf.fields.map(f=>`<li><code>${esc(f)}</code></li>`).join('')}</ul>
+    <p class="colhead" style="font-weight:500">Suggested conventions</p><ul style="list-style:none;padding-left:0">${conv}</ul>
+    <p class="colhead" style="font-weight:500">Audit strategy</p><ul style="list-style:none;padding-left:0">${audit}</ul>`;
+  $('#content').innerHTML = twocol(main)+navbar(1,3);
+  wire();
 }
 
-function renderWorkflow(){
-  const wf = DATA.workflow;
-  const steps = wf.steps.map(s=>`<li><strong>${esc(s.phase)}</strong> — ${esc(s.do)}`
-    + (s.patterns.length?`<ul class="plays">${s.patterns.map(play).join('')}</ul>`:'') + `</li>`).join('');
-  const conv = wf.conventions.length?wf.conventions.map(play).join(''):'<li class="muted">a frozen, example-driven guideline is the baseline</li>';
-  const audit = wf.audit.map(play).join('');
-  const spec = wf.spec_threats.length?`<p class="colhead">…stress-test that “good” isn’t a proxy</p><ul class="spec">`
-    + wf.spec_threats.map(s=>`<li><code>${esc(s.signature)}</code> — ${esc(s.probe)}</li>`).join('')+`</ul>`:'';
-  $('#panel').innerHTML = `<h3>The assembled sample workflow</h3>
-    <p class="muted">${badge(true)} = in your design · ${badge(false)} = from the backwards build list`
-    + (wf.precedent?` · closest precedent <code>${esc(wf.precedent)}</code>`:'')+`</p>
-    <div class="cols"><div><p class="colhead">Labeling steps</p><ol class="steps">${steps}</ol></div>
-    <div><p class="colhead">Fields per item</p><ul class="fields">${wf.fields.map(f=>`<li><code>${esc(f)}</code></li>`).join('')}</ul>
-    <p class="colhead">Suggested conventions</p><ul class="plays">${conv}</ul>
-    <p class="colhead">Audit strategy</p><ul class="plays">${audit}</ul>${spec}</div></div>`;
-}
-
-function renderInterrogate(){
-  const r = DATA.interrogate;
-  let h = '<h3>Interrogation — open risks &amp; the patterns that catch them</h3>';
-  if(r.defended.length) h += `<p class="ok">Defended by your design: ${r.defended.map(s=>`<code>${esc(s)}</code>`).join(', ')}</p>`;
-  if(!r.open.length) h += '<p class="ok">No open risks left — your design covers them. 🎯</p>';
-  h += r.open.map(o=>`<div class="risk-card"><div class="row"><p><code class="risk">${esc(o.signature)}</code> ${esc(o.question)}</p></div>`
-    + (o.unguarded?'<p class="warn">UNGUARDED — a corpus gap.</p>':'')
-    + o.patterns.map(p=>`<div class="row"><span>borrow <code>${esc(p.id)}</code> — ${esc(p.name)} <span class="muted">· cost: ${esc(p.cost)}</span></span>`
-      + `<button class="adopt" data-adopt="${esc(p.id)}">+ adopt</button></div>`).join('')
-    + (o.example.card?`<p class="seen muted">seen in <code>${esc(o.example.card)}</code></p>`:'')+`</div>`).join('');
-  if(r.conflicts && r.conflicts.length) h += `<p class="warn">⟂ conflicts: `+r.conflicts.map(c=>`<code>${esc(c[0])}</code>⟂<code>${esc(c[1])}</code>`).join(', ')+`</p>`;
-  if(r.complements && r.complements.length) h += `<p class="muted">complements: `+r.complements.slice(0,6).map(c=>`<code>${esc(c.id)}</code>`).join(', ')+`</p>`;
-  $('#panel').innerHTML = h;
-  $('#panel').querySelectorAll('[data-adopt]').forEach(b=>b.onclick=()=>{
-    if(!stub.uses_patterns.includes(b.dataset.adopt)){ stub.uses_patterns.push(b.dataset.adopt); analyze(); }});
-}
-
-function renderBackwards(){
-  const bw = DATA.backwards;
-  let h = '<h3>Backwards from good</h3><p><strong>“Good” here means free of:</strong> '
-    + bw.good_means.map(s=>chip(s,'risk')).join(' ')+'</p>';
-  if(bw.needed_patterns.length){ h += '<p><strong>The workflow that guarantees it</strong> — one defense per open risk:</p><ul>'
-    + bw.needed_patterns.map(p=>`<li><code>${esc(p.id)}</code> — ${esc(p.name)} <span class="muted">· closes <code>${esc(p.for)}</code></span></li>`).join('')+'</ul>'; }
-  else h += '<p class="ok">Your design already covers every applicable failure mode. 🎯</p>';
-  if(bw.spec_threats.length){ h += '<div class="callout"><strong>But first — is your <em>good</em> actually good?</strong><ul>'
-    + bw.spec_threats.map(s=>`<li><code>${esc(s.signature)}</code> — ${esc(s.question)} <span class="muted">probe: ${esc(s.probe)}</span></li>`).join('')+'</ul></div>'; }
-  $('#panel').innerHTML = h;
-}
-
-function renderRetrieve(){
-  const {near,far} = DATA.retrieve;
-  $('#panel').innerHTML = `<h3>Analogous prior workflows</h3><div class="cols">
-    <div><p class="colhead">Near — your modality / task / annotator</p><ul>`
-    + near.slice(0,5).map(r=>`<li><code>${esc(r.id)}</code> <span class="muted">(${esc(r.modality)}/${esc(r.task)}) — shares ${esc(r.why.join(', '))}</span></li>`).join('')
-    + `</ul></div><div><p class="colhead">Far — distant domain, same (rare) risk</p><ul>`
-    + far.slice(0,5).map(r=>`<li><code>${esc(r.id)}</code> <span class="muted">(${esc(r.modality)}/${esc(r.task)})</span> ${r.shared.slice(0,3).map(s=>chip(s,'risk')).join(' ')}</li>`).join('')
-    + `</ul></div></div>`;
+function renderWhy(){
+  const bw=DATA.backwards, {near,far}=DATA.retrieve;
+  let h=`<p class="eyebrow">Step 4 of 4</p><p class="steptitle">Why it works — backwards from good</p>
+    <p class="help" style="margin-bottom:10px">Good data is data free of the ways it goes bad. This is the reasoning the recipe was built from.</p>
+    <p><strong>“Good” here means free of:</strong> ${bw.good_means.map(s=>chip(s,'risk')).join(' ')}</p>`;
+  if(bw.spec_threats.length){ h+=`<div class="callout"><strong>But first — is your <em>good</em> actually good?</strong><ul>`
+    +bw.spec_threats.map(s=>`<li><code>${esc(s.signature)}</code> — ${esc(s.question)} <span class="muted">probe: ${esc(s.probe)}</span></li>`).join('')+`</ul></div>`; }
+  h+=`<div class="cols" style="display:flex;gap:20px;flex-wrap:wrap;margin-top:10px">
+    <div style="flex:1;min-width:240px"><p class="colhead" style="font-weight:500">Near analogues</p><ul>`
+    +near.slice(0,4).map(r=>`<li><code>${esc(r.id)}</code> <span class="muted">(${esc(r.modality)}/${esc(r.task)})</span></li>`).join('')
+    +`</ul></div><div style="flex:1;min-width:240px"><p class="colhead" style="font-weight:500">Far — same rare risk</p><ul>`
+    +far.slice(0,4).map(r=>`<li><code>${esc(r.id)}</code> ${r.shared.slice(0,2).map(s=>chip(s,'risk')).join(' ')}</li>`).join('')
+    +`</ul></div></div>`;
+  $('#content').innerHTML = twocol(h)+navbar(2,null);
+  wire();
 }
 init();
 """
