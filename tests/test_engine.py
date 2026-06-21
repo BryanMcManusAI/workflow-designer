@@ -109,6 +109,39 @@ def test_load_stub_parsing(eng, tmp_path):
         assert isinstance(stub[k], list), k
 
 
+def test_severity_defaults_and_overrides(eng, idx):
+    assert eng.signature_priority("label_leakage", make_stub()) > eng.signature_priority("priming", make_stub())
+    assert eng.severity_label(3) == "high" and eng.severity_label(2) == "med" and eng.severity_label(1) == "low"
+    # customer failure-sensitivity moves a signature's cost
+    boosted = make_stub(high_cost_signatures=["priming"])
+    assert eng.signature_priority("priming", boosted) > eng.signature_priority("priming", make_stub())
+    toler = make_stub(tolerable_signatures=["label_leakage"])
+    assert eng.signature_priority("label_leakage", toler) < eng.signature_priority("label_leakage", make_stub())
+
+
+@pytest.mark.parametrize("name,stub", ALL_STUBS)
+def test_build_list_is_cost_ordered(eng, idx, name, stub):
+    bw = eng.analyze_backwards(idx, stub)
+    sev_rank = {"high": 3, "med": 2, "low": 1}
+    scores = [sev_rank[g["severity"]] for g in bw["guarantees"]]
+    assert scores == sorted(scores, reverse=True), name  # costliest first
+    for p in bw["needed_patterns"]:
+        assert p["severity"] in sev_rank, (name, p)
+    for r in eng.analyze_interrogate(idx, stub)["open"]:
+        assert r["severity"] in sev_rank, name
+
+
+def test_high_cost_override_reprioritizes(eng, idx):
+    # flagging a normally-low-cost risk as high-cost should pull it toward the front of the build list
+    base = make_stub(modality="text", task_structure="rubric_rating", annotator_structure="model_as_annotator")
+    if "priming" not in eng.analyze_backwards(idx, base)["good_means"]:
+        pytest.skip("priming not applicable to this stub")
+    boosted = dict(base); boosted["high_cost_signatures"] = ["priming"]
+    gm0 = eng.analyze_backwards(idx, base)["good_means"]
+    gm1 = eng.analyze_backwards(idx, boosted)["good_means"]
+    assert gm1.index("priming") <= gm0.index("priming")
+
+
 def test_meta_tooling_cards_demoted_in_near(eng, idx):
     # A process/meta card (datasheets-documentation) must not outrank a thematic extraction
     # workflow as the precedent for an extraction task.

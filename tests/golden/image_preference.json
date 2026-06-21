@@ -88,12 +88,26 @@
       ]
     ],
     [
+      "self_affinity",
+      3,
+      [
+        "cross-family-judges"
+      ]
+    ],
+    [
       "class_imbalance",
       5,
       [
         "human-audit-sample",
         "active-learning-loop",
         "coverage-routing"
+      ]
+    ],
+    [
+      "underpowered",
+      1,
+      [
+        "powered-eval-split"
       ]
     ],
     [
@@ -114,40 +128,26 @@
       ]
     ],
     [
-      "self_affinity",
-      3,
-      [
-        "cross-family-judges"
-      ]
-    ],
-    [
       "over_specification",
       1,
       [
         "edge-case-guidelines"
-      ]
-    ],
-    [
-      "underpowered",
-      1,
-      [
-        "powered-eval-split"
       ]
     ]
   ],
   "backwards_good_means": [
     "sampling_frame",
     "confounded",
+    "unanchored",
+    "self_affinity",
     "class_imbalance",
     "inflation",
-    "unanchored",
-    "priming",
     "under_specification",
     "drift",
+    "underpowered",
+    "priming",
     "bottleneck",
-    "self_affinity",
-    "over_specification",
-    "underpowered"
+    "over_specification"
   ],
   "backwards_needed": [
     [
@@ -157,6 +157,10 @@
     [
       "cross-family-judges",
       "confounded"
+    ],
+    [
+      "powered-eval-split",
+      "underpowered"
     ],
     [
       "order-randomization",
@@ -169,20 +173,16 @@
     [
       "edge-case-guidelines",
       "over_specification"
-    ],
-    [
-      "powered-eval-split",
-      "underpowered"
     ]
   ],
   "backwards_spec_threats": [
     "sampling_frame",
     "confounded",
-    "inflation",
     "unanchored",
+    "self_affinity",
+    "inflation",
     "under_specification",
     "drift",
-    "self_affinity",
     "over_specification"
   ],
   "workflow_chosen": [
@@ -190,10 +190,10 @@
     "gold-honeypots",
     "human-audit-sample",
     "cross-family-judges",
+    "powered-eval-split",
     "order-randomization",
     "tiered-adjudication",
-    "edge-case-guidelines",
-    "powered-eval-split"
+    "edge-case-guidelines"
   ],
   "workflow_steps": [
     [

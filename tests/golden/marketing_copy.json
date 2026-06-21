@@ -100,20 +100,6 @@
       ]
     ],
     [
-      "underpowered",
-      3,
-      [
-        "powered-eval-split"
-      ]
-    ],
-    [
-      "priming",
-      3,
-      [
-        "order-randomization"
-      ]
-    ],
-    [
       "under_specification",
       3,
       [
@@ -121,6 +107,22 @@
         "tiered-adjudication",
         "inter-annotator-agreement",
         "edge-case-guidelines"
+      ]
+    ],
+    [
+      "underpowered",
+      3,
+      [
+        "powered-eval-split"
+      ]
+    ],
+    [
+      "class_imbalance",
+      1,
+      [
+        "human-audit-sample",
+        "active-learning-loop",
+        "coverage-routing"
       ]
     ],
     [
@@ -133,26 +135,24 @@
       ]
     ],
     [
-      "class_imbalance",
-      1,
+      "priming",
+      3,
       [
-        "human-audit-sample",
-        "active-learning-loop",
-        "coverage-routing"
+        "order-randomization"
       ]
     ]
   ],
   "backwards_good_means": [
-    "unanchored",
     "sampling_frame",
+    "unanchored",
     "confounded",
     "self_affinity",
     "inflation",
-    "underpowered",
-    "priming",
     "under_specification",
+    "underpowered",
+    "class_imbalance",
     "drift",
-    "class_imbalance"
+    "priming"
   ],
   "backwards_needed": [
     [
@@ -168,21 +168,21 @@
       "inflation"
     ],
     [
+      "multi-annotator-aggregate",
+      "under_specification"
+    ],
+    [
       "powered-eval-split",
       "underpowered"
     ],
     [
       "order-randomization",
       "priming"
-    ],
-    [
-      "multi-annotator-aggregate",
-      "under_specification"
     ]
   ],
   "backwards_spec_threats": [
-    "unanchored",
     "sampling_frame",
+    "unanchored",
     "confounded",
     "self_affinity",
     "inflation",
@@ -194,9 +194,9 @@
     "human-audit-sample",
     "cross-family-judges",
     "gold-honeypots",
+    "multi-annotator-aggregate",
     "powered-eval-split",
-    "order-randomization",
-    "multi-annotator-aggregate"
+    "order-randomization"
   ],
   "workflow_steps": [
     [

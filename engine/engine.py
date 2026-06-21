@@ -88,6 +88,39 @@ SPEC_THREATS = {
         "stratified audit across the full distribution, not a random sample"),
 }
 
+# Failure SENSITIVITY — how costly each failure is by default (the "what errors are most costly"
+# axis of a good-data brief). Failures that corrupt the ground truth itself score highest; ones
+# that add measurable/correctable noise are medium; cheaply-fixable or operational ones are low.
+# The customer can override per workflow via the stub's `high_cost_signatures` / `tolerable_signatures`.
+# This turns a flat build list ("what to defend") into a prioritized one ("what to defend hardest").
+SIGNATURE_SEVERITY = {
+    "unanchored": 3, "label_leakage": 3, "self_affinity": 3, "confounded": 3, "sampling_frame": 3,
+    "class_imbalance": 2, "gaming": 2, "drift": 2, "under_specification": 2, "inflation": 2,
+    "underpowered": 2,
+    "bottleneck": 1, "over_specification": 1, "priming": 1,
+}
+DEFAULT_SEVERITY = 2
+
+
+def _as_list(v):
+    return [v] if isinstance(v, str) else list(v or [])
+
+
+def signature_priority(sig, stub):
+    """Cost weight for a failure signature: the default severity, raised for signatures the customer
+    flagged as high-cost and lowered for ones they called tolerable (their failure-sensitivity answer)."""
+    score = SIGNATURE_SEVERITY.get(sig, DEFAULT_SEVERITY)
+    if sig in set(_as_list(stub.get("high_cost_signatures"))):
+        score += 2
+    if sig in set(_as_list(stub.get("tolerable_signatures"))):
+        score -= 2
+    return score
+
+
+def severity_label(score):
+    return "high" if score >= 3 else ("low" if score <= 1 else "med")
+
+
 W = 96
 
 
@@ -111,7 +144,8 @@ def load_stub(path):
                 stub[key] = val.strip("\"'")
             else:
                 stub[key] = []
-    for k in ("qa_mechanism", "uses_patterns", "addressed_signatures", "failure_signatures"):
+    for k in ("qa_mechanism", "uses_patterns", "addressed_signatures", "failure_signatures",
+              "high_cost_signatures", "tolerable_signatures"):
         v = stub.get(k, [])
         stub[k] = [v] if isinstance(v, str) else (v or [])
     return stub
@@ -324,13 +358,15 @@ def analyze_interrogate(idx, stub):
     full = risk_counter(idx, analogue_ids)
     have = defended(idx, stub)
     rows = []
-    for sig, n in full.most_common():
+    # Order by cost first (defend the most expensive failures first), then by how many analogues hit it.
+    for sig, n in sorted(full.items(), key=lambda kv: (-signature_priority(kv[0], stub), -kv[1], kv[0])):
         if sig in have:
             continue
         defs = [{"id": pid, "name": idx["patterns"][pid]["name"], "cost": idx["patterns"][pid]["cost"]}
                 for pid in patterns_defending(idx, sig)]
         ex_cid, ex_desc = example_card_for(idx, sig, analogue_ids)
         rows.append({"signature": sig, "count": n,
+                     "severity": severity_label(signature_priority(sig, stub)),
                      "question": QUESTIONS.get(sig, f"How will you handle `{sig}`?"),
                      "patterns": defs, "unguarded": not defs,
                      "example": {"card": ex_cid, "desc": ex_desc}})
@@ -589,12 +625,14 @@ def analyze_backwards(idx, stub):
     full = risk_counter(idx, analogue_ids)
     have = defended(idx, stub)
     good_means, guarantees = [], []
-    for sig, n in full.most_common():
+    # Cost-first ordering: the build list leads with the most expensive failures to be free of.
+    for sig, n in sorted(full.items(), key=lambda kv: (-signature_priority(kv[0], stub), -kv[1], kv[0])):
         good_means.append(sig)
         defs = patterns_defending(idx, sig)
         ex_cid, _ = example_card_for(idx, sig, analogue_ids)
         guarantees.append({
             "signature": sig, "count": n, "defended": sig in have, "unguarded": not defs,
+            "severity": severity_label(signature_priority(sig, stub)),
             "patterns": [{"id": p, "name": idx["patterns"][p]["name"], "cost": idx["patterns"][p]["cost"]}
                          for p in defs],
             "example": ex_cid,
@@ -607,7 +645,8 @@ def analyze_backwards(idx, stub):
         p = g["patterns"][0]
         if p["id"] not in seen:
             seen.add(p["id"])
-            needed.append({"id": p["id"], "name": p["name"], "for": g["signature"]})
+            needed.append({"id": p["id"], "name": p["name"], "for": g["signature"],
+                           "severity": g["severity"]})
     spec_threats = [{"signature": s, "question": SPEC_THREATS[s][0], "probe": SPEC_THREATS[s][1]}
                     for s in good_means if s in SPEC_THREATS]
     return {"good_means": good_means, "guarantees": guarantees,
@@ -816,7 +855,8 @@ def render_interrogate(res):
               "(Rare; double-check coverage.)")
     for i, r in enumerate(res["open"], 1):
         sig, n = r["signature"], r["count"]
-        print(f"  {i}. [{sig}]  (seen in {n} analogue{'s' if n > 1 else ''})")
+        sev = f"  ({r['severity']}-cost)" if r.get("severity") else ""
+        print(f"  {i}. [{sig}]{sev}  (seen in {n} analogue{'s' if n > 1 else ''})")
         print(wrap(r["question"], "     "))
         if r["unguarded"]:
             print(f"      UNGUARDED — no pattern in the library defends `{sig}` (a corpus gap).")
@@ -844,10 +884,11 @@ def render_backwards(stub, res):
             print(f"      -> {p['id']} — {p['name']} (cost: {p['cost']})")
         if g["example"]:
             print(f"      seen in `{g['example']}`")
-    header("BACKWARDS-ASSEMBLED BUILD LIST (one defense per open risk)")
+    header("BACKWARDS-ASSEMBLED BUILD LIST (costliest risks first)")
     if res["needed_patterns"]:
         for p in res["needed_patterns"]:
-            print(f"  + {p['id']} — {p['name']}  (closes: {p['for']})")
+            sev = f"[{p['severity']}] " if p.get("severity") else ""
+            print(f"  + {sev}{p['id']} — {p['name']}  (closes: {p['for']})")
     else:
         print("  (your design already covers every applicable failure mode)")
     header("BUT FIRST — IS YOUR 'GOOD' ACTUALLY GOOD?  (stress-test the spec)")

@@ -69,6 +69,31 @@
       ]
     ],
     [
+      "label_leakage",
+      5,
+      [
+        "split-isolation",
+        "dedup-merge",
+        "partial-input-baseline"
+      ]
+    ],
+    [
+      "confounded",
+      3,
+      [
+        "cross-family-judges",
+        "lock-then-score",
+        "order-randomization"
+      ]
+    ],
+    [
+      "self_affinity",
+      1,
+      [
+        "cross-family-judges"
+      ]
+    ],
+    [
       "under_specification",
       6,
       [
@@ -79,30 +104,12 @@
       ]
     ],
     [
-      "label_leakage",
-      5,
-      [
-        "split-isolation",
-        "dedup-merge",
-        "partial-input-baseline"
-      ]
-    ],
-    [
       "class_imbalance",
       4,
       [
         "human-audit-sample",
         "active-learning-loop",
         "coverage-routing"
-      ]
-    ],
-    [
-      "confounded",
-      3,
-      [
-        "cross-family-judges",
-        "lock-then-score",
-        "order-randomization"
       ]
     ],
     [
@@ -124,34 +131,23 @@
         "dedup-merge",
         "engagement-gate"
       ]
-    ],
-    [
-      "self_affinity",
-      1,
-      [
-        "cross-family-judges"
-      ]
     ]
   ],
   "backwards_good_means": [
     "sampling_frame",
-    "under_specification",
     "label_leakage",
-    "class_imbalance",
     "confounded",
     "unanchored",
+    "self_affinity",
+    "under_specification",
+    "class_imbalance",
     "drift",
-    "inflation",
-    "self_affinity"
+    "inflation"
   ],
   "backwards_needed": [
     [
       "human-audit-sample",
       "sampling_frame"
-    ],
-    [
-      "multi-annotator-aggregate",
-      "under_specification"
     ],
     [
       "split-isolation",
@@ -162,26 +158,30 @@
       "confounded"
     ],
     [
+      "multi-annotator-aggregate",
+      "under_specification"
+    ],
+    [
       "gold-honeypots",
       "drift"
     ]
   ],
   "backwards_spec_threats": [
     "sampling_frame",
-    "under_specification",
     "label_leakage",
     "confounded",
     "unanchored",
+    "self_affinity",
+    "under_specification",
     "drift",
-    "inflation",
-    "self_affinity"
+    "inflation"
   ],
   "workflow_chosen": [
     "execution-verification",
     "human-audit-sample",
-    "multi-annotator-aggregate",
     "split-isolation",
     "cross-family-judges",
+    "multi-annotator-aggregate",
     "gold-honeypots"
   ],
   "workflow_steps": [

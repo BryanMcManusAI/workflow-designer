@@ -39,7 +39,8 @@ def make_stub(**kw):
         "task_structure": kw.get("task_structure"),
         "annotator_structure": kw.get("annotator_structure"),
     }
-    for k in ("qa_mechanism", "uses_patterns", "addressed_signatures", "failure_signatures"):
+    for k in ("qa_mechanism", "uses_patterns", "addressed_signatures", "failure_signatures",
+              "high_cost_signatures", "tolerable_signatures"):
         v = kw.get(k, [])
         stub[k] = [v] if isinstance(v, str) else list(v or [])
     return stub
