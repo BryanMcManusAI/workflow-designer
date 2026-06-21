@@ -121,6 +121,28 @@ def severity_label(score):
     return "high" if score >= 3 else ("low" if score <= 1 else "med")
 
 
+# Agent / autonomous behavior — "strict steps vs adapt dynamically" resolves the freeze-vs-iterate
+# tension (lock-then-score ⟂ active-learning-loop / edge-case-guidelines). The chosen side biases
+# the build list: prefer its patterns, avoid the other's. Set via the stub's `process_mode`.
+STRICT_PATTERNS = {"lock-then-score"}
+ADAPTIVE_PATTERNS = {"active-learning-loop", "edge-case-guidelines"}
+PROCESS_MODES = {
+    "strict": {"prefer": STRICT_PATTERNS, "avoid": ADAPTIVE_PATTERNS, "label": "strict / frozen",
+               "note": "Freeze the guideline before scoring (lock-then-score): reproducible and "
+               "auditable, but it won't adapt as the data drifts. For autonomous systems, strict "
+               "steps keep the reasoning legible and monitorable."},
+    "adaptive": {"prefer": ADAPTIVE_PATTERNS, "avoid": STRICT_PATTERNS, "label": "adaptive / dynamic",
+                 "note": "Let the process adapt (active-learning, iterated guidelines): responsive to "
+                 "new failure modes, but harder to reproduce and audit — and for autonomous systems "
+                 "the reasoning can launder, so budget extra monitoring."},
+}
+
+
+def agent_pref(stub):
+    """The strict/adaptive preference for this workflow (or None for 'either')."""
+    return PROCESS_MODES.get(stub.get("process_mode") or "")
+
+
 W = 96
 
 
@@ -610,7 +632,17 @@ def analyze_workflow(idx, stub):
         "spec_threats": bw["spec_threats"],
         "chosen": chosen, "adopted": adopted,
         "to_add": [p for p in chosen if p not in adopted],
+        "agent": _agent_summary(idx, stub),
     }
+
+
+def _agent_summary(idx, stub):
+    pref = agent_pref(stub)
+    if not pref:
+        return None
+    return {"mode": stub.get("process_mode"), "label": pref["label"], "note": pref["note"],
+            "prefer": sorted(p for p in pref["prefer"] if p in idx["patterns"]),
+            "avoid": sorted(p for p in pref["avoid"] if p in idx["patterns"])}
 
 
 def analyze_backwards(idx, stub):
@@ -638,11 +670,18 @@ def analyze_backwards(idx, stub):
             "example": ex_cid,
         })
     # Tight build list: ONE primary pattern per still-OPEN failure mode (dedup; skip already-defended).
+    # Bias by the agent-behavior preference: favor the chosen side's patterns, avoid the other's.
+    pref = agent_pref(stub)
     needed, seen = [], set(stub.get("uses_patterns", []))
     for g in guarantees:
         if g["defended"] or not g["patterns"]:
             continue
-        p = g["patterns"][0]
+        cands = g["patterns"]
+        if pref:
+            favored = [c for c in cands if c["id"] in pref["prefer"]]
+            rest = [c for c in cands if c["id"] not in pref["avoid"] and c not in favored]
+            cands = (favored + rest) or cands
+        p = cands[0]
         if p["id"] not in seen:
             seen.add(p["id"])
             needed.append({"id": p["id"], "name": p["name"], "for": g["signature"],

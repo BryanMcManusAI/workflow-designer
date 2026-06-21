@@ -38,6 +38,7 @@ def make_stub(**kw):
         "modality": kw.get("modality"),
         "task_structure": kw.get("task_structure"),
         "annotator_structure": kw.get("annotator_structure"),
+        "process_mode": kw.get("process_mode"),
     }
     for k in ("qa_mechanism", "uses_patterns", "addressed_signatures", "failure_signatures",
               "high_cost_signatures", "tolerable_signatures"):

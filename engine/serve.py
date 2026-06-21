@@ -25,7 +25,8 @@ LIST_KEYS = ("qa_mechanism", "uses_patterns", "addressed_signatures", "failure_s
 def _norm(stub):
     out = {"goal": stub.get("goal", ""), "modality": stub.get("modality"),
            "task_structure": stub.get("task_structure"),
-           "annotator_structure": stub.get("annotator_structure")}
+           "annotator_structure": stub.get("annotator_structure"),
+           "process_mode": stub.get("process_mode")}
     for k in LIST_KEYS:
         v = stub.get(k, [])
         out[k] = [v] if isinstance(v, str) else list(v or [])
@@ -204,7 +205,8 @@ let META=null, DATA=null, STEP=0, SHOW_SOURCES=false, MODE='forward';
 const stub = {goal:"Evaluate AI-generated marketing copy with an LLM judge",
   modality:"text", task_structure:"rubric_rating", annotator_structure:"model_as_annotator",
   qa_mechanism:[], uses_patterns:[], addressed_signatures:[], failure_signatures:[],
-  high_cost_signatures:[], tolerable_signatures:[]};
+  high_cost_signatures:[], tolerable_signatures:[], process_mode:""};
+const agentNote = () => { const a=DATA.workflow.agent; return a?`<div class="callout" style="margin:0 0 14px"><strong>Process: ${esc(a.label)}.</strong> ${esc(a.note)}</div>`:''; };
 const FLOWS = {
   forward: [["Describe",renderDescribe],["Find & close risks",renderRisks],["Your recipe",renderRecipe],["The rationale",renderWhy]],
   reverse: [["Describe",renderDescribe],["Define ‘good’",renderGoodMeans],["Reverse-engineer",renderBuildList],["Your recipe",renderRecipe]],
@@ -290,13 +292,20 @@ function renderDescribe(){
     ${sel('modality')}${sel('task_structure')}${sel('annotator_structure')}
     <label class="fld">QA mechanisms already in place</label><p class="help">optional — checks you already run</p>
     <div class="qa" id="qa">${qa}</div>
+    <label class="fld">Process style</label><p class="help">strict = freeze the guideline up front (reproducible, auditable); adaptive = iterate as you go (responsive)</p>
+    <div class="modeseg">
+      <button class="seg ${!stub.process_mode?'on':''}" data-pm="">either</button>
+      <button class="seg ${stub.process_mode==='strict'?'on':''}" data-pm="strict">strict steps</button>
+      <button class="seg ${stub.process_mode==='adaptive'?'on':''}" data-pm="adaptive">adapt dynamically</button>
+    </div>
     ${nav()}`;
   document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{MODE=b.dataset.mode; render();});
+  document.querySelectorAll('[data-pm]').forEach(b=>b.onclick=async()=>{stub.process_mode=b.dataset.pm; await analyze(); render();});
   $('#goal').oninput=e=>{stub.goal=e.target.value;};
   ['modality','task_structure','annotator_structure'].forEach(k=>$('#'+k).onchange=async e=>{stub[k]=e.target.value; await analyze(); render();});
   $('#qa').onchange=async()=>{stub.qa_mechanism=[...$('#qa').querySelectorAll('input:checked')].map(i=>i.value); await analyze(); render();};
   document.querySelectorAll('[data-ex]').forEach(b=>b.onclick=async()=>{
-    const ex=META.examples[b.dataset.ex]; Object.assign(stub,{qa_mechanism:[],uses_patterns:[],addressed_signatures:[],failure_signatures:[],high_cost_signatures:[],tolerable_signatures:[]},ex);
+    const ex=META.examples[b.dataset.ex]; Object.assign(stub,{qa_mechanism:[],uses_patterns:[],addressed_signatures:[],failure_signatures:[],high_cost_signatures:[],tolerable_signatures:[],process_mode:""},ex);
     await analyze(); render();});
   wire();
 }
@@ -359,6 +368,7 @@ function renderBuildList(){
   const row=p=>`<li class="prow"><span class="pmain"><span class="sev ${p.severity}">${p.severity}</span> <code>${esc(p.id)}</code> <span class="muted">closes <code>${esc(p.for)}</code></span></span><button class="adopt" data-adopt="${esc(p.id)}"><i class="ti ti-plus"></i> adopt</button></li>`;
   let h=eb()+`<p class="steptitle">Reverse-engineer the workflow</p>
     <p class="help">One defense per open risk guarantees the “good” you defined — costliest first. Adopt them to build the workflow backward; coverage climbs toward 100%.</p>
+    ${agentNote()}
     <div class="block todo"><p class="colhead"><i class="ti ti-circle-plus"></i> Defenses to add — ${need.length}</p>
       ${need.length?`<ul class="plist">${need.map(row).join('')}</ul>`:'<p class="ok" style="font-size:.9rem">Every defense is in place — the workflow guarantees your “good.” 🎯</p>'}</div>
     <div class="block donelist"><p class="colhead"><i class="ti ti-circle-check"></i> Already in place — ${have.length}</p>
@@ -373,6 +383,7 @@ function renderRecipe(){
     <div class="row" style="margin-bottom:12px"><p class="help" style="margin:0">A buildable recipe for your design.`
     +(wf.precedent?` Closest precedent <code>${esc(wf.precedent)}</code>.`:'')+`</p>
       <label class="srctoggle"><input type="checkbox" id="srcToggle" ${SHOW_SOURCES?'checked':''}> show sources</label></div>
+    ${agentNote()}
     <div class="block todo"><p class="colhead"><i class="ti ti-circle-plus"></i> To add — ${add.length} recommended</p>
       ${add.length?`<ul class="plist">${add.map(p=>patLine(p,tag,true)).join('')}</ul>`:'<p class="muted" style="font-size:.88rem">Nothing — your design already covers every applicable risk.</p>'}</div>
     <div class="block donelist"><p class="colhead"><i class="ti ti-circle-check"></i> Already in your design — ${have.length}</p>

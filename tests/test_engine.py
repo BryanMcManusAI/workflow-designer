@@ -109,6 +109,21 @@ def test_load_stub_parsing(eng, tmp_path):
         assert isinstance(stub[k], list), k
 
 
+def test_agent_mode_biases_build_list(eng, idx):
+    base = dict(REPRESENTATIVE_STUBS["marketing_copy"])  # confounded/drift/inflation are open here
+    strict = {**base, "process_mode": "strict"}
+    adaptive = {**base, "process_mode": "adaptive"}
+    strict_ids = {p["id"] for p in eng.analyze_backwards(idx, strict)["needed_patterns"]}
+    adapt_ids = {p["id"] for p in eng.analyze_backwards(idx, adaptive)["needed_patterns"]}
+    # strict prefers lock-then-score and avoids the adaptive patterns; adaptive does the reverse
+    assert "lock-then-score" in strict_ids
+    assert "lock-then-score" not in adapt_ids
+    assert eng.ADAPTIVE_PATTERNS.isdisjoint(strict_ids)
+    # the workflow carries an agent summary only when a mode is set
+    assert eng.analyze_workflow(idx, strict)["agent"]["label"] == "strict / frozen"
+    assert eng.analyze_workflow(idx, base)["agent"] is None
+
+
 def test_severity_defaults_and_overrides(eng, idx):
     assert eng.signature_priority("label_leakage", make_stub()) > eng.signature_priority("priming", make_stub())
     assert eng.severity_label(3) == "high" and eng.severity_label(2) == "med" and eng.severity_label(1) == "low"
