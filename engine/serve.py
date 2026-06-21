@@ -155,6 +155,10 @@ label.fld{margin:22px 0 3px;}
 .sev.high{background:var(--risk);color:var(--risk-fg);}
 .sev.med{background:var(--warn);color:var(--warn-fg);}
 .sev.low{background:var(--code);color:var(--muted);}
+.costchip{background:var(--chip);color:var(--chip-fg);border:1px solid transparent;border-radius:20px;
+padding:4px 12px;font:inherit;font-size:.82rem;cursor:pointer;margin:3px 3px 3px 0;}
+.costchip:hover{border-color:var(--accent);}
+.costchip.on{background:var(--risk);color:var(--risk-fg);font-weight:500;}
 </style></head>
 <body><div class="wrap">
   <div class="row" style="align-items:baseline">
@@ -199,7 +203,8 @@ const badge = h => h?'<span class="badge have">have</span>':'<span class="badge 
 let META=null, DATA=null, STEP=0, SHOW_SOURCES=false, MODE='forward';
 const stub = {goal:"Evaluate AI-generated marketing copy with an LLM judge",
   modality:"text", task_structure:"rubric_rating", annotator_structure:"model_as_annotator",
-  qa_mechanism:[], uses_patterns:[], addressed_signatures:[], failure_signatures:[]};
+  qa_mechanism:[], uses_patterns:[], addressed_signatures:[], failure_signatures:[],
+  high_cost_signatures:[], tolerable_signatures:[]};
 const FLOWS = {
   forward: [["Describe",renderDescribe],["Find & close risks",renderRisks],["Your recipe",renderRecipe],["The rationale",renderWhy]],
   reverse: [["Describe",renderDescribe],["Define ‘good’",renderGoodMeans],["Reverse-engineer",renderBuildList],["Your recipe",renderRecipe]],
@@ -291,7 +296,7 @@ function renderDescribe(){
   ['modality','task_structure','annotator_structure'].forEach(k=>$('#'+k).onchange=async e=>{stub[k]=e.target.value; await analyze(); render();});
   $('#qa').onchange=async()=>{stub.qa_mechanism=[...$('#qa').querySelectorAll('input:checked')].map(i=>i.value); await analyze(); render();};
   document.querySelectorAll('[data-ex]').forEach(b=>b.onclick=async()=>{
-    const ex=META.examples[b.dataset.ex]; Object.assign(stub,{qa_mechanism:[],uses_patterns:[],addressed_signatures:[],failure_signatures:[]},ex);
+    const ex=META.examples[b.dataset.ex]; Object.assign(stub,{qa_mechanism:[],uses_patterns:[],addressed_signatures:[],failure_signatures:[],high_cost_signatures:[],tolerable_signatures:[]},ex);
     await analyze(); render();});
   wire();
 }
@@ -332,13 +337,20 @@ function recipeParts(){
 }
 function renderGoodMeans(){
   const bw=DATA.backwards;
+  const chips=bw.good_means.map(s=>{const on=stub.high_cost_signatures.includes(s);
+    return `<button class="costchip ${on?'on':''}" data-cost="${esc(s)}">${esc(s)}${on?' ✓':''}</button>`;}).join(' ');
   let h=eb()+`<p class="steptitle">What “good” data means here</p>
-    <p class="help">Good data is data free of the ways it goes bad. Working backward, first pin what “good” means for your task — then guarantee it.</p>
-    <p style="margin:12px 0"><strong>“Good” ${esc(stub.task_structure||'')} data is free of:</strong> ${bw.good_means.map(s=>chip(s,'risk')).join(' ')}</p>`;
+    <p class="help">Good data is data free of the ways it goes bad. Working backward, first pin what “good” means — then guarantee it.</p>
+    <p style="margin:12px 0 5px"><strong>“Good” ${esc(stub.task_structure||'')} data is free of:</strong></p>
+    <div style="margin-bottom:5px">${chips}</div>
+    <p class="help" style="margin:0 0 14px">Click the risks that are most costly for you — the workflow defends those hardest, and the build list reprioritizes.</p>`;
   if(bw.spec_threats.length){ h+=`<div class="callout"><strong>But first — is your <em>good</em> actually good?</strong>
     <p class="muted" style="font-size:.85rem;margin:4px 0">The gold is the thing most likely to be wrong. Each check asks whether “good” is secretly a proxy.</p><ul>`
     +bw.spec_threats.map(s=>`<li><code>${esc(s.signature)}</code> — ${esc(s.question)} <span class="muted">probe: ${esc(s.probe)}</span></li>`).join('')+`</ul></div>`; }
   $('#content').innerHTML = twocol(h)+nav();
+  document.querySelectorAll('[data-cost]').forEach(b=>b.onclick=async()=>{
+    const s=b.dataset.cost, a=stub.high_cost_signatures, i=a.indexOf(s);
+    i>=0?a.splice(i,1):a.push(s); await analyze(); render();});
   wire();
 }
 function renderBuildList(){
