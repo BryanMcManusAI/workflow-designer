@@ -94,6 +94,14 @@ font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap;}
 .risk-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px 0;}
 .risk-card.covered{border-color:var(--ok-fg);}
 .row{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;}
+.srctoggle{font-size:.82rem;color:var(--muted);white-space:nowrap;display:flex;align-items:center;gap:5px;cursor:pointer;}
+.block{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:0 0 12px;}
+.block.todo{border-color:var(--accent);}
+.block.donelist{opacity:.7;}
+.plist{list-style:none;padding-left:0;margin:4px 0;} .plist li{margin:7px 0;line-height:1.5;}
+.tag{font-size:.68rem;background:var(--code);color:var(--muted);border-radius:5px;padding:1px 6px;vertical-align:1px;}
+.src{font-size:.8rem;color:var(--muted);margin:2px 0 0 16px;}
+ol.skel li{margin:7px 0;}
 .wrap{max-width:900px;}
 #content{line-height:1.65;}
 .intro{color:var(--muted);font-size:.95rem;line-height:1.6;margin:8px 0 0;max-width:680px;}
@@ -117,6 +125,25 @@ select,input[type=text]{padding:9px 11px;}
 .stepmain .colhead{margin:18px 0 6px;}
 .nav{margin-top:24px;}
 button.btn{padding:8px 16px;}
+.risk-card{padding:18px 20px;margin:18px 0;}
+.riskq{font-size:.95rem;line-height:1.55;margin:0 0 12px;}
+.optlabel{font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:0 0 7px;}
+.opts{display:flex;flex-direction:column;gap:9px;}
+.opt{display:flex;justify-content:space-between;align-items:center;gap:14px;background:var(--bg);
+border:1px solid var(--line);border-radius:9px;padding:10px 8px 10px 14px;}
+.opt:hover{border-color:var(--accent);}
+.optname{font-size:.86rem;line-height:1.4;}
+button.adopt{padding:8px 16px;font-size:.85rem;border-radius:7px;}
+.block{margin:0 0 18px;padding:16px 18px;}
+.plist li{margin:12px 0;}
+ol.skel li{margin:12px 0;}
+.colhead{margin:26px 0 10px;}
+button.preset{padding:9px 15px;margin:4px 6px 4px 0;}
+.stepper{margin:20px 0 32px;}
+.nav{margin-top:30px;}
+.summary{padding:16px 18px;}
+.summary .pill{margin:3px 3px;}
+label.fld{margin:22px 0 3px;}
 </style></head>
 <body><div class="wrap">
   <div class="row" style="align-items:baseline">
@@ -158,7 +185,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const chip = (t,k='') => `<span class="chip ${k}">${esc(t)}</span>`;
 const badge = h => h?'<span class="badge have">have</span>':'<span class="badge add">add</span>';
-let META=null, DATA=null, STEP=0;
+let META=null, DATA=null, STEP=0, SHOW_SOURCES=false;
 const stub = {goal:"Evaluate AI-generated marketing copy with an LLM judge",
   modality:"text", task_structure:"rubric_rating", annotator_structure:"model_as_annotator",
   qa_mechanism:[], uses_patterns:[], addressed_signatures:[], failure_signatures:[]};
@@ -255,40 +282,49 @@ function renderDescribe(){
 function renderRisks(){
   const r=DATA.interrogate;
   let h=`<p class="eyebrow">Step 2 of 4</p><p class="steptitle">Close each open risk</p>
-    <p class="help" style="margin-bottom:10px">Each risk your analogues hit. Adopt a defense — coverage climbs as you do; what's left is what you've consciously accepted.</p>`;
+    <p class="help">${r.open.length} risk${r.open.length===1?'':'s'} similar workflows hit. Adopt a defense for each — coverage climbs as you go.</p>`;
   if(r.defended.length) h+=`<p class="ok" style="font-size:.88rem">Already covered: ${r.defended.map(s=>`<code>${esc(s)}</code>`).join(', ')}</p>`;
   if(!r.open.length) h+='<p class="ok">No open risks left — your design covers them all. 🎯</p>';
-  h+=r.open.map(o=>`<div class="risk-card"><div class="row">
-      <span style="font-size:.9rem"><span class="chip risk">${esc(o.signature)}</span> ${esc(o.question)}</span></div>`
+  h+=r.open.map(o=>`<div class="risk-card">
+      <p class="riskq"><span class="chip risk">${esc(o.signature)}</span> ${esc(o.question)}</p>`
     + (o.unguarded?'<p class="warn" style="font-size:.82rem;margin:6px 0 0">UNGUARDED — a corpus gap.</p>':'')
-    + o.patterns.slice(0,2).map(p=>`<div class="row" style="margin-top:8px">
-        <span style="font-size:.85rem">borrow <code>${esc(p.id)}</code> — ${esc(p.name)} <span class="muted">· cost: ${esc(p.cost)}</span></span>
+    + (o.patterns.length?`<p class="optlabel">${o.patterns.length>1?'Adopt one defense:':'Adopt the defense:'}</p>`:'')
+    + `<div class="opts">`
+    + o.patterns.slice(0,2).map(p=>`<div class="opt">
+        <span class="optname" title="cost: ${esc(p.cost)}"><code>${esc(p.id)}</code> <span class="muted">${esc(p.name)}</span></span>
         <button class="adopt" data-adopt="${esc(p.id)}"><i class="ti ti-plus"></i> adopt</button></div>`).join('')
-    + `</div>`).join('');
+    + `</div></div>`).join('');
   $('#content').innerHTML = twocol(h)+navbar(0,2);
   wire();
 }
 
-function play(p){
-  let g='';
-  if(p.as_done) g=`<div class="muted" style="font-size:.8rem;margin-left:18px">as <code>${esc(p.as_done.card)}</code> does — ${esc(p.as_done.gate)}: ${esc(p.as_done.checks)}</div>`;
-  else if(p.seen_in&&p.seen_in.length) g=`<div class="muted" style="font-size:.8rem;margin-left:18px">seen in ${p.seen_in.map(c=>`<code>${esc(c)}</code>`).join(', ')}</div>`;
-  return `<li style="margin:5px 0">${badge(p.have)} <code>${esc(p.id)}</code> — ${esc(p.instruction)}${g}</li>`;
+function patLine(p, tag){
+  let src='';
+  if(SHOW_SOURCES && p.as_done) src=`<div class="src">as <code>${esc(p.as_done.card)}</code> — ${esc(p.as_done.gate)}: ${esc(p.as_done.checks)}</div>`;
+  else if(SHOW_SOURCES && p.seen_in&&p.seen_in.length) src=`<div class="src">seen in ${p.seen_in.map(c=>`<code>${esc(c)}</code>`).join(', ')}</div>`;
+  return `<li><code>${esc(p.id)}</code> <span class="tag">${esc(tag[p.id]||'')}</span> — ${esc(p.instruction)}${src}</li>`;
 }
 function renderRecipe(){
   const wf=DATA.workflow;
-  const steps=wf.steps.map(s=>`<li style="margin:7px 0"><strong>${esc(s.phase)}</strong> — ${esc(s.do)}`
-    +(s.patterns.length?`<ul style="list-style:none;padding-left:0;margin:4px 0">${s.patterns.map(play).join('')}</ul>`:'')+`</li>`).join('');
-  const conv=wf.conventions.length?wf.conventions.map(play).join(''):'<li class="muted">a frozen, example-driven guideline is the baseline</li>';
-  const audit=wf.audit.map(play).join('');
+  // one role tag per pattern (which part of the workflow it belongs to)
+  const tag={};
+  wf.steps.forEach(s=>s.patterns.forEach(p=>tag[p.id]=s.phase.split(' ')[0].toLowerCase()));
+  wf.conventions.forEach(p=>tag[p.id]='convention'); wf.audit.forEach(p=>tag[p.id]='audit');
+  const all={}; [...wf.steps.flatMap(s=>s.patterns),...wf.conventions,...wf.audit].forEach(p=>all[p.id]=p);
+  const items=Object.values(all), add=items.filter(p=>!p.have), have=items.filter(p=>p.have);
+  const skeleton=wf.steps.map((s,i)=>`<li><strong>${esc(s.phase)}</strong> — ${esc(s.do)}</li>`).join('');
   const main=`<p class="eyebrow">Step 3 of 4</p><p class="steptitle">Your assembled workflow</p>
-    <p class="help" style="margin-bottom:10px">${badge(true)} in your design · ${badge(false)} from the build list`
-    +(wf.precedent?` · closest precedent <code>${esc(wf.precedent)}</code>`:'')+`</p>
-    <p class="colhead" style="font-weight:500">Labeling steps</p><ol style="padding-left:20px">${steps}</ol>
-    <p class="colhead" style="font-weight:500">Fields per item</p><ul>${wf.fields.map(f=>`<li><code>${esc(f)}</code></li>`).join('')}</ul>
-    <p class="colhead" style="font-weight:500">Suggested conventions</p><ul style="list-style:none;padding-left:0">${conv}</ul>
-    <p class="colhead" style="font-weight:500">Audit strategy</p><ul style="list-style:none;padding-left:0">${audit}</ul>`;
+    <div class="row" style="margin-bottom:12px"><p class="help" style="margin:0">A buildable recipe for your design.`
+    +(wf.precedent?` Closest precedent <code>${esc(wf.precedent)}</code>.`:'')+`</p>
+      <label class="srctoggle"><input type="checkbox" id="srcToggle" ${SHOW_SOURCES?'checked':''}> show sources</label></div>
+    <div class="block todo"><p class="colhead"><i class="ti ti-circle-plus"></i> To add — ${add.length} recommended</p>
+      ${add.length?`<ul class="plist">${add.map(p=>patLine(p,tag)).join('')}</ul>`:'<p class="muted" style="font-size:.88rem">Nothing — your design already covers every applicable risk.</p>'}</div>
+    <div class="block donelist"><p class="colhead"><i class="ti ti-circle-check"></i> Already in your design — ${have.length}</p>
+      ${have.length?`<ul class="plist">${have.map(p=>patLine(p,tag)).join('')}</ul>`:'<p class="muted" style="font-size:.88rem">none yet — adopt patterns in step 2</p>'}</div>
+    <p class="colhead">The workflow</p><ol class="skel">${skeleton}</ol>
+    <p class="colhead">Fields per item</p><div>${wf.fields.map(f=>`<span class="chip">${esc(f)}</span>`).join(' ')}</div>`;
   $('#content').innerHTML = twocol(main)+navbar(1,3);
+  const t=$('#srcToggle'); if(t) t.onchange=()=>{SHOW_SOURCES=t.checked; render();};
   wire();
 }
 
