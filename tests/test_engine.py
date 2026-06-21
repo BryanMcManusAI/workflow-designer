@@ -126,6 +126,18 @@ def _has_welfare(eng, idx, stub):
     return "annotator-welfare-protocol" in [p["id"] for p in eng.analyze_workflow(idx, stub)["conventions"]]
 
 
+def test_precedent_prefers_shared_modality(eng, idx):
+    # Audio classification has no exact audio+classification card; the precedent must still be an
+    # audio card, not a text card that merely shares the task.
+    wf = eng.analyze_workflow(idx, make_stub(modality="audio", task_structure="classification",
+                                             annotator_structure="crowd"))
+    assert idx["cards"][wf["precedent"]]["modality"] == "audio", wf["precedent"]
+    # When a same-modality+task card exists, it's still the precedent.
+    wf2 = eng.analyze_workflow(idx, make_stub(modality="image", task_structure="structured_output",
+                                              annotator_structure="tiered_review"))
+    assert idx["cards"][wf2["precedent"]]["modality"] == "image", wf2["precedent"]
+
+
 def test_welfare_surfaces_for_harmful_only(eng, idx):
     # by task
     assert _has_welfare(eng, idx, make_stub(modality="text", task_structure="red_team", annotator_structure="crowd"))

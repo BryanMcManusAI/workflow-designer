@@ -552,10 +552,19 @@ def analyze_workflow(idx, stub):
         steps.append({"n": i, "phase": phase, "do": base,
                       "patterns": plays.get(PHASE_KEYS.get(phase, ""), [])})
 
+    # Prefer a precedent that shares the MODALITY — an audio task should cite an audio card, not a
+    # text card that merely shares the task. Scan the FULL ranking (the top-5 `near` may not include
+    # a same-modality card when it scores low); fall back to the top analogue when none match.
+    ranked = near_analogues(idx, stub, n=len(idx["cards"]))
+    precedent = next((cid for _, cid in ranked
+                      if idx["cards"][cid]["modality"] == stub.get("modality")), None)
+    if precedent is None:
+        precedent = ranked[0][1] if ranked else None
+
     return {
         "goal": stub.get("goal", ""), "modality": stub.get("modality"),
         "task": task, "annotator": annot,
-        "precedent": near[0][1] if near else None,
+        "precedent": precedent,
         "steps": steps,
         "fields": TASK_FIELDS.get(task, GENERIC_FIELDS),
         "conventions": plays.get("convention", []),
