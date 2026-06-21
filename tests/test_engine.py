@@ -122,11 +122,20 @@ def test_meta_tooling_cards_demoted_in_near(eng, idx):
     assert any(idx["cards"][c]["domain"] == "meta-tooling" for _, c in near)
 
 
+def _has_welfare(eng, idx, stub):
+    return "annotator-welfare-protocol" in [p["id"] for p in eng.analyze_workflow(idx, stub)["conventions"]]
+
+
 def test_welfare_surfaces_for_harmful_only(eng, idx):
-    rt = eng.analyze_workflow(idx, make_stub(modality="text", task_structure="red_team", annotator_structure="crowd"))
-    assert "annotator-welfare-protocol" in [p["id"] for p in rt["conventions"]]
-    benign = eng.analyze_workflow(idx, make_stub(modality="text", task_structure="classification", annotator_structure="crowd"))
-    assert "annotator-welfare-protocol" not in [p["id"] for p in benign["conventions"]]
+    # by task
+    assert _has_welfare(eng, idx, make_stub(modality="text", task_structure="red_team", annotator_structure="crowd"))
+    # by goal keyword, even in a modality with no domain-tagged harmful neighbors (video moderation)
+    assert _has_welfare(eng, idx, make_stub(goal="Video moderation for policy violations",
+                                            modality="video", task_structure="classification", annotator_structure="tiered_review"))
+    # benign work doesn't get it, and a keyword substring ("pharma" contains "harm") must NOT trip it
+    assert not _has_welfare(eng, idx, make_stub(modality="text", task_structure="classification", annotator_structure="crowd"))
+    assert not _has_welfare(eng, idx, make_stub(goal="Pharma trial data extraction",
+                                                modality="text", task_structure="extraction", annotator_structure="expert"))
 
 
 def test_nonhuman_label_step_leads_with_mechanism(eng, idx):

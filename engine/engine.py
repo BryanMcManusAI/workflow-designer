@@ -28,6 +28,7 @@ import argparse
 import json
 import math
 import os
+import re
 import sys
 import textwrap
 from collections import Counter
@@ -416,6 +417,12 @@ ANNOTATOR_LABEL = {
 NONHUMAN_ANNOTATORS = {"model_as_annotator", "programmatic"}
 # Domains whose work exposes annotators to harmful/distressing content (welfare duty-of-care applies).
 HARMFUL_DOMAINS = {"safety-redteam", "content-moderation"}
+# Goal/title words that signal harmful-content exposure — catches harmful work in a modality whose
+# nearest analogues aren't domain-tagged harmful (e.g. video moderation, where the neighbors are
+# generic video cards). Matched as whole tokens so "pharma" never trips "harm".
+HARMFUL_KEYWORDS = {"moderation", "moderate", "moderating", "abuse", "abusive", "toxic", "toxicity",
+                    "harmful", "harassment", "hate", "hateful", "nsfw", "csam", "violence", "violent",
+                    "suicide", "jailbreak", "grooming", "extremist", "extremism"}
 
 # Each pattern's role in an assembled workflow — a pipeline phase (source/qualify/label/resolve),
 # a labeling CONVENTION, or part of the AUDIT strategy — plus an imperative instruction, both now
@@ -512,7 +519,9 @@ def analyze_workflow(idx, stub):
 
     # Welfare is a duty-of-care, not a data-quality signature, so it never enters the signature-driven
     # build list — but harmful-content work demands it. Surface it for red-teaming / moderation.
+    goal_toks = set(re.findall(r"[a-z]+", (stub.get("goal") or "").lower()))
     harmful = (stub.get("task_structure") == "red_team"
+               or bool(goal_toks & HARMFUL_KEYWORDS)
                or any(idx["cards"][cid].get("domain") in HARMFUL_DOMAINS for _, cid in near[:3]))
     if harmful and "annotator-welfare-protocol" in idx["patterns"] and "annotator-welfare-protocol" not in seen:
         seen.add("annotator-welfare-protocol")
