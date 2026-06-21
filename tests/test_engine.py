@@ -144,10 +144,15 @@ def test_welfare_surfaces_for_harmful_only(eng, idx):
     # by goal keyword, even in a modality with no domain-tagged harmful neighbors (video moderation)
     assert _has_welfare(eng, idx, make_stub(goal="Video moderation for policy violations",
                                             modality="video", task_structure="classification", annotator_structure="tiered_review"))
-    # benign work doesn't get it, and a keyword substring ("pharma" contains "harm") must NOT trip it
-    assert not _has_welfare(eng, idx, make_stub(modality="text", task_structure="classification", annotator_structure="crowd"))
-    assert not _has_welfare(eng, idx, make_stub(goal="Pharma trial data extraction",
-                                                modality="text", task_structure="extraction", annotator_structure="expert"))
+    # harmful work caught even without a keyword neighbor, via more goal words
+    assert _has_welfare(eng, idx, make_stub(goal="Flag self-harm posts", modality="text", task_structure="classification", annotator_structure="crowd"))
+    assert _has_welfare(eng, idx, make_stub(goal="Review traumatic testimony", modality="text", task_structure="classification", annotator_structure="expert"))
+    # benign work doesn't get it — incl. dual-meaning words that must NOT trip it
+    for benign in ["Label support tickets by intent", "Pharma trial data extraction",
+                   "Rate answers with moderate confidence", "Pet grooming photo classification",
+                   "Harmless small-talk quality"]:
+        assert not _has_welfare(eng, idx, make_stub(goal=benign, modality="text",
+                                                    task_structure="classification", annotator_structure="crowd")), benign
 
 
 def test_nonhuman_label_step_leads_with_mechanism(eng, idx):

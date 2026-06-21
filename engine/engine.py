@@ -419,10 +419,12 @@ NONHUMAN_ANNOTATORS = {"model_as_annotator", "programmatic"}
 HARMFUL_DOMAINS = {"safety-redteam", "content-moderation"}
 # Goal/title words that signal harmful-content exposure — catches harmful work in a modality whose
 # nearest analogues aren't domain-tagged harmful (e.g. video moderation, where the neighbors are
-# generic video cards). Matched as whole tokens so "pharma" never trips "harm".
-HARMFUL_KEYWORDS = {"moderation", "moderate", "moderating", "abuse", "abusive", "toxic", "toxicity",
-                    "harmful", "harassment", "hate", "hateful", "nsfw", "csam", "violence", "violent",
-                    "suicide", "jailbreak", "grooming", "extremist", "extremism"}
+# generic video cards). Matched as WHOLE TOKENS, so "pharma"/"charm" don't trip "harm" and
+# "moderate confidence" doesn't trip moderation. Excludes dual-meaning words (moderate, grooming).
+HARMFUL_KEYWORDS = {"moderation", "abuse", "abusive", "toxic", "toxicity", "harm", "harmful",
+                    "harassment", "hate", "hateful", "nsfw", "csam", "violence", "violent",
+                    "suicide", "jailbreak", "extremist", "extremism", "traumatic", "disturbing",
+                    "gore", "gory"}
 
 # Each pattern's role in an assembled workflow — a pipeline phase (source/qualify/label/resolve),
 # a labeling CONVENTION, or part of the AUDIT strategy — plus an imperative instruction, both now
