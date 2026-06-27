@@ -2,23 +2,23 @@
   "near": [
     [
       "judge-eval-study",
-      9
-    ],
-    [
-      "instruction-self-instruct",
-      6
-    ],
-    [
-      "adversarial-nli-anli",
-      4
+      12.8088
     ],
     [
       "critique-criticgpt",
-      4
+      7.0
     ],
     [
-      "demonstration-instructgpt",
-      4
+      "eval-chatbot-arena",
+      7.0
+    ],
+    [
+      "instruction-self-instruct",
+      6.9304
+    ],
+    [
+      "preference-constitutional-cai",
+      6.029
     ]
   ],
   "far": [
@@ -64,6 +64,15 @@
   ],
   "interrogate_open": [
     [
+      "confounded",
+      7,
+      [
+        "cross-family-judges",
+        "lock-then-score",
+        "order-randomization"
+      ]
+    ],
+    [
       "sampling_frame",
       6,
       [
@@ -73,17 +82,8 @@
       ]
     ],
     [
-      "confounded",
-      5,
-      [
-        "cross-family-judges",
-        "lock-then-score",
-        "order-randomization"
-      ]
-    ],
-    [
       "self_affinity",
-      3,
+      5,
       [
         "cross-family-judges"
       ]
@@ -100,18 +100,8 @@
       ]
     ],
     [
-      "under_specification",
-      3,
-      [
-        "multi-annotator-aggregate",
-        "tiered-adjudication",
-        "inter-annotator-agreement",
-        "edge-case-guidelines"
-      ]
-    ],
-    [
       "underpowered",
-      3,
+      2,
       [
         "powered-eval-split"
       ]
@@ -135,45 +125,55 @@
       ]
     ],
     [
+      "under_specification",
+      1,
+      [
+        "multi-annotator-aggregate",
+        "tiered-adjudication",
+        "inter-annotator-agreement",
+        "edge-case-guidelines"
+      ]
+    ],
+    [
       "priming",
-      3,
+      4,
       [
         "order-randomization"
       ]
     ]
   ],
   "backwards_good_means": [
+    "confounded",
     "sampling_frame",
     "unanchored",
-    "confounded",
     "self_affinity",
     "inflation",
-    "under_specification",
     "underpowered",
     "class_imbalance",
     "drift",
+    "under_specification",
     "priming"
   ],
   "backwards_needed": [
     [
-      "human-audit-sample",
-      "sampling_frame"
-    ],
-    [
       "cross-family-judges",
       "confounded"
+    ],
+    [
+      "human-audit-sample",
+      "sampling_frame"
     ],
     [
       "gold-honeypots",
       "inflation"
     ],
     [
-      "multi-annotator-aggregate",
-      "under_specification"
-    ],
-    [
       "powered-eval-split",
       "underpowered"
+    ],
+    [
+      "multi-annotator-aggregate",
+      "under_specification"
     ],
     [
       "order-randomization",
@@ -181,21 +181,21 @@
     ]
   ],
   "backwards_spec_threats": [
+    "confounded",
     "sampling_frame",
     "unanchored",
-    "confounded",
     "self_affinity",
     "inflation",
-    "under_specification",
-    "drift"
+    "drift",
+    "under_specification"
   ],
   "workflow_chosen": [
     "human-gold-anchor",
-    "human-audit-sample",
     "cross-family-judges",
+    "human-audit-sample",
     "gold-honeypots",
-    "multi-annotator-aggregate",
     "powered-eval-split",
+    "multi-annotator-aggregate",
     "order-randomization"
   ],
   "workflow_steps": [
@@ -236,8 +236,8 @@
   ],
   "workflow_audit": [
     "human-gold-anchor",
-    "human-audit-sample",
     "cross-family-judges",
+    "human-audit-sample",
     "gold-honeypots",
     "powered-eval-split"
   ]

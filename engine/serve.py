@@ -16,6 +16,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import engine
 import build_site  # reuse the shared CSS + the curated examples (presets)
+import semantic    # goal-driven topical retrieval (Tier-1 deterministic in the hot path; keyless)
+import llm         # only to report whether the optional Tier-2 rerank is available
 
 IDX = engine.load_index()
 LIST_KEYS = ("qa_mechanism", "uses_patterns", "addressed_signatures", "failure_signatures",
@@ -45,6 +47,9 @@ def payload(stub):
         "backwards": engine.analyze_backwards(IDX, stub),
         "coverage": engine.analyze_coverage(IDX, stub),
         "retrieve": {"near": near, "far": far},
+        # Tier-1 (deterministic, instant, keyless) topical ranking so the GOAL text — not just the
+        # axis dropdowns — drives which prior workflows surface. LLM rerank stays an explicit CLI step.
+        "semantic": semantic.analyze_semantic(IDX, stub, use_llm=False, top=5),
     }
 
 
@@ -52,7 +57,7 @@ def meta():
     v = engine.vocab(IDX)
     patterns = [{"id": pid, "name": p["name"]} for pid, p in sorted(IDX["patterns"].items())]
     return {"vocab": v, "patterns": patterns,
-            "examples": build_site.EXAMPLES,
+            "examples": build_site.EXAMPLES, "llm_available": llm.available(),
             "n_cards": len(IDX["cards"]), "n_patterns": len(IDX["patterns"])}
 
 
@@ -398,18 +403,52 @@ function renderRecipe(){
 function renderWhy(){
   const bw=DATA.backwards, {near,far}=DATA.retrieve;
   let h=eb()+`<p class="steptitle">The rationale</p>
-    <p class="help" style="margin-bottom:10px">Why these defenses — the backwards-from-good reasoning the recipe was built on.</p>
-    <p><strong>“Good” here means free of:</strong> ${bw.good_means.map(s=>chip(s,'risk')).join(' ')}</p>`;
+    <p class="help" style="margin-bottom:10px">Why these defenses — the backwards-from-good reasoning the recipe was built on.</p>`;
+  if(bw.principles && bw.principles.length){ h+=`<p><strong>“Good” ${esc((DATA.stub&&DATA.stub.task_structure)||'')} data <em>has</em>:</strong> the constructs the literature says define it —</p><ul>`
+    +bw.principles.map(p=>{const ev=(p.evidence&&p.evidence[0])||{};
+      const src=ev.source?` <span class="muted">— ${esc(ev.source)}${ev.seen_in?`; seen in <code>${esc(ev.seen_in)}</code>`:''}</span>`:'';
+      return `<li><strong>${esc(p.name)}</strong>${p.defended?' ✓':''} <span class="muted">(= absence of ${p.protects.map(s=>esc(s)).join(', ')})</span><br>${esc(p.tenet)}${src}</li>`;}).join('')+`</ul>`; }
+  h+=`<p><strong>So “good” here means free of:</strong> ${bw.good_means.map(s=>chip(s,'risk')).join(' ')}</p>`;
   if(bw.spec_threats.length){ h+=`<div class="callout"><strong>But first — is your <em>good</em> actually good?</strong><ul>`
-    +bw.spec_threats.map(s=>`<li><code>${esc(s.signature)}</code> — ${esc(s.question)} <span class="muted">probe: ${esc(s.probe)}</span></li>`).join('')+`</ul></div>`; }
+    +bw.spec_threats.map(s=>`<li><code>${esc(s.signature)}</code> — ${esc(s.question)} <span class="muted">probe: ${esc(s.probe)}${s.cite?` · per ${esc(s.cite.principle)}, ${esc(s.cite.source)}`:''}</span></li>`).join('')+`</ul></div>`; }
+  h+=`<div id="sempanel">${semPanel(DATA.semantic)}</div>`;
   h+=`<div class="cols" style="display:flex;gap:20px;flex-wrap:wrap;margin-top:10px">
-    <div style="flex:1;min-width:240px"><p class="colhead" style="font-weight:500">Near analogues</p><ul>`
+    <div style="flex:1;min-width:240px"><p class="colhead" style="font-weight:500">Near analogues <span class="muted">(structural)</span></p><ul>`
     +near.slice(0,4).map(r=>`<li><code>${esc(r.id)}</code> <span class="muted">(${esc(r.modality)}/${esc(r.task)})</span></li>`).join('')
     +`</ul></div><div style="flex:1;min-width:240px"><p class="colhead" style="font-weight:500">Far — same rare risk</p><ul>`
     +far.slice(0,4).map(r=>`<li><code>${esc(r.id)}</code> ${r.shared.slice(0,2).map(s=>chip(s,'risk')).join(' ')}</li>`).join('')
     +`</ul></div></div>`;
   $('#content').innerHTML = twocol(h)+nav();
   wire();
+  const rb=$('#rerankbtn'); if(rb) rb.addEventListener('click', rerank);
+}
+
+// The goal-driven retrieval panel — re-rendered in place after an opt-in Tier-2 rerank.
+function semPanel(sem){
+  if(!(sem && sem.ranked && sem.ranked.length)) return '';
+  const isLLM = sem.tier && sem.tier.indexOf('llm')===0;
+  const rows = sem.ranked.filter(r=> isLLM || r.topical>0).slice(0,6).map(r=>{
+    const sc = ('llm_score' in r) ? `<span class="muted">[${r.llm_score}]</span> ` : '';
+    const why = r.why ? `<span class="muted"> — ${esc(r.why)}</span>`
+              : ' '+(r.shared_terms||[]).slice(0,4).map(t=>`<span class="chip">${esc(t)}</span>`).join(' ');
+    return `<li>${sc}<code>${esc(r.id)}</code> <span class="muted">(${esc(r.modality)}/${esc(r.task)})</span>${why}</li>`;
+  }).join('');
+  const btn = (META.llm_available && !isLLM)
+    ? ` <button class="btn" id="rerankbtn" style="margin-left:6px">↑ rerank with Claude</button>` : '';
+  return `<p style="margin-top:12px"><strong>Closest to what you described</strong> `
+       + `<span class="muted">— your goal text ranks these (${esc(sem.tier)})</span>${btn}</p><ul>${rows}</ul>`;
+}
+
+// Opt-in Tier-2: one explicit LLM rerank of the goal-driven retrieval. Off until clicked; keyless setups
+// never see the button (META.llm_available=false). Catches cross-domain matches the deterministic tiers miss.
+async function rerank(){
+  const b=$('#rerankbtn'); if(b){ b.textContent='reranking…'; b.disabled=true; }
+  try{
+    const r=await fetch('/api/rerank',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({stub})});
+    const sem=await r.json();
+    DATA.semantic=sem;                       // cache so it survives a re-render
+    const p=$('#sempanel'); if(p) p.innerHTML=semPanel(sem);
+  }catch(e){ const x=$('#rerankbtn'); if(x){ x.textContent='rerank failed'; x.disabled=false; } }
 }
 init();
 """
@@ -438,12 +477,18 @@ class Handler(BaseHTTPRequestHandler):
             self._send(404, "not found", "text/plain")
 
     def do_POST(self):
-        if self.path != "/api/analyze":
+        if self.path not in ("/api/analyze", "/api/rerank"):
             return self._send(404, "not found", "text/plain")
         length = int(self.headers.get("Content-Length", 0))
         try:
             stub = json.loads(self.rfile.read(length) or b"{}").get("stub", {})
-            self._send(200, json.dumps(payload(stub)), "application/json")
+            if self.path == "/api/rerank":
+                # Opt-in Tier-2: an explicit LLM rerank of the goal-driven retrieval (one call,
+                # only when the user clicks). Falls back to Tier-1 inside analyze_semantic if no key.
+                out = semantic.analyze_semantic(IDX, _norm(stub), use_llm=True, top=6)
+                self._send(200, json.dumps(out), "application/json")
+            else:
+                self._send(200, json.dumps(payload(stub)), "application/json")
         except Exception as exc:  # never crash the server on a bad request
             self._send(400, json.dumps({"error": str(exc)}), "application/json")
 

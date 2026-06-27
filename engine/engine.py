@@ -146,8 +146,14 @@ def agent_pref(stub):
 W = 96
 
 
-def load_index():
-    with open(INDEX) as f:
+def load_index(path=None):
+    """Read the compiled corpus. Defaults to the committed public index.json, but honors a `path`
+    arg or the WD_INDEX env var so an INTERNAL deployment can point the SAME engine at a different,
+    firewall-only corpus (built by build_corpus.py from a private repo) with zero code fork. The
+    public repo never sees that file — only the path is configured. This is the two-track wall in
+    one line: code is shared, data is swapped."""
+    src = path or os.environ.get("WD_INDEX") or INDEX
+    with open(src) as f:
         return json.load(f)
 
 
@@ -206,6 +212,42 @@ def patterns_defending(idx, sig):
     return [pid for pid, p in idx["patterns"].items() if sig in p.get("defends", [])]
 
 
+def principles_for(idx, sig):
+    """The principle(s) whose absence-of IS this failure signature — the backbone behind the gap."""
+    return [pid for pid, p in idx.get("principles", {}).items()
+            if sig in p.get("protects_against", [])]
+
+
+def principle_cite(idx, sig):
+    """The principle + its first cited source for a signature — so a spec probe names the study
+    that established the threat, not just house prose. None if no principle covers the signature."""
+    for pid in principles_for(idx, sig):
+        p = idx["principles"][pid]
+        if p.get("evidence"):
+            return {"principle": p["name"], "source": p["evidence"][0].get("source", "")}
+    return None
+
+
+def backbone(idx, stub, good_means, have):
+    """The positive definition of good for this workflow: the principles whose absence is one of the
+    applicable failure signatures. Each carries the construct it protects, whether the design already
+    secures it, and the literature that establishes it — the third tier wired into backwards-from-good.
+    Ordered so the principle guarding the costliest risk leads.
+    """
+    rows = []
+    for pid, p in idx.get("principles", {}).items():
+        covered = [s for s in good_means if s in p.get("protects_against", [])]  # keep cost order
+        if not covered:
+            continue
+        rows.append({
+            "id": pid, "name": p["name"], "tenet": p.get("tenet", ""),
+            "protects": covered, "defended": all(s in have for s in covered),
+            "probe": p.get("probe", ""), "evidence": p.get("evidence", []),
+        })
+    rows.sort(key=lambda r: (-max(signature_priority(s, stub) for s in r["protects"]), r["name"]))
+    return rows
+
+
 def signature_idf(idx):
     """Inverse document frequency of each failure signature across the corpus.
 
@@ -222,6 +264,65 @@ def signature_idf(idx):
     return {s: math.log(n / k) for s, k in df.items()}
 
 
+# ---- topical (semantic Tier-1) primitives ---------------------------------
+# Deterministic, stdlib token-IDF over the free-text goal vs each card's text. Lives in the engine
+# (not semantic.py) because near_analogues now uses it as a PRIMARY retrieval signal — the eval showed
+# the goal text catches relevant cards that axis-matching misses (e.g. llm-judge → critique-criticgpt).
+# semantic.py imports these for its LLM-rerank path; keeping them here avoids a circular import.
+_STOP = {
+    "the", "and", "for", "with", "that", "this", "are", "from", "into", "your", "you", "our",
+    "data", "workflow", "model", "models", "label", "labels", "labeling", "annotation", "annotate",
+    "task", "tasks", "build", "building", "produce", "producing", "set", "sets", "use", "using",
+    "via", "per", "each", "every", "want", "need", "make", "given", "across", "over", "under",
+    "how", "what", "which", "when", "where", "they", "them", "its", "out", "not", "but", "all",
+}
+
+
+def topical_tokens(text):
+    return [t for t in re.findall(r"[a-z]+", (text or "").lower())
+            if len(t) >= 3 and t not in _STOP]
+
+
+def card_text(card):
+    parts = [card.get("title", ""), card.get("decision", ""), card.get("distinctive", ""),
+             card.get("domain", "")]
+    parts += [fm.get("description", "") for fm in card.get("failure_modes", [])]
+    return " ".join(parts)
+
+
+def card_idf(idx):
+    """IDF of each token across card texts — rare topical terms carry more signal than common ones."""
+    cards = idx["cards"]
+    n = len(cards) or 1
+    df = Counter()
+    for c in cards.values():
+        for t in set(topical_tokens(card_text(c))):
+            df[t] += 1
+    return {t: math.log(n / k) for t, k in df.items()}
+
+
+def topical_scores(idx, goal):
+    """{cid: (idf_sum, shared_terms)} — a card's topical relevance to the goal text. Deterministic."""
+    idf = card_idf(idx)
+    g = set(topical_tokens(goal))
+    out = {}
+    for cid, c in idx["cards"].items():
+        shared = g & set(topical_tokens(card_text(c)))
+        if shared:
+            out[cid] = (round(sum(idf.get(t, 0.0) for t in shared), 4),
+                        sorted(shared, key=lambda t: -idf.get(t, 0.0))[:6])
+    return out
+
+
+# How much the topical signal can add to a near-analogue's structural score. Capped so a strong
+# topical match is worth ~1.5 axes (enough to pull in a topically-relevant card that misses an axis),
+# never enough to swamp a genuine structural match. Tuned against eval/run_eval.py.
+TOPICAL_CAP = 6.0
+TOPICAL_WEIGHT = 0.5
+# Bonus for a card sharing the workflow's (inferred) domain — domain coherence as a retrieval signal.
+DOMAIN_COHERENCE_BONUS = 1.5
+
+
 # Domains that document/tool the data process rather than BEING an annotation workflow; they make
 # weak analogues for a concrete design, so they're demoted below any thematic match (else e.g. the
 # datasheets card outranks ner-conll2003 as the precedent for an NER task). Unless the stub itself
@@ -235,9 +336,12 @@ def near_analogues(idx, stub, n=5):
     stub_pat = set(stub.get("uses_patterns", []))
     stub_domain = stub.get("domain")
     demote_meta = stub_domain not in META_TOOLING_DOMAINS
-    scored = []
+    # HYBRID: the structural axes PLUS a bounded topical signal from the goal text, so a card that's
+    # clearly on-subject but misses an axis (the eval's llm-judge→critique-criticgpt case) still ranks.
+    topical = topical_scores(idx, stub.get("goal", ""))
+    prov = {}
     for cid, c in idx["cards"].items():
-        s = 0
+        s = 0.0
         if c["task_structure"] == stub.get("task_structure"):
             s += 3
         if c["annotator_structure"] == stub.get("annotator_structure"):
@@ -249,10 +353,26 @@ def near_analogues(idx, stub, n=5):
         # Shared skeleton PATTERNS are a stronger structural signal than shared raw QA tokens.
         s += 2 * len(set(c["uses_patterns"]) & stub_pat)
         s += len(set(c["qa_mechanism"]) & stub_qa)
+        s += min(topical.get(cid, (0.0,))[0], TOPICAL_CAP) * TOPICAL_WEIGHT
         if demote_meta and c.get("domain") in META_TOOLING_DOMAINS:
             s -= META_TOOLING_PENALTY
-        if s > 0:
-            scored.append((s, cid))
+        prov[cid] = s
+
+    # DOMAIN COHERENCE: workflows in the same domain are analogous even when axes/words diverge (the
+    # eval's welfare-ops / external-gpt4 misses share a domain with cards that DID surface). The stub
+    # rarely sets `domain`, so infer it from the top provisional match and give its domain-siblings a
+    # modest bonus — enough to pull a same-domain card into view, not to override a real structural hit.
+    target = stub_domain
+    if not target:
+        top = max(prov, key=lambda c: prov[c], default=None)
+        if top is not None and prov[top] > 0:
+            target = idx["cards"][top].get("domain")
+    if target and target not in META_TOOLING_DOMAINS:
+        for cid in prov:
+            if idx["cards"][cid].get("domain") == target:
+                prov[cid] += DOMAIN_COHERENCE_BONUS
+
+    scored = [(s, cid) for cid, s in prov.items() if s > 0]
     scored.sort(key=lambda x: (-x[0], x[1]))
     return scored[:n]
 
@@ -686,10 +806,12 @@ def analyze_backwards(idx, stub):
             seen.add(p["id"])
             needed.append({"id": p["id"], "name": p["name"], "for": g["signature"],
                            "severity": g["severity"]})
-    spec_threats = [{"signature": s, "question": SPEC_THREATS[s][0], "probe": SPEC_THREATS[s][1]}
+    spec_threats = [{"signature": s, "question": SPEC_THREATS[s][0], "probe": SPEC_THREATS[s][1],
+                     "cite": principle_cite(idx, s)}
                     for s in good_means if s in SPEC_THREATS]
     return {"good_means": good_means, "guarantees": guarantees,
-            "needed_patterns": needed, "spec_threats": spec_threats, "already_have": sorted(have)}
+            "needed_patterns": needed, "spec_threats": spec_threats, "already_have": sorted(have),
+            "principles": backbone(idx, stub, good_means, have)}
 
 
 def analyze_modality_shift(idx, stub, to):
@@ -911,6 +1033,17 @@ def render_interrogate(res):
 
 def render_backwards(stub, res):
     task = stub.get("task_structure", "this")
+    if res.get("principles"):
+        header(f'"GOOD" {task} DATA HAS  (the backbone — what good data IS)')
+        for p in res["principles"]:
+            tag = "  ✓ secured" if p["defended"] else ""
+            print(f"  • {p['name']}{tag}  (= absence of: {', '.join(p['protects'])})")
+            if p.get("tenet"):
+                print(wrap(p["tenet"], "      "))
+            ev = p.get("evidence") or []
+            if ev and ev[0].get("source"):
+                seen = f"; seen in `{ev[0]['seen_in']}`" if ev[0].get("seen_in") else ""
+                print(f"      established by: {ev[0]['source']}{seen}")
     header(f'"GOOD" {task} DATA MEANS FREE OF')
     print("  " + (", ".join(res["good_means"]) or "(no analogues — fill the stub axes)"))
     header("TO GUARANTEE THAT, THE WORKFLOW NEEDS")
@@ -935,6 +1068,8 @@ def render_backwards(stub, res):
         print(f"  [{s['signature']}]")
         print(wrap(s["question"], "     "))
         print(f"      probe: {s['probe']}")
+        if s.get("cite"):
+            print(f"      per {s['cite']['principle']} — {s['cite']['source']}")
 
 
 def render_coverage(res):
@@ -1140,6 +1275,9 @@ def main():
     for name in ("retrieve", "interrogate", "transplant", "backwards", "workflow"):
         sp = sub.add_parser(name)
         sp.add_argument("--stub", default=DEFAULT_STUB)
+    sp = sub.add_parser("semantic")  # opt-in topical retrieval (stdlib Tier 1; LLM Tier 2 if keyed)
+    sp.add_argument("--stub", default=DEFAULT_STUB)
+    sp.add_argument("--no-llm", action="store_true", help="force the deterministic topical tier")
     sp = sub.add_parser("modality-shift")
     sp.add_argument("--stub", default=DEFAULT_STUB)
     sp.add_argument("--to", required=True)
@@ -1177,6 +1315,10 @@ def main():
         cmd_modality_shift(idx, stub, args)
     elif args.cmd == "transplant":
         cmd_transplant(idx, stub, args)
+    elif args.cmd == "semantic":
+        import semantic  # opt-in; imports llm only if a key is present
+        stub_banner(stub)
+        semantic.render_semantic(semantic.analyze_semantic(idx, stub, use_llm=not args.no_llm))
     elif args.cmd == "flip":
         cmd_flip(idx, stub, args)
     elif args.cmd == "actor-substitute":

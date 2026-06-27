@@ -14,6 +14,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)  # ~/workflow-designer
 CARDS_DIR = os.path.join(ROOT, "cards")
 PATTERNS_FILE = os.path.join(ROOT, "patterns", "library.yaml")
+PRINCIPLES_FILE = os.path.join(ROOT, "principles", "library.yaml")  # the third tier (the backbone)
 OUT = os.path.join(HERE, "index.json")
 
 
@@ -159,9 +160,36 @@ def main():
             "exemplified_by": as_list(p.get("exemplified_by")),
         }
 
+    # Principles tier (the intellectual backbone): each is a methodology construct that defines what
+    # "good data" IS, grounded in the literature. Optional file — absent = the engine just runs without
+    # the backbone layer (so a corpus without principles still builds cleanly).
+    principles = {}
+    if os.path.exists(PRINCIPLES_FILE):
+        with open(PRINCIPLES_FILE) as f:
+            prdoc = yaml.safe_load(f)
+        for p in as_list((prdoc or {}).get("principles")):
+            if not isinstance(p, dict) or "id" not in p:
+                continue
+            evidence = []
+            for e in as_list(p.get("evidence")):
+                if not isinstance(e, dict):
+                    continue
+                evidence.append({"claim": flat(e.get("claim")), "source": flat(e.get("source")),
+                                 "seen_in": flat(e.get("seen_in")),
+                                 "provenance": flat(e.get("provenance"))})
+            principles[p["id"]] = {
+                "id": p["id"], "name": p.get("name", ""),
+                "tenet": flat(p.get("tenet")),
+                "protects_against": as_list(p.get("protects_against")),
+                "operationalized_by": as_list(p.get("operationalized_by")),
+                "probe": flat(p.get("probe")),
+                "evidence": evidence,
+            }
+
     with open(OUT, "w") as f:
-        json.dump({"cards": cards, "patterns": patterns}, f, indent=1, ensure_ascii=False)
-    print(f"wrote {OUT}: {len(cards)} cards, {len(patterns)} patterns")
+        json.dump({"cards": cards, "patterns": patterns, "principles": principles}, f,
+                  indent=1, ensure_ascii=False)
+    print(f"wrote {OUT}: {len(cards)} cards, {len(patterns)} patterns, {len(principles)} principles")
 
 
 if __name__ == "__main__":

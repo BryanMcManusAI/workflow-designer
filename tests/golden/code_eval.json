@@ -2,23 +2,23 @@
   "near": [
     [
       "code-humaneval",
-      10
+      14.5
     ],
     [
       "code-swebench",
-      10
-    ],
-    [
-      "benchmark-bigbench",
-      3
+      13.6972
     ],
     [
       "synthetic-textbooks-phi",
-      3
+      5.8926
     ],
     [
-      "content-moderation-welfare-ops",
-      2
+      "critique-criticgpt",
+      3.9622
+    ],
+    [
+      "benchmark-bigbench",
+      3.8636
     ]
   ],
   "far": [
@@ -26,16 +26,8 @@
       "audio-transcription-commonvoice",
       [
         "label_leakage",
-        "class_imbalance",
+        "unanchored",
         "under_specification",
-        "sampling_frame"
-      ]
-    ],
-    [
-      "synthetic-with-audit",
-      [
-        "label_leakage",
-        "class_imbalance",
         "sampling_frame"
       ]
     ],
@@ -43,13 +35,23 @@
       "nli-snli-artifacts",
       [
         "label_leakage",
+        "confounded",
         "sampling_frame"
       ]
     ],
     [
-      "benchmark-bigbench",
+      "synthetic-with-audit",
       [
-        "class_imbalance",
+        "label_leakage",
+        "confounded",
+        "sampling_frame"
+      ]
+    ],
+    [
+      "redteam-adversarial-dialogue",
+      [
+        "unanchored",
+        "confounded",
         "under_specification",
         "sampling_frame"
       ]
@@ -61,7 +63,7 @@
   "interrogate_open": [
     [
       "sampling_frame",
-      8,
+      9,
       [
         "human-audit-sample",
         "dedup-merge",
@@ -79,7 +81,7 @@
     ],
     [
       "confounded",
-      3,
+      4,
       [
         "cross-family-judges",
         "lock-then-score",
@@ -105,7 +107,7 @@
     ],
     [
       "class_imbalance",
-      4,
+      3,
       [
         "human-audit-sample",
         "active-learning-loop",
@@ -113,22 +115,9 @@
       ]
     ],
     [
-      "drift",
+      "gaming",
       1,
       [
-        "gold-honeypots",
-        "qualification-calibration",
-        "lock-then-score"
-      ]
-    ],
-    [
-      "inflation",
-      1,
-      [
-        "gold-honeypots",
-        "qualification-calibration",
-        "lock-then-score",
-        "dedup-merge",
         "engagement-gate"
       ]
     ]
@@ -141,8 +130,7 @@
     "self_affinity",
     "under_specification",
     "class_imbalance",
-    "drift",
-    "inflation"
+    "gaming"
   ],
   "backwards_needed": [
     [
@@ -162,8 +150,8 @@
       "under_specification"
     ],
     [
-      "gold-honeypots",
-      "drift"
+      "engagement-gate",
+      "gaming"
     ]
   ],
   "backwards_spec_threats": [
@@ -173,8 +161,7 @@
     "unanchored",
     "self_affinity",
     "under_specification",
-    "drift",
-    "inflation"
+    "gaming"
   ],
   "workflow_chosen": [
     "execution-verification",
@@ -182,7 +169,7 @@
     "split-isolation",
     "cross-family-judges",
     "multi-annotator-aggregate",
-    "gold-honeypots"
+    "engagement-gate"
   ],
   "workflow_steps": [
     [
@@ -197,7 +184,9 @@
     ],
     [
       "Qualify & calibrate",
-      []
+      [
+        "engagement-gate"
+      ]
     ],
     [
       "Label",
@@ -225,7 +214,6 @@
   "workflow_conventions": [],
   "workflow_audit": [
     "human-audit-sample",
-    "cross-family-judges",
-    "gold-honeypots"
+    "cross-family-judges"
   ]
 }

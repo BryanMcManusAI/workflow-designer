@@ -69,7 +69,20 @@ def section_backwards(idx, stub):
                  'engine runs in reverse: from what “good” means here, to the failure modes that '
                  'threaten it, to one defense per risk — then stress-tests whether your definition '
                  'of “good” is itself a proxy.</p>')
-    parts.append('<p><strong>“Good” data here means free of:</strong> '
+    if bw.get("principles"):
+        parts.append('<p><strong>“Good” data here <em>has</em></strong> — the constructs the '
+                     'methodology literature says define it:</p><ul class="backbone">')
+        for p in bw["principles"][:6]:
+            ev = (p.get("evidence") or [{}])[0]
+            src = (f' <span class="muted">— {e(ev["source"])}'
+                   + (f'; seen in <code>{e(ev["seen_in"])}</code>' if ev.get("seen_in") else "")
+                   + "</span>") if ev.get("source") else ""
+            ok = ' <span class="badge have">secured</span>' if p["defended"] else ""
+            parts.append(f'<li><strong>{e(p["name"])}</strong>{ok} '
+                         f'<span class="muted">(= absence of {", ".join(e(s) for s in p["protects"])})</span>'
+                         f'<br>{e(p["tenet"])}{src}</li>')
+        parts.append("</ul>")
+    parts.append('<p><strong>So “good” data here means free of:</strong> '
                  + " ".join(chip(s, "risk") for s in bw["good_means"][:10]) + "</p>")
     if bw["needed_patterns"]:
         parts.append('<p><strong>The workflow that guarantees it</strong> — one defense per open risk:</p><ul>')
@@ -84,8 +97,10 @@ def section_backwards(idx, stub):
                      '<p class="muted">The hardest lesson from the detector work: the gold is the thing most '
                      'likely to be wrong. Each check asks whether “good” is secretly a proxy.</p><ul>')
         for s in bw["spec_threats"][:4]:
+            cite = (f' · <span class="muted">per {e(s["cite"]["principle"])}, {e(s["cite"]["source"])}</span>'
+                    if s.get("cite") else "")
             parts.append(f'<li><code>{e(s["signature"])}</code> — {e(s["question"])} '
-                         f'<span class="muted">probe: {e(s["probe"])}</span></li>')
+                         f'<span class="muted">probe: {e(s["probe"])}</span>{cite}</li>')
         parts.append("</ul></div>")
     return "\n".join(parts)
 

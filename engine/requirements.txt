@@ -1,6 +1,11 @@
 # Dev/build dependencies only. The engine, REPL, and static-site generator are pure stdlib and
-# read the committed index.json, so RUNNING the tool needs nothing installed.
-#   - PyYAML  : build_index.py compiles the YAML corpus -> index.json
-#   - pytest  : the test suite (tests/)
+# read the committed index.json, so RUNNING the deterministic tool needs nothing installed.
+#   - PyYAML    : build_index.py compiles the YAML corpus -> index.json
+#   - pytest    : the test suite (tests/)
+#   - anthropic : OPTIONAL — only the opt-in hybrid layer (semantic.py Tier-2 rerank, ingest.py)
+#                 talks to claude-opus-4-8. Without it, semantic.py falls back to the stdlib
+#                 topical tier and the deterministic core is unaffected. Needs ANTHROPIC_API_KEY
+#                 (env or ~/.config/llm-keys.env).
 pyyaml>=6.0
 pytest>=8.0
+anthropic>=0.97   # optional; hybrid layer only

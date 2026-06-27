@@ -2,23 +2,23 @@
   "near": [
     [
       "text-preference-rlhf",
-      9
+      13.5
+    ],
+    [
+      "preference-anthropic-hh",
+      10.5
+    ],
+    [
+      "preference-llama2-rlhf",
+      10.5
+    ],
+    [
+      "preference-sparrow",
+      9.312149999999999
     ],
     [
       "image-bbox-adjudicated",
-      8
-    ],
-    [
-      "video-action-kinetics",
-      8
-    ],
-    [
-      "image-classification-imagenet",
-      7
-    ],
-    [
-      "eval-chatbot-arena",
-      6
+      9.0986
     ]
   ],
   "far": [
@@ -33,17 +33,6 @@
       ]
     ],
     [
-      "content-moderation-abuse",
-      [
-        "drift",
-        "bottleneck",
-        "class_imbalance",
-        "confounded",
-        "under_specification",
-        "sampling_frame"
-      ]
-    ],
-    [
       "judge-eval-study",
       [
         "priming",
@@ -52,12 +41,18 @@
       ]
     ],
     [
-      "corpus-ingestion",
+      "preference-llama2-rlhf",
       [
+        "drift",
         "inflation",
-        "class_imbalance",
-        "unanchored",
-        "confounded",
+        "confounded"
+      ]
+    ],
+    [
+      "preference-anthropic-hh",
+      [
+        "drift",
+        "inflation",
         "sampling_frame"
       ]
     ]
@@ -70,15 +65,6 @@
   ],
   "interrogate_open": [
     [
-      "sampling_frame",
-      6,
-      [
-        "human-audit-sample",
-        "dedup-merge",
-        "coverage-routing"
-      ]
-    ],
-    [
       "confounded",
       5,
       [
@@ -88,15 +74,24 @@
       ]
     ],
     [
+      "sampling_frame",
+      4,
+      [
+        "human-audit-sample",
+        "dedup-merge",
+        "coverage-routing"
+      ]
+    ],
+    [
       "self_affinity",
-      3,
+      1,
       [
         "cross-family-judges"
       ]
     ],
     [
       "class_imbalance",
-      5,
+      1,
       [
         "human-audit-sample",
         "active-learning-loop",
@@ -112,51 +107,43 @@
     ],
     [
       "priming",
-      4,
+      3,
       [
         "order-randomization"
       ]
     ],
     [
       "bottleneck",
-      3,
+      1,
       [
         "tiered-adjudication",
         "active-learning-loop",
         "labeling-functions",
         "pooled-sampling"
       ]
-    ],
-    [
-      "over_specification",
-      1,
-      [
-        "edge-case-guidelines"
-      ]
     ]
   ],
   "backwards_good_means": [
-    "sampling_frame",
     "confounded",
+    "sampling_frame",
     "unanchored",
     "self_affinity",
-    "class_imbalance",
     "inflation",
-    "under_specification",
     "drift",
+    "under_specification",
+    "class_imbalance",
     "underpowered",
     "priming",
-    "bottleneck",
-    "over_specification"
+    "bottleneck"
   ],
   "backwards_needed": [
     [
-      "human-audit-sample",
-      "sampling_frame"
-    ],
-    [
       "cross-family-judges",
       "confounded"
+    ],
+    [
+      "human-audit-sample",
+      "sampling_frame"
     ],
     [
       "powered-eval-split",
@@ -169,31 +156,25 @@
     [
       "tiered-adjudication",
       "bottleneck"
-    ],
-    [
-      "edge-case-guidelines",
-      "over_specification"
     ]
   ],
   "backwards_spec_threats": [
-    "sampling_frame",
     "confounded",
+    "sampling_frame",
     "unanchored",
     "self_affinity",
     "inflation",
-    "under_specification",
     "drift",
-    "over_specification"
+    "under_specification"
   ],
   "workflow_chosen": [
     "multi-annotator-aggregate",
     "gold-honeypots",
-    "human-audit-sample",
     "cross-family-judges",
+    "human-audit-sample",
     "powered-eval-split",
     "order-randomization",
-    "tiered-adjudication",
-    "edge-case-guidelines"
+    "tiered-adjudication"
   ],
   "workflow_steps": [
     [
@@ -232,13 +213,12 @@
     "policy-violation flag"
   ],
   "workflow_conventions": [
-    "order-randomization",
-    "edge-case-guidelines"
+    "order-randomization"
   ],
   "workflow_audit": [
     "gold-honeypots",
-    "human-audit-sample",
     "cross-family-judges",
+    "human-audit-sample",
     "powered-eval-split"
   ]
 }
