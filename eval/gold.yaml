@@ -1,0 +1,93 @@
+# Eval gold set — does the engine give GOOD advice, not just run?
+# ---------------------------------------------------------------------------
+# Each item is a workflow a designer might describe, with INDEPENDENT expert judgments of:
+#   relevant_cards  — prior workflows that ARE genuinely analogous (by domain/subject, judged WITHOUT
+#                     the engine, so scoring isn't circular)
+#   expected_risks  — failure signatures that genuinely apply to this kind of workflow
+# run_eval.py scores the engine's retrieval (does it surface the relevant cards?) and its risk
+# detection (does interrogate/backwards name the real risks?) against these.
+#
+# STATUS: these labels are DRAFT — drafted by Claude as a stand-in for Bryan/expert raters, and must
+# be audited before the scores are treated as truth. That caveat is the point: gold must be validated
+# (the tool's own ground-truth-anchoring principle). This is the seed; widen + have raters confirm.
+
+items:
+  - id: tox-moderation
+    goal: Crowd-label user comments as toxic or hateful to train a content-moderation classifier
+    modality: text
+    task_structure: classification
+    annotator_structure: crowd
+    relevant_cards: [content-moderation-abuse, content-moderation-welfare-ops, crowd-quality-mturk]
+    expected_risks: [under_specification, drift, gaming, sampling_frame]
+
+  - id: detection-bbox
+    goal: Draw bounding boxes around vehicles and pedestrians in street images for an object detector
+    modality: image
+    task_structure: structured_output
+    annotator_structure: tiered_review
+    relevant_cards: [image-bbox-adjudicated, pointcloud-detection-nuscenes]
+    expected_risks: [under_specification, class_imbalance, sampling_frame, bottleneck]
+
+  - id: rlhf-preference
+    goal: Collect human preference pairs between two chatbot responses to train a reward model
+    modality: text
+    task_structure: preference_ranking
+    annotator_structure: crowd
+    relevant_cards: [text-preference-rlhf, preference-anthropic-hh, preference-llama2-rlhf]
+    expected_risks: [confounded, drift, priming, unanchored]
+
+  - id: clinical-extraction
+    goal: Have clinicians annotate disease and medication mentions in clinical notes
+    modality: text
+    task_structure: extraction
+    annotator_structure: expert
+    relevant_cards: [clinical-annotation-guidelines, ner-conll2003]
+    expected_risks: [under_specification, class_imbalance, bottleneck]
+
+  - id: code-eval
+    goal: Build an eval set of coding problems with unit tests to measure model code generation
+    modality: code
+    task_structure: freeform_generation
+    annotator_structure: expert
+    relevant_cards: [code-humaneval, code-swebench]
+    expected_risks: [label_leakage, under_specification]
+
+  - id: speech-transcription
+    goal: Crowd-transcribe short audio clips to build a speech-recognition training set
+    modality: audio
+    task_structure: transcription_translation
+    annotator_structure: crowd
+    relevant_cards: [audio-transcription-commonvoice, speech-librispeech]
+    expected_risks: [class_imbalance, sampling_frame, under_specification]
+
+  - id: llm-judge-rating
+    goal: Use an LLM to rate the quality of AI-generated marketing emails at scale
+    modality: text
+    task_structure: rubric_rating
+    annotator_structure: model_as_annotator
+    relevant_cards: [judge-eval-study, eval-chatbot-arena, critique-criticgpt]
+    expected_risks: [self_affinity, unanchored, inflation, confounded]
+
+  - id: redteam-chatbot
+    goal: Run a red team to find prompts that make a chatbot produce harmful content
+    modality: text
+    task_structure: red_team
+    annotator_structure: crowd
+    relevant_cards: [redteam-adversarial-dialogue, redteam-automated-perez, redteam-external-gpt4]
+    expected_risks: [sampling_frame, gaming]
+
+  - id: synthetic-instructions
+    goal: Generate synthetic instruction-tuning data with a model and audit a sample
+    modality: text
+    task_structure: demonstration
+    annotator_structure: model_as_annotator
+    relevant_cards: [synthetic-with-audit, synthetic-textbooks-phi, instruction-self-instruct]
+    expected_risks: [confounded, unanchored, label_leakage, sampling_frame]
+
+  - id: search-relevance
+    goal: Have annotators grade how relevant documents are to search queries
+    modality: text
+    task_structure: relevance
+    annotator_structure: crowd
+    relevant_cards: [relevance-pooling-trec, search-msmarco]
+    expected_risks: [sampling_frame, under_specification, priming]
