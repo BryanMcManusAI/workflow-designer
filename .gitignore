@@ -4,3 +4,9 @@ __pycache__/
 
 # Internal working journal — not for the public repo
 NOTES.md
+
+# Clean-room wall: internal corpora (build_corpus.py output) and machine-extracted drafts must
+# never enter the public repo. build_corpus refuses in-repo paths by default; this is belt-and-suspenders.
+drafts/
+*.internal.json
+wd-internal*/
