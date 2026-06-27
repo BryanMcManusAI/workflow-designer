@@ -1,0 +1,262 @@
+# Principles Library (v0.1 — SEED / PROPOSAL)
+# ---------------------------------------------------------------------------
+# The THIRD tier: the intellectual backbone of "what good data IS" in an AI experiment.
+#
+# The cards say HOW a workflow is built; the patterns are the reusable HOW-pieces. This tier says
+# WHY — the methodology constructs that define good data, each grounded in the research literature
+# that establishes it. It is the POSITIVE definition of good that the backwards-from-good move
+# currently lacks (today "good" = merely "free of the failure signatures", a negative self-reference).
+#
+# How it wires into the existing graph (no new matching, deterministic, build-time extraction only):
+#   principle --protects_against--> failure_signature   (the signatures are the NEGATIVE of the principle)
+#   principle --operationalized_by--> pattern           (the concrete move that secures it)
+#   principle.evidence[].seen_in -----> workflow card    (a real workflow where this played out)
+#   principle.evidence[].source ------> the paper that PROVES it (the "trace of academic work")
+#
+# So backwards-from-good becomes:  good <task> data HAS [principles] -> each is the absence of
+# [signatures] -> secured by [patterns] -> as established by [papers].  Every step cited.
+#
+# Provenance discipline (inherited from ingestion/EXTRACTION_PROMPT.md): each evidence claim is
+# tagged extracted-then-audited; a principle earns a `seen_in` only when a corpus card really
+# exhibits it. Distilling a principle from a paper is a BUILD-TIME act (like authoring a card) —
+# the runtime engine still reads frozen YAML with stdlib only. The no-LLM-in-the-loop guarantee holds.
+#
+# COVERAGE NOTE: validity constructs cover the data-quality signatures; the two purely OPERATIONAL
+# signatures (`bottleneck`, `priming`) are process/cost concerns, not "good data" constructs — that
+# boundary is itself a finding worth surfacing, not a gap to paper over.
+
+principles:
+
+  - id: construct-validity
+    name: Construct Validity
+    tenet: >
+      The label must measure the construct you actually intend, not a proxy that merely correlates
+      with it. "Good" data is data where the thing you operationalize and the thing you care about
+      are the same thing — not data where the model can hit the target by reading a shortcut.
+    protects_against: [confounded, label_leakage, unanchored]
+    operationalized_by: [partial-input-baseline, cross-family-judges, human-gold-anchor]
+    probe: >
+      Can the label be predicted from a fragment of the input, or from a spurious cue (length,
+      format, source, fluency)? If a partial-input baseline beats chance, you are measuring the proxy.
+    evidence:
+      - claim: >
+          A hypothesis-only model reaches ~67% on SNLI (vs 33% chance) — the crowd writing protocol
+          left label-predictive artifacts, so models "pass" by exploiting the proxy, not by inferring.
+        source: "Gururangan et al., Annotation Artifacts in NLI Data (NAACL 2018); Poliak et al., Hypothesis-Only Baselines (2018)"
+        seen_in: nli-snli-artifacts
+        provenance: extracted-then-audited
+      - claim: >
+          Measurement modeling — making the construct → operationalization mapping explicit — is what
+          exposes where a label and its intended construct silently diverge.
+        source: "Jacobs & Wallach, Measurement and Fairness (FAccT 2021)"
+        provenance: extracted-then-audited
+
+  - id: internal-validity
+    name: Internal Validity (Freedom from Confounds)
+    tenet: >
+      No spurious cue may ride along with the signal. If something other than the construct — order,
+      author, tier, background texture — covaries with the label, the model learns the shortcut and
+      the data is good only on the distribution where that correlation happens to hold.
+    protects_against: [confounded, priming]
+    operationalized_by: [order-randomization, partial-input-baseline]
+    probe: >
+      List every cue that correlates with the label but isn't the construct. Hold each fixed (or
+      randomize it) and check the judgment survives. Does presentation order leak into the label?
+    evidence:
+      - claim: >
+          Models reliably latch onto "shortcut" features (texture, backgrounds, artifacts) that
+          predict the label in-distribution but aren't the intended construct — and fail off it.
+        source: "Geirhos et al., Shortcut Learning in Deep Neural Networks (Nature MI 2020)"
+        provenance: extracted-then-audited
+      - claim: >
+          Datasets carry a measurable built-in bias: a classifier can name the source dataset of an
+          image, proving spurious source-cues are baked into supposedly neutral labels.
+        source: "Torralba & Efros, Unbiased Look at Dataset Bias (CVPR 2011)"
+        provenance: extracted-then-audited
+
+  - id: reliability
+    name: Reliability (Reproducible Judgments)
+    tenet: >
+      Two competent annotators given the same item and guideline must reach the same label at a rate
+      well above chance. Low inter-annotator agreement means "good" isn't yet defined — the construct
+      lives in individual heads, not in the protocol. Reliability is the precondition for validity.
+    protects_against: [under_specification, over_specification]
+    operationalized_by: [inter-annotator-agreement, edge-case-guidelines, multi-annotator-aggregate]
+    probe: >
+      Put two raters on the same items and compute a chance-corrected agreement (Cohen's κ /
+      Krippendorff's α). Below the field's threshold, iterate the guideline on the disagreements
+      before scaling — don't average your way past an undefined construct.
+    evidence:
+      - claim: >
+          Chance-corrected agreement (and its thresholds) is the standard instrument for whether a
+          coding scheme is reliable enough to trust; raw percent-agreement overstates it.
+        source: "Krippendorff, Content Analysis (2004); Artstein & Poesio, Inter-Coder Agreement for CL (Comp. Ling. 2008)"
+        seen_in: clinical-annotation-guidelines
+        provenance: extracted-then-audited
+      - claim: >
+          Modeling each annotator's confusion matrix (EM) recovers a better gold label from noisy,
+          disagreeing labelers than majority vote — reliability can be estimated, not just assumed.
+        source: "Dawid & Skene, Maximum Likelihood Estimation of Observer Error-Rates (JRSS-C 1979)"
+        seen_in: crowd-aggregation-dawid-skene
+        provenance: extracted-then-audited
+
+  - id: external-validity
+    name: External Validity (Representativeness)
+    tenet: >
+      The labeled sample must mirror the deployment distribution, including the rare-but-important
+      tail. Data that is "good" only on the easy, over-sampled cases is not good where the model
+      will actually run. The sampling frame is part of the definition of good, not a downstream detail.
+    protects_against: [sampling_frame, class_imbalance]
+    operationalized_by: [coverage-routing, split-isolation]
+    probe: >
+      Is your labeled set a stratified mirror of deployment, or whatever was cheapest to collect?
+      Are the rare classes represented enough to learn — and audited across the full distribution,
+      not a convenience sample?
+    evidence:
+      - claim: >
+          Severe natural class imbalance (~1:10k) plus a geographically narrow collection frame
+          (two cities) bounds what the resulting labels can certify about real deployment.
+        source: "Caesar et al., nuScenes (CVPR 2020)"
+        seen_in: pointcloud-detection-nuscenes
+        provenance: extracted-then-audited
+      - claim: >
+          Documenting the population, sampling process, and what's NOT covered is how a dataset's
+          external validity becomes auditable instead of assumed.
+        source: "Gebru et al., Datasheets for Datasets (CACM 2021)"
+        seen_in: datasheets-documentation
+        provenance: extracted-then-audited
+
+  - id: ground-truth-anchoring
+    name: Ground-Truth Anchoring
+    tenet: >
+      A validated gold reference must exist to check labels against — and the gold itself must be
+      audited, because the gold standard is the thing most likely to be quietly wrong. Without an
+      anchor, "good" collapses into "whatever the producer emitted with confidence."
+    protects_against: [unanchored, self_affinity]
+    operationalized_by: [human-gold-anchor, gold-honeypots, tamper-to-ground-truth, cross-family-judges]
+    probe: >
+      What is your ground truth, and who validated IT? If a model defines or judges good, is it
+      perceiving quality or recalling its own family's style — would a different model family agree?
+    evidence:
+      - claim: >
+          Even canonical test sets carry pervasive label errors (~3.4% across 10 benchmarks); the
+          gold you trust as the anchor is itself a measurement that needs auditing.
+        source: "Northcutt et al., Pervasive Label Errors in Test Sets (NeurIPS 2021)"
+        seen_in: data-quality-cleanlab
+        provenance: extracted-then-audited
+      - claim: >
+          LLM judges show position, verbosity, and self-enhancement bias — a model anchor can score
+          its own family's outputs higher, so the anchor must be cross-checked across families.
+        source: "Zheng et al., Judging LLM-as-a-Judge / MT-Bench & Chatbot Arena (NeurIPS 2023)"
+        seen_in: eval-chatbot-arena
+        provenance: extracted-then-audited
+
+  - id: contamination-control
+    name: Contamination Control (Train/Eval Isolation)
+    tenet: >
+      The evaluation signal is only good if the answer wasn't already seen in training. Leakage
+      between train and eval — or the answer being derivable from a feature absent at deployment —
+      makes "good" performance an artifact of memorization rather than capability.
+    protects_against: [label_leakage]
+    operationalized_by: [split-isolation, partial-input-baseline]
+    probe: >
+      Could any eval item (or a near-duplicate) appear in training? Is the solution visible in the
+      prompt? Decontaminate by entity/time partition and re-measure — the gap is your real signal.
+    evidence:
+      - claim: >
+          Filtering solution-leakage and pre-cutoff contamination from a code benchmark dropped
+          measured resolution roughly threefold — uncontrolled leakage inflated "good" by ~3x.
+        source: "Aleithan et al., SWE-Bench+ (2024); Jimenez et al., SWE-Bench (ICLR 2024)"
+        seen_in: code-swebench
+        provenance: extracted-then-audited
+
+  # --------------------------------------------------------------------------------------------
+  # ROADMAP — the remaining backbone principles (stubbed: construct + signatures + the canonical
+  # paper are fixed; full tenet/probe/evidence to be distilled next, same discipline). Listed so
+  # the coverage of the signature space is visible and the extraction queue is explicit.
+  # --------------------------------------------------------------------------------------------
+
+  - id: statistical-power
+    name: Statistical Power (Sufficient Evidence)
+    tenet: >
+      Enough items (and an appropriate test design) that, if a real effect exists, the experiment
+      detects it as significant rather than dismissing it as noise. An underpowered split can't
+      distinguish a real difference from chance, so a "good" result may be noise and may not replicate.
+    protects_against: [underpowered]
+    operationalized_by: [powered-eval-split]
+    probe: >
+      For the smallest effect you care about, what is the probability your test set would yield a
+      significant result — is it sized to reach the conventional 80% power, or are you reading noise?
+    evidence:
+      - claim: >
+          Typical machine-translation test sets of 2000 sentences have only ~75% power to detect a
+          1 BLEU-point difference; for several GLUE tasks the small test sets leave most comparisons
+          to state-of-the-art underpowered, so a real improvement is easily mistaken for noise.
+        source: "Card et al., With Little Power Comes Great Responsibility (EMNLP 2020)"
+        provenance: extracted-then-audited
+      - claim: >
+          Typical human-rating study designs are also underpowered to detect the small model
+          differences that are frequently studied.
+        source: "Card et al., With Little Power Comes Great Responsibility (EMNLP 2020)"
+        provenance: extracted-then-audited
+
+  - id: incentive-alignment
+    name: Incentive Alignment (Goodhart-Resistance)
+    tenet: >
+      Annotators must not be able to reach 'good' by optimizing the pay/quota structure (templating,
+      speed-clicking) instead of producing quality. When the measure becomes the target, it stops
+      measuring.
+    protects_against: [gaming]
+    operationalized_by: [gold-honeypots, engagement-gate, qualification-calibration]
+    probe: >
+      How are annotators paid, and can they maximize earnings without producing quality? Seed
+      honeypots / fraud checks and measure how much of your data survives them.
+    evidence:
+      - claim: >
+          Across 38 MTurk studies, a large share of respondents fraudulently accessed studies via
+          virtual private servers; these fraudulent respondents produced particularly low-quality
+          data that weakened treatment effects — and the fraud increased over time as workers
+          adapted to the incentive, so static checks become an arms race.
+        source: "Kennedy et al., The Shape of and Solutions to the MTurk Quality Crisis (PSRM 8(4), 2020)"
+        seen_in: crowd-quality-mturk
+        provenance: extracted-then-audited
+
+  - id: construct-stability
+    name: Construct Stability (No Drift / Inflation)
+    tenet: >
+      The bar for 'good' must hold fixed across the campaign — neither creeping upward (leniency
+      inflation) nor shifting under you as the data/model changes. A moving definition makes early
+      and late labels incomparable.
+    protects_against: [drift, inflation]
+    operationalized_by: [lock-then-score, gold-honeypots]
+    probe: >
+      Re-score frozen anchor exemplars across the campaign — does the standard drift? Is the
+      guideline frozen before scoring, and do you measure intra-annotator agreement over time?
+    evidence:
+      - claim: >
+          Intra-annotator agreement is not stable: re-labeling the same items after a delay, word-
+          alignment consistency degraded steadily across 1-week / 2-week / 1-month intervals, and
+          rating consistency fell as the re-test interval grew — so the same annotator drifts against
+          their own earlier judgments unless anchored.
+        source: "Li et al. (word-alignment, 2010); Kiritchenko & Mohammad (best-worst rating reliability, 2017)"
+        provenance: extracted-then-audited
+
+  - id: provenance-documentation
+    name: Provenance & Documentation
+    tenet: >
+      The origin, collection process, and labeling decisions must be recorded, so the data's fitness
+      can be audited rather than assumed. Documentation is the cross-cutting precondition that makes
+      every other principle checkable after the fact.
+    protects_against: []   # cross-cutting: enables auditing of ALL principles rather than defending one signature
+    operationalized_by: []   # NOTE: motivates promoting the candidate pattern `provenance-datasheet`
+    #   (surfaced in cards but never promoted — the principle tier reveals the pattern-library gap)
+    probe: "Could a downstream user reconstruct who labeled what, under which guideline version, sampled from where?"
+    evidence:
+      - claim: >
+          A datasheet of 57 questions across 7 categories (motivation, composition, collection
+          process, preprocessing/labeling, uses, distribution, maintenance) — by analogy to the
+          electronics datasheets that accompany every component — makes a dataset's fitness auditable
+          by its consumers instead of assumed.
+        source: "Gebru et al., Datasheets for Datasets (CACM 64(12), 2021); Bender & Friedman, Data Statements for NLP (TACL 2018)"
+        seen_in: datasheets-documentation
+        provenance: extracted-then-audited

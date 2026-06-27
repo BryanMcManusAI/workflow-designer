@@ -55,8 +55,11 @@ output:
 
 failure_modes:
   - signature: confounded
-    evidence: INFERRED
-    description: Generator + filter share model lineage; their biases co-propagate, and synthetic data risks benchmark CONTAMINATION resembling eval sets. (Inferred.)
+    evidence: REPORTED
+    description: >
+      The phi-1 report (Sec. 5) found a significant portion of its GPT-3.5-generated training data was
+      similar to HumanEval test samples — synthetic generation produced contamination resembling the eval
+      set; generator + filter sharing model lineage also lets their biases co-propagate into the student.
     caught_by: cross-family generation/filtering (partial)
   - signature: unanchored
     evidence: INFERRED

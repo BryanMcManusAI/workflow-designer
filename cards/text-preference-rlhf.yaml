@@ -53,24 +53,29 @@ output:
 
 failure_modes:
   - signature: drift
+    evidence: INFERRED
     description: >
       Over a long campaign raters fatigue and their bar shifts, so week-6 preferences aren't
       week-1 preferences and the reward model sees a moving target.
     caught_by: honeypots + agreement tracking + re-calibration
   - signature: confounded
+    evidence: REPORTED
     description: >
       Raters prefer the longer/more-formatted response regardless of substance, so the reward
       model learns "longer = better" — a length confound, not a quality signal.
     caught_by: UNGUARDED   # add length-controlled pairs / explicit anti-verbosity rubric item
   - signature: priming
+    evidence: REPORTED
     description: >
       Whichever response is shown first gets a systematic edge.
     caught_by: A/B position randomization
   - signature: inflation
+    evidence: INFERRED
     description: >
       Raters drift toward "they're about equal" or always-A to reduce effort.
     caught_by: qualification + calibration + honeypots
   - signature: unanchored
+    evidence: INFERRED
     description: >
       Without gold pairs you can't tell whether raters track the rubric or their own taste.
     caught_by: human-gold-anchor (gold pairs)

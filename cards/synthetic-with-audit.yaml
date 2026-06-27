@@ -55,21 +55,25 @@ output:
 
 failure_modes:
   - signature: confounded
+    evidence: REPORTED
     description: >
       The labeler model's own biases (it over-predicts the majority class, or keys on a spurious
       cue) get baked into the training set and inherited by the student.
     caught_by: cross-family check + stratified audit
   - signature: sampling_frame
+    evidence: REPORTED
     description: >
       Auditing only a random sample makes accuracy look high because the easy bulk dominates,
       while the hard tail — where the model is wrong — is barely sampled.
     caught_by: stratified audit sample
   - signature: label_leakage
+    evidence: INFERRED
     description: >
       The model labels using a feature that won't exist at deployment (or that trivially encodes
       the answer), inflating apparent quality.
     caught_by: UNGUARDED   # add a leakage check in the gold-set design
   - signature: self_affinity
+    evidence: INFERRED
     description: >
       If the same family later judges the student, it rewards inherited quirks.
     caught_by: cross-family check

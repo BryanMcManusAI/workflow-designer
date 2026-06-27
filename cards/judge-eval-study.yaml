@@ -63,28 +63,33 @@ output:
 
 failure_modes:
   - signature: self_affinity
+    evidence: REPORTED
     description: >
       A judge rates outputs from its own model family higher. Observed directly in Bryan's
       program: a GPT-4o judge showed +0.74 self-affinity while a Claude judge ran self-critical
       at -0.26. If generator and judge share a family, you measure self-preference, not quality.
     caught_by: cross-family judges + blind scoring
   - signature: unanchored
+    evidence: REPORTED
     description: >
       Raw judge scores are trusted with no human ground truth, so you cannot tell whether the
       judge tracks quality at all. The fix that recurs across the program is a small blind
       human-rated gold set.
     caught_by: human gold IRR
   - signature: inflation
+    evidence: REPORTED
     description: >
       Panel scores drift upward and compress at the top; everything reads as "good." Worse when
       scoring is relative and unanchored to exemplars.
     caught_by: lock-then-score (rubric + anchor exemplars frozen first)
   - signature: priming
+    evidence: REPORTED
     description: >
       The first item seen sets the bar for the rest; item order leaks into scores. A real
       confound that forced a v2 redesign in one study.
     caught_by: blind scoring (shuffle order, hide identity)
   - signature: underpowered
+    evidence: INFERRED
     description: >
       A confident model-ranking claim drawn from too few cells. Tight nulls and chance-level
       adjacencies hide in small n.

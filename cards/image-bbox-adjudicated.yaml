@@ -58,20 +58,24 @@ output:
 
 failure_modes:
   - signature: under_specification
+    evidence: REPORTED
     description: >
       "Where exactly does the box edge go" on occluded/truncated objects is undefined, so IoU
       agreement is low and labels aren't learnable. The cure is guideline examples for the hard
       cases, not more annotators.
     caught_by: adjudication + tighter guideline
   - signature: bottleneck
+    evidence: INFERRED
     description: >
       A single adjudicator on every low-agreement image throttles the whole campaign.
     caught_by: tiered-adjudication (only true disagreements escalate)
   - signature: class_imbalance
+    evidence: REPORTED
     description: >
       Rare objects are scarce in a random sample, so the detector never learns them.
     caught_by: rare-class over-sampling
   - signature: sampling_frame
+    evidence: INFERRED
     description: >
       Boxes look great on easy daytime scenes while night/occluded scenes — the deployment tail —
       are under-labeled.

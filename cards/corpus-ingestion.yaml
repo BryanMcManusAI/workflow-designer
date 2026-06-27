@@ -66,31 +66,37 @@ output:
 
 failure_modes:
   - signature: unanchored
+    evidence: INFERRED
     description: >
       THE central risk — the extractor invents a plausible failure mode the source never reported,
       and it enters the corpus as if observed. Kills the provenance-over-volume guarantee.
     caught_by: REPORTED-vs-INFERRED tagging + human audit + gold-set check
   - signature: confounded
+    evidence: INFERRED
     description: >
       The extractor launders its own priors about how workflows "should" work as if extracted from
       the source (the Pop Problem, in ingestion form).
     caught_by: cross-family extraction + human audit
   - signature: sampling_frame
+    evidence: REPORTED
     description: >
       You ingest the easy-to-find sources (arXiv, HF), so the corpus over-represents well-documented
       academic workflows and under-represents messy real-world vendor practice.
     caught_by: coverage routing (partial — UNGUARDED for the published-vs-practiced bias itself;
       needs deliberate non-academic source pulls)
   - signature: inflation
+    evidence: INFERRED
     description: >
       The corpus bloats with near-duplicate cards that look like coverage but aren't (many papers
       describe the same multi-annotator + adjudication skeleton).
     caught_by: dedup-merge + coverage-by-signature accounting
   - signature: self_affinity
+    evidence: INFERRED
     description: >
       If one model family extracts AND is later used in the tool, its framing dominates the corpus.
     caught_by: cross-family extraction
   - signature: class_imbalance
+    evidence: REPORTED
     description: >
       Rare task structures (red_team, 3D, transcription) are rare in sources too, so they stay
       uncovered unless deliberately sought.
