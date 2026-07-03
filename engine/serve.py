@@ -17,6 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import engine
 import build_site  # reuse the shared CSS + the curated examples (presets)
 import semantic    # goal-driven topical retrieval (Tier-1 deterministic in the hot path; keyless)
+import inform      # the advisory front door (Good Data Brief) — the strategic entry mode
 import llm         # only to report whether the optional Tier-2 rerank is available
 
 IDX = engine.load_index()
@@ -50,6 +51,8 @@ def payload(stub):
         # Tier-1 (deterministic, instant, keyless) topical ranking so the GOAL text — not just the
         # axis dropdowns — drives which prior workflows surface. LLM rerank stays an explicit CLI step.
         "semantic": semantic.analyze_semantic(IDX, stub, use_llm=False, top=5),
+        # The advisory front door: the Good Data Brief for this goal (the Advise-me mode's payload).
+        "inform": inform.analyze_inform(IDX, stub),
     }
 
 
@@ -171,9 +174,9 @@ padding:4px 12px;font:inherit;font-size:.82rem;cursor:pointer;margin:3px 3px 3px
     <h1 style="margin:0">Workflow designer</h1>
     <span class="muted" id="corpus" style="font-size:.85rem"></span>
   </div>
-  <p class="intro">Describe a data workflow, close the risks similar workflows hit, and get a
-  buildable recipe — every suggestion traceable to a real prior workflow. Deterministic: no LLM,
-  nothing it can't source.</p>
+  <p class="intro">Describe what you want to build and get advice on what good data means for that
+  goal — or go further and assemble the full buildable recipe. Every suggestion traceable to a real
+  prior workflow; deterministic core, nothing it can't source.</p>
   <details class="how">
     <summary>How this works &amp; what each step does</summary>
     <div class="body">
@@ -206,25 +209,26 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const chip = (t,k='') => `<span class="chip ${k}">${esc(t)}</span>`;
 const badge = h => h?'<span class="badge have">have</span>':'<span class="badge add">add</span>';
-let META=null, DATA=null, STEP=0, SHOW_SOURCES=false, MODE='forward';
+let META=null, DATA=null, STEP=0, SHOW_SOURCES=false, MODE='advise';
 const stub = {goal:"Evaluate AI-generated marketing copy with an LLM judge",
   modality:"text", task_structure:"rubric_rating", annotator_structure:"model_as_annotator",
   qa_mechanism:[], uses_patterns:[], addressed_signatures:[], failure_signatures:[],
   high_cost_signatures:[], tolerable_signatures:[], process_mode:""};
 const agentNote = () => { const a=DATA.workflow.agent; return a?`<div class="callout" style="margin:0 0 14px"><strong>Process: ${esc(a.label)}.</strong> ${esc(a.note)}</div>`:''; };
 const FLOWS = {
+  advise:  [["Describe",renderDescribe],["Your Good Data Brief",renderBrief]],
   forward: [["Describe",renderDescribe],["Find & close risks",renderRisks],["Your recipe",renderRecipe],["The rationale",renderWhy]],
   reverse: [["Describe",renderDescribe],["Define ‘good’",renderGoodMeans],["Reverse-engineer",renderBuildList],["Your recipe",renderRecipe]],
 };
 const steps = () => FLOWS[MODE];
-const eb = () => `<p class="eyebrow">Step ${STEP+1} of 4</p>`;
+const eb = () => `<p class="eyebrow">Step ${STEP+1} of ${steps().length}</p>`;
 const HELP = {modality:"what the data is — text, image, audio, code…",
   task_structure:"the shape of the judgment — classify, rank, rate, extract…",
   annotator_structure:"who labels — a crowd, an expert, or a model"};
 
 async function init(){
   META = await (await fetch('/api/meta')).json();
-  $('#corpus').textContent = `${META.n_cards} recipes · ${META.n_patterns} patterns · deterministic, no LLM`;
+  $('#corpus').textContent = `${META.n_cards} recipes · ${META.n_patterns} patterns · deterministic core`;
   await analyze(); render();
 }
 async function analyze(){
@@ -286,11 +290,13 @@ function renderDescribe(){
   const sel = (k)=>`<label class="fld">${k.replace(/_/g,' ')}</label><p class="help">${HELP[k]}</p>
     <select id="${k}">${opt(v[k], stub[k])}</select>`;
   const qa = v.qa_mechanism.map(q=>`<label><input type="checkbox" value="${esc(q)}" ${stub.qa_mechanism.includes(q)?'checked':''}>${esc(q)}</label>`).join('');
-  const modeline = MODE==='forward'
+  const modeline = MODE==='advise'
+    ? 'Tell it what you are building; it briefs you on what good data means for that goal — what quietly wrecks it, the five-minute check for each risk, and one way to defend it. Advisory: your pipeline stays yours.'
+    : MODE==='forward'
     ? 'Describe a workflow; the tool finds its risks and assembles a recipe.'
     : 'Start from your goal; the tool works backward from what “good” data means to the workflow that guarantees it.';
-  $('#content').innerHTML = eb()+`<p class="steptitle">Describe the workflow you want to build</p>
-    <div class="modeseg"><button class="seg ${MODE==='forward'?'on':''}" data-mode="forward">Design forward</button><button class="seg ${MODE==='reverse'?'on':''}" data-mode="reverse">Reverse-engineer from good</button></div>
+  $('#content').innerHTML = eb()+`<p class="steptitle">${MODE==='advise'?'Describe what you want to build':'Describe the workflow you want to build'}</p>
+    <div class="modeseg"><button class="seg ${MODE==='advise'?'on':''}" data-mode="advise">Advise me</button><button class="seg ${MODE==='forward'?'on':''}" data-mode="forward">Design forward</button><button class="seg ${MODE==='reverse'?'on':''}" data-mode="reverse">Reverse-engineer from good</button></div>
     <p class="help" style="margin-bottom:12px">${modeline}</p>
     <div style="margin-bottom:8px">${presets}</div>
     <label class="fld">Goal</label><input type="text" id="goal" value="${esc(stub.goal)}">
@@ -421,6 +427,42 @@ function renderWhy(){
   $('#content').innerHTML = twocol(h)+nav();
   wire();
   const rb=$('#rerankbtn'); if(rb) rb.addEventListener('click', rerank);
+}
+
+// ADVISE MODE — the Good Data Brief: the advisory front door. Organized around the customer's goal,
+// every line load-bearing (a check to run, a defense to adopt, a war story that happened). Ends with
+// the funnel: one click jumps into the designer's full recipe for the same stub.
+function renderBrief(){
+  const b=DATA.inform;
+  const sevword={high:'costly to get wrong',med:'moderate',low:'cheap to fix later'};
+  const names=b.principles.slice(0,3).map(p=>p.name.split(' (')[0]);
+  let h=eb()+`<p class="steptitle">Your Good Data Brief</p>
+    <p class="help" style="margin-bottom:12px">${esc(b.goal)}</p>
+    <div class="callout" style="margin-bottom:16px"><strong>In one line:</strong> for this data to be good, it has to have ${names.slice(0,-1).map(esc).join(', ')} and ${esc(names[names.length-1])} — each defined below, with the check that tells you whether you have it and one way to get it.</div>`;
+  b.principles.forEach((p,i)=>{
+    const d=p.defense;
+    h+=`<div style="border:1px solid var(--line,#333);border-radius:8px;padding:14px 18px;margin-bottom:12px">
+      <p style="margin:0 0 6px"><strong>${i+1} · ${esc(p.name)}</strong>${p.secured?' <span class="chip">✓ your plan covers this</span>':''}</p>
+      <p class="help" style="margin:0 0 8px">${esc(p.tenet)}</p>`;
+    if(p.war_story) h+=`<p style="margin:0 0 8px;font-size:13px"><strong>If you skip it:</strong> ${esc(p.war_story.desc)} <span class="muted">(a real case: <code>${esc(p.war_story.card)}</code>)</span></p>`;
+    if(p.check) h+=`<p style="margin:0 0 8px;font-size:13px"><strong>The five-minute check:</strong> ${esc(p.check)}</p>`;
+    if(d && !p.secured){
+      const done=d.as_done?` — as <code>${esc(d.as_done.card)}</code> does: ${esc(d.as_done.checks)}`:(d.seen_in.length?` — see <code>${esc(d.seen_in[0])}</code>`:'');
+      h+=`<p style="margin:0 0 8px;font-size:13px"><strong>One way to get it:</strong> ${esc(d.name)} <span class="muted">(cost: ${esc(d.cost)})</span>${done}</p>`;}
+    h+=`<p class="muted" style="margin:0;font-size:11.5px">guards ${p.risks.map(r=>chip(r,'risk')).join(' ')}${p.lead_risk?` · ${esc(sevword[p.severity]||'')}`:''} · ${esc(p.source)}</p></div>`;
+  });
+  if(b.spec_threats.length){
+    h+=`<div class="callout"><strong>Before any of that — is your “good” actually good?</strong>
+      <p class="help" style="margin:6px 0">The most expensive failure isn't missing a check; it's certifying data against a definition that was quietly measuring something else.</p><ul>`
+      +b.spec_threats.map(t=>`<li style="margin:6px 0">${esc(t.question)}<br><span class="muted">Run: ${esc(t.probe)}</span></li>`).join('')+`</ul></div>`;}
+  if(b.priorities.length)
+    h+=`<p style="margin-top:14px"><strong>What to defend hardest, in order:</strong> ${b.priorities.slice(0,6).map(p=>chip(p.signature,'risk')+` <span class="muted">(${esc(p.severity)})</span>`).join(' · ')}</p>`;
+  h+=`<div class="callout" style="margin-top:16px"><strong>How you build toward this is yours.</strong>
+    <span class="help">If you want the full buildable workflow — labeling steps, per-item fields, conventions, audit plan — the designer assembles it from the same evidence base.</span>
+    <div style="margin-top:8px"><button class="btn" id="tofull">See the full buildable workflow →</button></div></div>`;
+  $('#content').innerHTML = twocol(h)+nav();
+  const tf=$('#tofull'); if(tf) tf.onclick=()=>{MODE='forward'; STEP=2; render();};
+  wire();
 }
 
 // The goal-driven retrieval panel — re-rendered in place after an opt-in Tier-2 rerank.
