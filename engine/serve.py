@@ -66,6 +66,7 @@ def meta():
     patterns = [{"id": pid, "name": p["name"]} for pid, p in sorted(IDX["patterns"].items())]
     return {"vocab": v, "patterns": patterns,
             "examples": build_site.EXAMPLES, "llm_available": llm.available(),
+            "signature_help": engine.QUESTIONS,
             "n_cards": len(IDX["cards"]), "n_patterns": len(IDX["patterns"])}
 
 
@@ -183,23 +184,22 @@ padding:4px 12px;font:inherit;font-size:.82rem;cursor:pointer;margin:3px 3px 3px
   goal — or go further and assemble the full buildable recipe. Every suggestion traceable to a real
   prior workflow; deterministic core, nothing it can't source.</p>
   <details class="how">
-    <summary>How this works &amp; what each step does</summary>
+    <summary>How this works &amp; which door to take</summary>
     <div class="body">
+      <p style="margin:0 0 8px">Three ways in, one evidence base — pick by how much you want back:</p>
       <ol>
-        <li><strong>Describe</strong> the workflow you want to build — pick a modality, task and
-        annotator setup, or load one of the examples to start.</li>
-        <li><strong>Find &amp; close risks</strong> — it surfaces the failure modes that similar
-        prior workflows actually hit. Click <em>adopt</em> on a defense and the coverage bar climbs;
-        whatever's left is risk you're consciously accepting.</li>
-        <li><strong>Your recipe</strong> — the assembled workflow: ordered labeling steps, the
-        fields each annotator fills, suggested conventions, and an audit strategy. Each item shows
-        whether it's already in your design (<em>have</em>) or recommended (<em>add</em>), and cites
-        a real workflow that does it.</li>
-        <li><strong>Why it works</strong> — the backwards-from-good reasoning: what "good" data means
-        here, and a stress-test of whether your definition of good is itself a proxy.</li>
+        <li><strong>Advise me</strong> (start here) — describe what you're building, optionally
+        calibrate by reacting to real prior failures, and get a <em>Good Data Brief</em>: what good
+        data means for your goal, the five-minute check per risk, and one defense each. Advisory —
+        your pipeline stays yours.</li>
+        <li><strong>Design forward</strong> — the full treatment: surface the failure modes similar
+        workflows actually hit, adopt defenses and watch coverage climb, and get the assembled
+        recipe (labeling steps, per-item fields, conventions, audit strategy).</li>
+        <li><strong>Reverse-engineer from good</strong> — start from what "good" means, work
+        backward to the workflow that guarantees it.</li>
       </ol>
-      You can jump between steps anytime by clicking them above; your design and coverage stay pinned
-      on the left.
+      Every suggestion, in every mode, cites the real prior workflow it borrows from. Jump between
+      steps anytime by clicking them above; your progress stays pinned on the left.
     </div>
   </details>
   <div class="stepper" id="stepper"></div>
@@ -212,7 +212,12 @@ padding:4px 12px;font:inherit;font-size:.82rem;cursor:pointer;margin:3px 3px 3px
 JS = r"""
 const $ = s => document.querySelector(s);
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const chip = (t,k='') => `<span class="chip ${k}">${esc(t)}</span>`;
+// Risk chips carry their plain-language definition as a hover title, so vocabulary never blocks
+// a first-time reader (the gloss comes from the engine's interrogation questions).
+const chip = (t,k='') => {
+  const help = (META && META.signature_help && META.signature_help[t]) || '';
+  return `<span class="chip ${k}" ${help?`title="${esc(help)}"`:''}>${esc(String(t).replace(/_/g,' '))}</span>`;
+};
 const badge = h => h?'<span class="badge have">have</span>':'<span class="badge add">add</span>';
 let META=null, DATA=null, STEP=0, SHOW_SOURCES=false, MODE='advise';
 const stub = {goal:"Evaluate AI-generated marketing copy with an LLM judge",
@@ -252,9 +257,25 @@ function renderStepper(){
   }).join('');
   document.querySelectorAll('.st').forEach(e=>e.onclick=()=>go(+e.dataset.s));
 }
-function opt(vals,cur){ return vals.map(v=>`<option ${v===cur?'selected':''}>${esc(v)}</option>`).join(''); }
+function opt(vals,cur){ return vals.map(v=>`<option value="${esc(v)}" ${v===cur?'selected':''}>${esc(v.replace(/_/g,' '))}</option>`).join(''); }
 
 function summary(){
+  // Advise mode: the sidebar mirrors what the CUSTOMER is doing — their answers so far — not the
+  // designer's adoption/coverage mechanics ("Adopted 0 · Coverage 0%" reads as a failing grade to
+  // someone who is only here for advice).
+  if(MODE==='advise'){
+    const yn=(v,unset)=>v?esc(String(v).replace(/_/g,' ')):`<span class="muted">${unset}</span>`;
+    const rows=[["Process",yn(stub.process_mode,'either')],["Edge cases",yn(stub.edge_case_mode,'react on Calibrate')],
+      ["Data feeds",yn(stub.downstream,'unspecified')],
+      ["Costly failures",stub.high_cost_signatures.length?stub.high_cost_signatures.map(s=>chip(s,'risk')).join(' '):`<span class="muted">none marked</span>`]];
+    return `<div class="summary">
+      <div class="row"><span class="muted" style="font-size:.82rem">Your brief so far</span>
+        <button class="ghost" style="font-size:.8rem;padding:0" data-s="0">edit</button></div>
+      <p style="margin:6px 0 8px;font-size:.9rem;line-height:1.45">${esc(stub.goal||'(untitled)')}</p>
+      <div style="margin-bottom:10px">${[stub.modality,stub.task_structure,stub.annotator_structure].map(x=>chip(x)).join(' ')}</div>
+      ${rows.map(([k,v])=>`<div style="border-top:1px solid var(--line);padding:6px 0 2px"><span class="muted" style="font-size:.78rem">${k}</span><div style="font-size:.85rem">${v}</div></div>`).join('')}
+    </div>`;
+  }
   const c=DATA.coverage, pct=Math.round(c.pct*100);
   const chips = stub.uses_patterns.length
     ? stub.uses_patterns.map(p=>`<span class="pill">${esc(p)}<button data-drop="${esc(p)}" title="remove">×</button></span>`).join('')
@@ -308,30 +329,10 @@ function renderDescribe(){
     ${sel('modality')}${sel('task_structure')}${sel('annotator_structure')}
     <label class="fld">QA mechanisms already in place</label><p class="help">optional — checks you already run</p>
     <div class="qa" id="qa">${qa}</div>
-    <label class="fld">Process style</label><p class="help">strict = freeze the guideline up front (reproducible, auditable); adaptive = iterate as you go (responsive)</p>
-    <div class="modeseg">
-      <button class="seg ${!stub.process_mode?'on':''}" data-pm="">either</button>
-      <button class="seg ${stub.process_mode==='strict'?'on':''}" data-pm="strict">strict steps</button>
-      <button class="seg ${stub.process_mode==='adaptive'?'on':''}" data-pm="adaptive">adapt dynamically</button>
-    </div>
-    <label class="fld">Edge cases</label><p class="help">how should ambiguous cases be handled? — picks which defense closes them, and becomes a decision guideline</p>
-    <div class="modeseg">
-      <button class="seg ${!stub.edge_case_mode?'on':''}" data-ec="">unsure</button>
-      <button class="seg ${stub.edge_case_mode==='escalate'?'on':''}" data-ec="escalate">escalate to a human</button>
-      <button class="seg ${stub.edge_case_mode==='rule'?'on':''}" data-ec="rule">resolve by rule</button>
-      <button class="seg ${stub.edge_case_mode==='signal'?'on':''}" data-ec="signal">keep as signal</button>
-    </div>
-    <label class="fld">This data feeds</label><p class="help">where it sits in the larger system — evaluation data dies on contamination, training data on coverage; this reweights what to defend hardest</p>
-    <div class="modeseg">
-      <button class="seg ${!stub.downstream?'on':''}" data-ds="">unspecified</button>
-      <button class="seg ${stub.downstream==='training'?'on':''}" data-ds="training">model training</button>
-      <button class="seg ${stub.downstream==='evaluation'?'on':''}" data-ds="evaluation">evaluation / a claim</button>
-    </div>
+    ${MODE==='advise' ? '' : qControls()}
     ${nav()}`;
   document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{MODE=b.dataset.mode; render();});
-  document.querySelectorAll('[data-pm]').forEach(b=>b.onclick=async()=>{stub.process_mode=b.dataset.pm; await analyze(); render();});
-  document.querySelectorAll('[data-ec]').forEach(b=>b.onclick=async()=>{stub.edge_case_mode=b.dataset.ec; await analyze(); render();});
-  document.querySelectorAll('[data-ds]').forEach(b=>b.onclick=async()=>{stub.downstream=b.dataset.ds; await analyze(); render();});
+  wireQ();
   $('#goal').oninput=e=>{stub.goal=e.target.value;};
   ['modality','task_structure','annotator_structure'].forEach(k=>$('#'+k).onchange=async e=>{stub[k]=e.target.value; await analyze(); render();});
   $('#qa').onchange=async()=>{stub.qa_mechanism=[...$('#qa').querySelectorAll('input:checked')].map(i=>i.value); await analyze(); render();};
@@ -449,6 +450,36 @@ function renderWhy(){
   const rb=$('#rerankbtn'); if(rb) rb.addEventListener('click', rerank);
 }
 
+// The three questionnaire controls (process / edge cases / data feeds). On Describe for the design
+// modes; in advise mode they live on Calibrate instead, so the first screen stays light.
+function wireQ(){
+  document.querySelectorAll('[data-pm]').forEach(b=>b.onclick=async()=>{stub.process_mode=b.dataset.pm; await analyze(); render();});
+  document.querySelectorAll('[data-ec]').forEach(b=>b.onclick=async()=>{stub.edge_case_mode=b.dataset.ec; await analyze(); render();});
+  document.querySelectorAll('[data-ds]').forEach(b=>b.onclick=async()=>{stub.downstream=b.dataset.ds; await analyze(); render();});
+}
+
+function qControls(edgeToo=true){
+  return `<label class="fld">Process style</label><p class="help">strict = freeze the guideline up front (reproducible, auditable); adaptive = iterate as you go (responsive)</p>
+    <div class="modeseg">
+      <button class="seg ${!stub.process_mode?'on':''}" data-pm="">either</button>
+      <button class="seg ${stub.process_mode==='strict'?'on':''}" data-pm="strict">strict steps</button>
+      <button class="seg ${stub.process_mode==='adaptive'?'on':''}" data-pm="adaptive">adapt dynamically</button>
+    </div>`
+  +(edgeToo?`<label class="fld">Edge cases</label><p class="help">how should ambiguous cases be handled? — picks which defense closes them, and becomes a decision guideline</p>
+    <div class="modeseg">
+      <button class="seg ${!stub.edge_case_mode?'on':''}" data-ec="">unsure</button>
+      <button class="seg ${stub.edge_case_mode==='escalate'?'on':''}" data-ec="escalate">escalate to a human</button>
+      <button class="seg ${stub.edge_case_mode==='rule'?'on':''}" data-ec="rule">resolve by rule</button>
+      <button class="seg ${stub.edge_case_mode==='signal'?'on':''}" data-ec="signal">keep as signal</button>
+    </div>`:'')
+  +`<label class="fld">This data feeds</label><p class="help">where it sits in the larger system — evaluation data dies on contamination, training data on coverage; this reweights what to defend hardest</p>
+    <div class="modeseg">
+      <button class="seg ${!stub.downstream?'on':''}" data-ds="">unspecified</button>
+      <button class="seg ${stub.downstream==='training'?'on':''}" data-ds="training">model training</button>
+      <button class="seg ${stub.downstream==='evaluation'?'on':''}" data-ds="evaluation">evaluation / a claim</button>
+    </div>`;
+}
+
 // CALIBRATE — reaction-based elicitation for the customer who knows good data when they see it but
 // hasn't pre-articulated it. React to real prior failures (sorts each into costly/tolerable), pick
 // an ambiguity instinct, and correct the precedent mirror (the correction feeds the goal text →
@@ -456,8 +487,10 @@ function renderWhy(){
 let PROBE_SKIPPED = new Set();
 function renderCalibrate(){
   const pr=DATA.probes;
-  let h=eb()+`<p class="steptitle">Calibrate — react, don’t define <span class="muted" style="font-weight:400;font-size:.8em">(optional; skip ahead if your Describe answers are firm)</span></p>
-    <p class="help" style="margin-bottom:14px">Definitions are hard to state up front; reactions aren’t. Everything below is a real case from a prior workflow — each reaction sharpens the brief.</p>`;
+  let h=eb()+`<p class="steptitle">Calibrate <span class="muted" style="font-weight:400;font-size:.8em">(optional — skip ahead anytime; every answer or reaction sharpens the brief)</span></p>
+    <p class="help" style="margin-bottom:10px"><strong>Answer what you can…</strong></p>
+    ${qControls(false)}
+    <p class="help" style="margin:16px 0 10px"><strong>…and react to the rest.</strong> Definitions are hard to state up front; reactions aren’t. Everything below is a real case from a prior workflow.</p>`;
   if(pr.mirror && pr.mirror.frame){
     h+=`<div class="callout" style="margin-bottom:14px"><strong>Is this the right frame?</strong> <em>${esc(pr.mirror.frame)}</em>
       <span class="muted" style="font-size:11.5px"> — the closest precedent, <code>${esc(pr.mirror.card)}</code></span>
@@ -481,8 +514,10 @@ function renderCalibrate(){
     h+=`<p style="margin:14px 0 6px"><strong>When an ambiguous item shows up, which instinct is yours?</strong></p>`
       +pr.edge_options.map(o=>`<div style="border:1px solid var(--line,#333);border-radius:8px;padding:10px 14px;margin-bottom:8px;cursor:pointer" data-edge="${esc(o.mode)}">
         <span style="font-size:13.5px">${esc(o.instinct)}</span></div>`).join('');}
-  else h+=`<p class="help" style="margin-top:10px">Edge-case policy: already set on Describe ✓</p>`;
+  else h+=`<p class="help" style="margin-top:10px">Ambiguous-case policy set: <strong>${esc(stub.edge_case_mode)}</strong> ✓ <button class="ghost" id="edge-clear" style="font-size:.8rem">change</button></p>`;
   $('#content').innerHTML = twocol(h)+nav();
+  const ec=$('#edge-clear'); if(ec) ec.onclick=async()=>{stub.edge_case_mode=''; await analyze(); render();};
+  wireQ();
   const my=$('#mirror-yes'); if(my) my.onclick=()=>{$('#mirror-note').textContent='Good — the brief will use this frame.';};
   const ma=$('#mirror-apply'); if(ma) ma.onclick=async()=>{const v=$('#mirror-diff').value.trim();
     if(v){ stub.goal = stub.goal + ' Unlike ' + DATA.probes.mirror.card + ', ' + v; await analyze(); render(); }};
