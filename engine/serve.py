@@ -54,8 +54,10 @@ def payload(stub):
         # Tier-1 (deterministic, instant, keyless) topical ranking so the GOAL text — not just the
         # axis dropdowns — drives which prior workflows surface. LLM rerank stays an explicit CLI step.
         "semantic": semantic.analyze_semantic(IDX, stub, use_llm=False, top=5),
-        # The advisory front door: the Good Data Brief for this goal (the Advise-me mode's payload).
+        # The advisory front door: the Good Data Brief for this goal (the Advise-me mode's payload),
+        # plus the reaction probes for the Calibrate step (elicitation for the tacit-knower).
         "inform": inform.analyze_inform(IDX, stub),
+        "probes": inform.analyze_probes(IDX, stub),
     }
 
 
@@ -219,7 +221,7 @@ const stub = {goal:"Evaluate AI-generated marketing copy with an LLM judge",
   high_cost_signatures:[], tolerable_signatures:[], process_mode:""};
 const agentNote = () => { const a=DATA.workflow.agent; return a?`<div class="callout" style="margin:0 0 14px"><strong>Process: ${esc(a.label)}.</strong> ${esc(a.note)}</div>`:''; };
 const FLOWS = {
-  advise:  [["Describe",renderDescribe],["Your Good Data Brief",renderBrief]],
+  advise:  [["Describe",renderDescribe],["Calibrate",renderCalibrate],["Your Good Data Brief",renderBrief]],
   forward: [["Describe",renderDescribe],["Find & close risks",renderRisks],["Your recipe",renderRecipe],["The rationale",renderWhy]],
   reverse: [["Describe",renderDescribe],["Define ‘good’",renderGoodMeans],["Reverse-engineer",renderBuildList],["Your recipe",renderRecipe]],
 };
@@ -445,6 +447,53 @@ function renderWhy(){
   $('#content').innerHTML = twocol(h)+nav();
   wire();
   const rb=$('#rerankbtn'); if(rb) rb.addEventListener('click', rerank);
+}
+
+// CALIBRATE — reaction-based elicitation for the customer who knows good data when they see it but
+// hasn't pre-articulated it. React to real prior failures (sorts each into costly/tolerable), pick
+// an ambiguity instinct, and correct the precedent mirror (the correction feeds the goal text →
+// retrieval). Entirely optional: a customer who answered everything on Describe just clicks through.
+let PROBE_SKIPPED = new Set();
+function renderCalibrate(){
+  const pr=DATA.probes;
+  let h=eb()+`<p class="steptitle">Calibrate — react, don’t define <span class="muted" style="font-weight:400;font-size:.8em">(optional; skip ahead if your Describe answers are firm)</span></p>
+    <p class="help" style="margin-bottom:14px">Definitions are hard to state up front; reactions aren’t. Everything below is a real case from a prior workflow — each reaction sharpens the brief.</p>`;
+  if(pr.mirror && pr.mirror.frame){
+    h+=`<div class="callout" style="margin-bottom:14px"><strong>Is this the right frame?</strong> <em>${esc(pr.mirror.frame)}</em>
+      <span class="muted" style="font-size:11.5px"> — the closest precedent, <code>${esc(pr.mirror.card)}</code></span>
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn" id="mirror-yes">Yes, that’s the frame</button>
+        <input type="text" id="mirror-diff" placeholder="No — what’s different about yours?" style="flex:1;min-width:220px">
+        <button class="btn" id="mirror-apply">Apply</button>
+      </div><p class="muted" id="mirror-note" style="font-size:11.5px;margin:6px 0 0"></p></div>`;}
+  const live=pr.failure_probes.filter(p=>!PROBE_SKIPPED.has(p.signature));
+  if(live.length){
+    h+=`<p style="margin:0 0 6px"><strong>Would these be expensive for you?</strong> <span class="muted">(each really happened to an analogous workflow)</span></p>`;
+    live.forEach(p=>{
+      h+=`<div style="border:1px solid var(--line,#333);border-radius:8px;padding:12px 16px;margin-bottom:10px">
+        <p style="margin:0 0 8px;font-size:13.5px">${esc(p.story)} <span class="muted">(${chip(p.signature,'risk')} · <code>${esc(p.card)}</code>)</span></p>
+        <div style="display:flex;gap:8px"><button class="btn" data-probe="${esc(p.signature)}" data-verdict="costly">Costly for us</button>
+        <button class="btn" data-probe="${esc(p.signature)}" data-verdict="tolerable">Tolerable</button>
+        <button class="btn" data-probe="${esc(p.signature)}" data-verdict="skip">Not sure</button></div></div>`;});
+  } else if(pr.failure_probes.length===0){
+    h+=`<p class="help">Your declared sensitivities already cover the costly failures — nothing to probe.</p>`;}
+  if(pr.edge_options){
+    h+=`<p style="margin:14px 0 6px"><strong>When an ambiguous item shows up, which instinct is yours?</strong></p>`
+      +pr.edge_options.map(o=>`<div style="border:1px solid var(--line,#333);border-radius:8px;padding:10px 14px;margin-bottom:8px;cursor:pointer" data-edge="${esc(o.mode)}">
+        <span style="font-size:13.5px">${esc(o.instinct)}</span></div>`).join('');}
+  else h+=`<p class="help" style="margin-top:10px">Edge-case policy: already set on Describe ✓</p>`;
+  $('#content').innerHTML = twocol(h)+nav();
+  const my=$('#mirror-yes'); if(my) my.onclick=()=>{$('#mirror-note').textContent='Good — the brief will use this frame.';};
+  const ma=$('#mirror-apply'); if(ma) ma.onclick=async()=>{const v=$('#mirror-diff').value.trim();
+    if(v){ stub.goal = stub.goal + ' Unlike ' + DATA.probes.mirror.card + ', ' + v; await analyze(); render(); }};
+  document.querySelectorAll('[data-probe]').forEach(b=>b.onclick=async()=>{
+    const sig=b.dataset.probe, v=b.dataset.verdict;
+    if(v==='skip'){ PROBE_SKIPPED.add(sig); render(); return; }
+    const key = v==='costly' ? 'high_cost_signatures' : 'tolerable_signatures';
+    if(!stub[key].includes(sig)) stub[key].push(sig);
+    await analyze(); render();});
+  document.querySelectorAll('[data-edge]').forEach(d=>d.onclick=async()=>{stub.edge_case_mode=d.dataset.edge; await analyze(); render();});
+  wire();
 }
 
 // ADVISE MODE — the Good Data Brief: the advisory front door. Organized around the customer's goal,

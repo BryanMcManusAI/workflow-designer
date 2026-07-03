@@ -60,6 +60,33 @@ def test_downstream_answer_reweights_priorities(idx):
     assert first("evaluation") == "unanchored"      # eval data dies on contamination / no anchor
 
 
+def test_probes_are_real_and_reactive(idx):
+    """The Calibrate step's elicitation ladder: probes are real corpus failures, they skip what the
+    customer already answered, and a reaction changes the brief (nothing decorative)."""
+    res = inform.analyze_probes(idx, dict(CUSTOMER))
+    assert res["failure_probes"], "an unanswered stub must yield failure probes"
+    sigs = [p["signature"] for p in res["failure_probes"]]
+    assert len(set(sigs)) == len(sigs), "one probe per signature"
+    for p in res["failure_probes"]:
+        assert p["card"] in idx["cards"] and p["story"], "every probe is a real corpus case"
+    assert res["edge_options"] and len(res["edge_options"]) == 3
+    assert res["mirror"] and res["mirror"]["frame"]
+
+    # answering removes the probe (the ladder only offers open rungs)…
+    first = sigs[0]
+    res2 = inform.analyze_probes(idx, dict(CUSTOMER, high_cost_signatures=[first]))
+    assert first not in [p["signature"] for p in res2["failure_probes"]]
+    res3 = inform.analyze_probes(idx, dict(CUSTOMER, edge_case_mode="rule"))
+    assert res3["edge_options"] is None
+
+    # …and the reaction genuinely reorders the brief's priorities.
+    base_first = inform.analyze_inform(idx, dict(CUSTOMER))["priorities"][0]["signature"]
+    probe_sig = next(s for s in sigs if s != base_first)
+    bumped = inform.analyze_inform(idx, dict(CUSTOMER, high_cost_signatures=[probe_sig]))
+    assert bumped["priorities"][0]["signature"] == probe_sig, \
+        "marking a probed failure costly must move it to defend-first"
+
+
 def test_brief_carries_the_questionnaire_outputs(idx):
     stub = dict(CUSTOMER, edge_case_mode="signal", downstream="evaluation", process_mode="strict")
     res = inform.analyze_inform(idx, stub)

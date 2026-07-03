@@ -58,6 +58,67 @@ def _one_defense(idx, g, analogue_ids):
             "seen_in": insp["seen_in"][:1], "as_done": insp["as_done"]}
 
 
+def _mirror(idx, stub):
+    """The closest apt precedent as an analogical frame. The frame lives or dies on aptness, so
+    prefer a precedent sharing the TASK SHAPE and modality over one that merely scores high
+    structurally (a red-team card is a bad frame for a rating task). Returns {card, frame} or None."""
+    ranked = engine.near_analogues(idx, stub, n=len(idx["cards"]))
+    precedent = next((cid for _, cid in ranked
+                      if idx["cards"][cid]["task_structure"] == stub.get("task_structure")
+                      and idx["cards"][cid]["modality"] == stub.get("modality")), None)
+    if precedent is None:
+        precedent = next((cid for _, cid in ranked
+                          if idx["cards"][cid]["task_structure"] == stub.get("task_structure")),
+                         ranked[0][1] if ranked else None)
+    if not precedent:
+        return None
+    return {"card": precedent, "frame": idx["cards"][precedent].get("decision", "").strip()}
+
+
+PROBE_COUNT = 4
+
+
+def analyze_probes(idx, stub):
+    """Reaction-based elicitation — for the customer who recognizes good data but hasn't
+    pre-articulated it (the most common state among expert customers). Instead of asking them to
+    DEFINE, the corpus asks them to REACT, three ways:
+
+      failure probes — real, reported failures from analogous workflows: "would this be expensive
+        for you?" A reaction sorts the signature into high-cost or tolerable (the failure-
+        sensitivity answer, elicited instead of declared).
+      edge instincts — the three ambiguity policies as instincts to pick from (the edge-case
+        answer, chosen by recognition rather than stated cold).
+      the mirror — the closest precedent's frame: "is this the right way to think about your
+        task?" Disagreement is the highest-signal articulation there is; what they say is
+        DIFFERENT feeds the goal text, which drives retrieval.
+
+    Probes skip anything the customer already answered (declared high-cost/tolerable signatures,
+    a chosen edge mode) — the ladder only offers rungs that are still open. Every reaction mutates
+    the stub; nothing here is decorative.
+    """
+    bw = engine.analyze_backwards(idx, stub)
+    near, far = engine._near_far(idx, stub)
+    analogue_ids = [cid for _, cid in near] + [cid for _, cid, _ in far]
+    answered = (set(engine._as_list(stub.get("high_cost_signatures")))
+                | set(engine._as_list(stub.get("tolerable_signatures"))))
+    used, probes = set(), []
+    for g in bw["guarantees"]:
+        if g["defended"] or g["signature"] in answered:
+            continue
+        cid, desc = _war_story(idx, g["signature"], analogue_ids, stub, used)
+        if not cid or not desc:
+            continue
+        probes.append({"signature": g["signature"], "severity": g["severity"],
+                       "card": cid, "story": desc})
+        if len(probes) >= PROBE_COUNT:
+            break
+    edge_options = None
+    if not stub.get("edge_case_mode"):
+        edge_options = [{"mode": m, "instinct": engine.EDGE_MODES[m]["guideline"]}
+                        for m in ("escalate", "rule", "signal")]
+    return {"failure_probes": probes, "edge_options": edge_options, "mirror": _mirror(idx, stub)}
+
+
 def analyze_inform(idx, stub):
     """Compose the customer-facing Good Data Brief from the existing engine passes."""
     bw = engine.analyze_backwards(idx, stub)
@@ -90,21 +151,8 @@ def analyze_inform(idx, stub):
     covered = [g["signature"] for g in bw["guarantees"] if g["defended"]]
 
     # REVIEWER MENTAL MODEL ("think of this task as…"): the closest precedent's own one-line
-    # purpose — the analogical frame a reviewer holds while judging items. The frame lives or dies
-    # on aptness, so prefer a precedent that shares the TASK SHAPE and modality over one that merely
-    # scores high structurally (a red-team card is a bad frame for a rating task).
-    ranked = engine.near_analogues(idx, stub, n=len(idx["cards"]))
-    precedent = next((cid for _, cid in ranked
-                      if idx["cards"][cid]["task_structure"] == stub.get("task_structure")
-                      and idx["cards"][cid]["modality"] == stub.get("modality")), None)
-    if precedent is None:
-        precedent = next((cid for _, cid in ranked
-                          if idx["cards"][cid]["task_structure"] == stub.get("task_structure")),
-                         ranked[0][1] if ranked else None)
-    mental_model = None
-    if precedent:
-        mental_model = {"card": precedent,
-                        "frame": idx["cards"][precedent].get("decision", "").strip()}
+    # purpose — the analogical frame a reviewer holds while judging items.
+    mental_model = _mirror(idx, stub)
 
     # DECISION GUIDELINES ("in ambiguous cases, prioritize X over Y"): the customer's edge-case and
     # process answers resolved into rules, plus any real tension among the suggested defenses —
