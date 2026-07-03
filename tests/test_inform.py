@@ -39,3 +39,36 @@ def test_adopted_defenses_show_secured(idx):
     res = inform.analyze_inform(idx, stub)
     assert any(p["secured"] for p in res["principles"]), \
         "adopting the defenses must flip principles to secured (the brief reacts to the plan)"
+
+
+# ---- the good-data questionnaire hooks: every answer must CHANGE the output (load-bearing) ----
+
+def test_edge_case_answer_flips_the_ambiguity_defense(idx):
+    import engine
+    def defense(mode):
+        bw = engine.analyze_backwards(idx, dict(CUSTOMER, edge_case_mode=mode))
+        return next((p["id"] for p in bw["needed_patterns"] if p["for"] == "under_specification"), None)
+    assert defense("escalate") == "tiered-adjudication"
+    assert defense("rule") == "edge-case-guidelines"
+
+
+def test_downstream_answer_reweights_priorities(idx):
+    import engine
+    def first(ds):
+        return engine.analyze_backwards(idx, dict(CUSTOMER, downstream=ds))["guarantees"][0]["signature"]
+    assert first("training") == "sampling_frame"    # training data dies on coverage
+    assert first("evaluation") == "unanchored"      # eval data dies on contamination / no anchor
+
+
+def test_brief_carries_the_questionnaire_outputs(idx):
+    stub = dict(CUSTOMER, edge_case_mode="signal", downstream="evaluation", process_mode="strict")
+    res = inform.analyze_inform(idx, stub)
+    mm = res["mental_model"]
+    import engine as eng
+    assert mm and mm["frame"], "reviewer mental model must be present"
+    assert idx["cards"][mm["card"]]["task_structure"] == "rubric_rating", \
+        "the mental-model precedent must share the task shape (the frame lives on aptness)"
+    assert any("ambiguous" in g for g in res["guidelines"]), "edge answer becomes a decision guideline"
+    assert res["conventions"] and len(res["conventions"]) <= 6, "condensed conventions, not a catalog"
+    md = inform.render_inform_md(res)
+    assert "Decision guidelines" in md and "Starter conventions" in md and "think about this task" in md

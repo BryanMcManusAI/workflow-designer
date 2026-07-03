@@ -29,7 +29,10 @@ def _norm(stub):
     out = {"goal": stub.get("goal", ""), "modality": stub.get("modality"),
            "task_structure": stub.get("task_structure"),
            "annotator_structure": stub.get("annotator_structure"),
-           "process_mode": stub.get("process_mode")}
+           "process_mode": stub.get("process_mode"),
+           # the good-data-questionnaire scalar answers (edge-case philosophy, workflow context)
+           "edge_case_mode": stub.get("edge_case_mode"),
+           "downstream": stub.get("downstream")}
     for k in LIST_KEYS:
         v = stub.get(k, [])
         out[k] = [v] if isinstance(v, str) else list(v or [])
@@ -309,14 +312,29 @@ function renderDescribe(){
       <button class="seg ${stub.process_mode==='strict'?'on':''}" data-pm="strict">strict steps</button>
       <button class="seg ${stub.process_mode==='adaptive'?'on':''}" data-pm="adaptive">adapt dynamically</button>
     </div>
+    <label class="fld">Edge cases</label><p class="help">how should ambiguous cases be handled? — picks which defense closes them, and becomes a decision guideline</p>
+    <div class="modeseg">
+      <button class="seg ${!stub.edge_case_mode?'on':''}" data-ec="">unsure</button>
+      <button class="seg ${stub.edge_case_mode==='escalate'?'on':''}" data-ec="escalate">escalate to a human</button>
+      <button class="seg ${stub.edge_case_mode==='rule'?'on':''}" data-ec="rule">resolve by rule</button>
+      <button class="seg ${stub.edge_case_mode==='signal'?'on':''}" data-ec="signal">keep as signal</button>
+    </div>
+    <label class="fld">This data feeds</label><p class="help">where it sits in the larger system — evaluation data dies on contamination, training data on coverage; this reweights what to defend hardest</p>
+    <div class="modeseg">
+      <button class="seg ${!stub.downstream?'on':''}" data-ds="">unspecified</button>
+      <button class="seg ${stub.downstream==='training'?'on':''}" data-ds="training">model training</button>
+      <button class="seg ${stub.downstream==='evaluation'?'on':''}" data-ds="evaluation">evaluation / a claim</button>
+    </div>
     ${nav()}`;
   document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{MODE=b.dataset.mode; render();});
   document.querySelectorAll('[data-pm]').forEach(b=>b.onclick=async()=>{stub.process_mode=b.dataset.pm; await analyze(); render();});
+  document.querySelectorAll('[data-ec]').forEach(b=>b.onclick=async()=>{stub.edge_case_mode=b.dataset.ec; await analyze(); render();});
+  document.querySelectorAll('[data-ds]').forEach(b=>b.onclick=async()=>{stub.downstream=b.dataset.ds; await analyze(); render();});
   $('#goal').oninput=e=>{stub.goal=e.target.value;};
   ['modality','task_structure','annotator_structure'].forEach(k=>$('#'+k).onchange=async e=>{stub[k]=e.target.value; await analyze(); render();});
   $('#qa').onchange=async()=>{stub.qa_mechanism=[...$('#qa').querySelectorAll('input:checked')].map(i=>i.value); await analyze(); render();};
   document.querySelectorAll('[data-ex]').forEach(b=>b.onclick=async()=>{
-    const ex=META.examples[b.dataset.ex]; Object.assign(stub,{qa_mechanism:[],uses_patterns:[],addressed_signatures:[],failure_signatures:[],high_cost_signatures:[],tolerable_signatures:[],process_mode:""},ex);
+    const ex=META.examples[b.dataset.ex]; Object.assign(stub,{qa_mechanism:[],uses_patterns:[],addressed_signatures:[],failure_signatures:[],high_cost_signatures:[],tolerable_signatures:[],process_mode:"",edge_case_mode:"",downstream:""},ex);
     await analyze(); render();});
   wire();
 }
@@ -455,6 +473,13 @@ function renderBrief(){
     h+=`<div class="callout"><strong>Before any of that — is your “good” actually good?</strong>
       <p class="help" style="margin:6px 0">The most expensive failure isn't missing a check; it's certifying data against a definition that was quietly measuring something else.</p><ul>`
       +b.spec_threats.map(t=>`<li style="margin:6px 0">${esc(t.question)}<br><span class="muted">Run: ${esc(t.probe)}</span></li>`).join('')+`</ul></div>`;}
+  if(b.mental_model && b.mental_model.frame)
+    h+=`<div class="callout" style="margin-top:14px"><strong>How to think about this task:</strong> <em>${esc(b.mental_model.frame)}</em><br><span class="muted" style="font-size:11.5px">the closest real precedent: <code>${esc(b.mental_model.card)}</code> — worth reading before you write a guideline</span></div>`;
+  if(b.guidelines && b.guidelines.length)
+    h+=`<p style="margin-top:14px"><strong>Decision guidelines</strong></p><ul>`+b.guidelines.map(g=>`<li style="margin:6px 0;font-size:13.5px">${esc(g)}</li>`).join('')+`</ul>`;
+  if(b.conventions && b.conventions.length)
+    h+=`<p style="margin-top:14px"><strong>Starter conventions — the condensed set</strong> <span class="muted">(six core rules beat forty edge cases)</span></p><ul>`
+      +b.conventions.map(c=>`<li style="margin:6px 0;font-size:13.5px">${esc(c.rule)} <span class="muted">(<code>${esc(c.id)}</code> · closes ${chip(c.closes,'risk')})</span></li>`).join('')+`</ul>`;
   if(b.priorities.length)
     h+=`<p style="margin-top:14px"><strong>What to defend hardest, in order:</strong> ${b.priorities.slice(0,6).map(p=>chip(p.signature,'risk')+` <span class="muted">(${esc(p.severity)})</span>`).join(' · ')}</p>`;
   h+=`<div class="callout" style="margin-top:16px"><strong>How you build toward this is yours.</strong>

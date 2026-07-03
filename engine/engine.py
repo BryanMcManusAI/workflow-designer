@@ -106,14 +106,26 @@ def _as_list(v):
     return [v] if isinstance(v, str) else list(v or [])
 
 
+# Workflow Context (the good-data brief's "where does this sit in the larger system" question):
+# what the data FEEDS changes which failures are catastrophic. Evaluation data is worthless if
+# contaminated or unanchored (the claim rests on it); training data fails on coverage (the model
+# learns whatever the sample under-represents). A real severity hook, not a decorative field.
+DOWNSTREAM_WEIGHTS = {
+    "evaluation": {"label_leakage": 1, "unanchored": 1, "underpowered": 1},
+    "training": {"class_imbalance": 1, "sampling_frame": 1},
+}
+
+
 def signature_priority(sig, stub):
     """Cost weight for a failure signature: the default severity, raised for signatures the customer
-    flagged as high-cost and lowered for ones they called tolerable (their failure-sensitivity answer)."""
+    flagged as high-cost and lowered for ones they called tolerable (their failure-sensitivity answer),
+    then reweighted by what the data feeds (their workflow-context answer)."""
     score = SIGNATURE_SEVERITY.get(sig, DEFAULT_SEVERITY)
     if sig in set(_as_list(stub.get("high_cost_signatures"))):
         score += 2
     if sig in set(_as_list(stub.get("tolerable_signatures"))):
         score -= 2
+    score += DOWNSTREAM_WEIGHTS.get(stub.get("downstream") or "", {}).get(sig, 0)
     return score
 
 
@@ -141,6 +153,30 @@ PROCESS_MODES = {
 def agent_pref(stub):
     """The strict/adaptive preference for this workflow (or None for 'either')."""
     return PROCESS_MODES.get(stub.get("process_mode") or "")
+
+
+# Edge-Case Philosophy (the good-data brief's "how should ambiguous cases be handled" question).
+# Ambiguity failures (under/over_specification) have three genuinely different cures, and which one
+# is RIGHT is the customer's call, not the corpus's: route the hard case to a human, legislate it
+# into the guideline, or keep the disagreement as signal. The answer biases which defense the
+# backwards pass suggests for those signatures — and becomes the brief's decision guideline.
+AMBIGUITY_SIGS = {"under_specification", "over_specification"}
+EDGE_MODES = {
+    "escalate": {"prefer": {"tiered-adjudication", "human-audit-sample"},
+                 "guideline": "In ambiguous cases, don't force a call: escalate to a senior "
+                              "reviewer and let adjudication set the precedent."},
+    "rule": {"prefer": {"edge-case-guidelines", "lock-then-score"},
+             "guideline": "In ambiguous cases, resolve by the written rule: extend the guideline "
+                          "with a worked example so the same case never surprises twice."},
+    "signal": {"prefer": {"multi-annotator-aggregate", "inter-annotator-agreement"},
+               "guideline": "In ambiguous cases, keep the disagreement: collect independent labels "
+                            "and treat divergence as information, not noise to be forced flat."},
+}
+
+
+def edge_pref(stub):
+    """The escalate/rule/signal preference for ambiguous cases (or None for unspecified)."""
+    return EDGE_MODES.get(stub.get("edge_case_mode") or "")
 
 
 W = 96
@@ -790,8 +826,10 @@ def analyze_backwards(idx, stub):
             "example": ex_cid,
         })
     # Tight build list: ONE primary pattern per still-OPEN failure mode (dedup; skip already-defended).
-    # Bias by the agent-behavior preference: favor the chosen side's patterns, avoid the other's.
+    # Bias by the agent-behavior preference (favor the chosen side's patterns, avoid the other's) and,
+    # for ambiguity signatures, by the customer's edge-case philosophy (escalate / rule / signal).
     pref = agent_pref(stub)
+    epref = edge_pref(stub)
     needed, seen = [], set(stub.get("uses_patterns", []))
     for g in guarantees:
         if g["defended"] or not g["patterns"]:
@@ -801,6 +839,11 @@ def analyze_backwards(idx, stub):
             favored = [c for c in cands if c["id"] in pref["prefer"]]
             rest = [c for c in cands if c["id"] not in pref["avoid"] and c not in favored]
             cands = (favored + rest) or cands
+        if epref and g["signature"] in AMBIGUITY_SIGS:
+            # the edge-case answer is the SPECIFIC question about ambiguity — it outranks the
+            # general process preference on these signatures, so it sorts last (wins).
+            favored = [c for c in cands if c["id"] in epref["prefer"]]
+            cands = (favored + [c for c in cands if c not in favored]) or cands
         p = cands[0]
         if p["id"] not in seen:
             seen.add(p["id"])

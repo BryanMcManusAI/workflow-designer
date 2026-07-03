@@ -88,10 +88,53 @@ def analyze_inform(idx, stub):
                   for g in bw["guarantees"] if not g["defended"]]
     threats = bw["spec_threats"][:BRIEF_THREATS]
     covered = [g["signature"] for g in bw["guarantees"] if g["defended"]]
+
+    # REVIEWER MENTAL MODEL ("think of this task as…"): the closest precedent's own one-line
+    # purpose — the analogical frame a reviewer holds while judging items. The frame lives or dies
+    # on aptness, so prefer a precedent that shares the TASK SHAPE and modality over one that merely
+    # scores high structurally (a red-team card is a bad frame for a rating task).
+    ranked = engine.near_analogues(idx, stub, n=len(idx["cards"]))
+    precedent = next((cid for _, cid in ranked
+                      if idx["cards"][cid]["task_structure"] == stub.get("task_structure")
+                      and idx["cards"][cid]["modality"] == stub.get("modality")), None)
+    if precedent is None:
+        precedent = next((cid for _, cid in ranked
+                          if idx["cards"][cid]["task_structure"] == stub.get("task_structure")),
+                         ranked[0][1] if ranked else None)
+    mental_model = None
+    if precedent:
+        mental_model = {"card": precedent,
+                        "frame": idx["cards"][precedent].get("decision", "").strip()}
+
+    # DECISION GUIDELINES ("in ambiguous cases, prioritize X over Y"): the customer's edge-case and
+    # process answers resolved into rules, plus any real tension among the suggested defenses —
+    # emitted only when an answer or a conflict actually exists (load-bearing, never decorative).
+    guidelines = []
+    ep = engine.edge_pref(stub)
+    if ep:
+        guidelines.append(ep["guideline"])
+    ap = engine.agent_pref(stub)
+    if ap:
+        guidelines.append(f"Process: run it {ap['label']}. {ap['note']}")
+    needed_ids = [p["id"] for p in bw["needed_patterns"]] + list(stub.get("uses_patterns", []))
+    for a, b in engine.conflict_pairs(idx, needed_ids, needed_ids):
+        side = (a if ap and a in ap["prefer"] else b if ap and b in ap["prefer"] else None)
+        res = (f" Your process answer favors `{side}`." if side
+               else " A real design tension — choose deliberately, don't drift into both.")
+        guidelines.append(f"`{a}` pulls against `{b}`.{res}")
+
+    # STARTER CONVENTIONS (the condensed set — core principles, not a 40-rule catalog): the suggested
+    # defenses phrased as the imperative house rules they become, each still tied to its pattern.
+    conventions = []
+    for p in bw["needed_patterns"][:6]:
+        _, play = engine._play_for(idx, p["id"])
+        conventions.append({"id": p["id"], "rule": play, "closes": p["for"]})
+
     return {"goal": stub.get("goal", ""), "task": stub.get("task_structure", ""),
             "modality": stub.get("modality", ""), "annotator": stub.get("annotator_structure", ""),
             "principles": principles, "spec_threats": threats,
             "priorities": priorities, "already_covered": covered,
+            "mental_model": mental_model, "guidelines": guidelines, "conventions": conventions,
             "n_principles_total": len(bw["principles"])}
 
 
@@ -134,6 +177,26 @@ def render_inform_md(res):
         for t in res["spec_threats"]:
             w(f"- **{t['question']}**  \n  *Run:* {t['probe']}"
               + (f"  · <sub>{t['cite']['source']}</sub>" if t.get("cite") else ""))
+        w("")
+
+    if res["mental_model"] and res["mental_model"]["frame"]:
+        w("## How to think about this task\n")
+        w(f"Think of it as: *{res['mental_model']['frame']}*  \n"
+          f"<sub>(the closest real precedent: `{res['mental_model']['card']}` — worth reading "
+          f"before you write a guideline)</sub>\n")
+
+    if res["guidelines"]:
+        w("## Decision guidelines\n")
+        for g in res["guidelines"]:
+            w(f"- {g}")
+        w("")
+
+    if res["conventions"]:
+        w("## Starter conventions — the condensed set\n")
+        w("Six core rules beat forty edge cases. These are the house rules your open risks imply, "
+          "each one a real pattern with a track record:\n")
+        for c in res["conventions"]:
+            w(f"- {c['rule']}  <sub>(`{c['id']}` · closes `{c['closes']}`)</sub>")
         w("")
 
     if res["priorities"]:
