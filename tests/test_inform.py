@@ -60,6 +60,38 @@ def test_downstream_answer_reweights_priorities(idx):
     assert first("evaluation") == "unanchored"      # eval data dies on contamination / no anchor
 
 
+def test_stake_extraction():
+    assert inform._stake("hypothesis-only reaches ~67% (SNLI) vs 33% chance").startswith("hypothesis")
+    # a later decimal must not truncate the clause
+    assert inform._stake("a GPT-4o judge showed +0.74 self-affinity; a Claude judge ran -0.26") \
+        == "a GPT-4o judge showed +0.74 self-affinity"
+    assert "threefold" in inform._stake("dropped resolution roughly threefold after decontamination")
+    assert inform._stake("raters prefer the longer response regardless of substance") is None
+
+
+def test_brief_leads_with_a_documented_number(idx):
+    """Concrete stakes: at least one principle's war story should carry a real magnitude, and the
+    numbers are never fabricated — every stake is a substring of the real card description."""
+    res = inform.analyze_inform(idx, dict(CUSTOMER))
+    staked = [p for p in res["principles"] if p["war_story"] and p["war_story"].get("stake")]
+    assert staked, "the corpus has quantified failures; the brief should surface at least one"
+    for p in staked:
+        assert p["war_story"]["stake"] in p["war_story"]["desc"], "stake must be real, not synthesized"
+    assert "What it cost, documented" in inform.render_inform_md(res)
+
+
+def test_support_signal_is_honest(idx):
+    strong = inform.analyze_inform(idx, dict(CUSTOMER))["support"]          # rubric_rating / text
+    assert strong["level"] == "strong"
+    cross_modality = inform.analyze_inform(idx, dict(CUSTOMER, modality="audio"))["support"]
+    assert cross_modality["level"] == "moderate" and cross_modality["note"]
+    novel = inform.analyze_inform(idx, dict(CUSTOMER, task_structure="unheard_of_task"))["support"]
+    assert novel["level"] == "weak" and "directional" in novel["note"]
+    # the caveat renders for non-strong support, and is absent when support is strong
+    assert "How far to trust" in inform.render_inform_md(inform.analyze_inform(idx, dict(CUSTOMER, modality="audio")))
+    assert "How far to trust" not in inform.render_inform_md(inform.analyze_inform(idx, dict(CUSTOMER)))
+
+
 def test_probes_are_real_and_reactive(idx):
     """The Calibrate step's elicitation ladder: probes are real corpus failures, they skip what the
     customer already answered, and a reaction changes the brief (nothing decorative)."""

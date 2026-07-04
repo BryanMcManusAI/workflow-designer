@@ -17,6 +17,7 @@ the customer can run, a defense they can adopt, a war story that really happened
   python3 engine/inform.py --stub customer.yaml            # render the brief (markdown)
 """
 import argparse
+import re
 import sys
 
 try:
@@ -28,6 +29,36 @@ except ImportError:
 # a doc nobody acts on; the cost-ranking picks what to defend hardest and the tail is summarized.
 BRIEF_PRINCIPLES = 5
 BRIEF_THREATS = 3
+
+# CONCRETE STAKES: a documented failure persuades more as a number than as a severity label. This
+# pulls the quantified consequence out of a REPORTED war story so the brief can lead with it
+# ("hypothesis-only hit 67%") instead of a category ("costly"). Deterministic — it only surfaces
+# numbers the corpus already recorded; a story with no number simply has no stake headline (honest).
+_MAG = re.compile(
+    r"\d+(?:\.\d+)?\s*(?:→|->)\s*\d+(?:\.\d+)?"           # 0.276 → 0.937 (a shift)
+    r"|~?[+\-]?\d+(?:\.\d+)?\s*%"                         # 67%, ~53%
+    r"|[+\-]\d+\.\d+"                                     # +0.74
+    r"|\b\d+(?:\.\d+)?\s*[x×]\b|\b(?:two|three|four|five|ten)fold\b"   # 3x / threefold
+    r"|\b\d+\s+of\s+~?\d+\b"                              # 50 of 300
+    r"|\b(?:κ|F1|PR-AUC|AUC|ρ|α)\s*=?\s*\d+\.\d+",        # κ 0.934
+    re.IGNORECASE)
+_BREAKS = "—;.·"
+
+
+# Clause boundaries: em-dash, semicolon, middot, sentence-period (period NOT preceded by a digit, so
+# a decimal like -0.26 doesn't split), and comma-space. The lookbehind is what keeps decimals intact.
+_CLAUSE = re.compile(r"\s*[—;·]\s*|(?<!\d)\.\s+|,\s+")
+
+
+def _stake(desc):
+    """The clause carrying the quantified consequence in a war story, or None. Returns the clause,
+    not a bare number, so it reads on its own: 'reaches ~67% vs 33% chance'."""
+    if not desc:
+        return None
+    for part in _CLAUSE.split(desc):
+        if _MAG.search(part):
+            return part.strip(" ,;—.·()") or None
+    return None
 
 
 def _war_story(idx, sig, analogue_ids, stub, used):
@@ -45,6 +76,23 @@ def _war_story(idx, sig, analogue_ids, stub, used):
     if cid:
         used.add(cid)
     return cid, desc
+
+
+def _numeric_story(idx, sig, analogue_ids, stub, used):
+    """A fresh, apt war story for this signature whose reported failure carries a NUMBER, or None.
+    Used in a first pass so a quantified card (the +0.74, the 67%) lands on the signature it has the
+    number FOR, instead of being consumed greedily on an earlier non-numeric slot."""
+    def rank(cid):
+        c = idx["cards"][cid]
+        return (c["task_structure"] != stub.get("task_structure"),
+                c["modality"] != stub.get("modality"))
+    for cid in sorted([c for c in analogue_ids if c not in used], key=rank):
+        for fm in idx["cards"][cid].get("failure_modes", []):
+            if (fm["signature"].startswith(sig) and fm["evidence"].upper().startswith("REPORTED")
+                    and _stake(fm["description"])):
+                used.add(cid)
+                return cid, fm["description"]
+    return None
 
 
 def _one_defense(idx, g, analogue_ids):
@@ -73,6 +121,34 @@ def _mirror(idx, stub):
     if not precedent:
         return None
     return {"card": precedent, "frame": idx["cards"][precedent].get("decision", "").strip()}
+
+
+def _support(idx, stub):
+    """The honesty signal: how well the CORPUS actually supports advice for this goal. A fluent brief
+    for a task the corpus has never seen is the one thing that loses a rigorous customer, so we say so.
+    Level is about whether prior workflows did THIS KIND of thing, not just scored high structurally:
+      strong   — a precedent shares the task AND modality (real analogy)
+      moderate — a precedent shares the task but not the modality (frame transfers, modality risks may not)
+      weak     — nothing shares the task; the closest is a cross-task borrow (directional only)."""
+    task, mod = stub.get("task_structure"), stub.get("modality")
+    ranked = engine.near_analogues(idx, stub, n=len(idx["cards"]))
+    same_tm = next((cid for _, cid in ranked
+                    if idx["cards"][cid]["task_structure"] == task
+                    and idx["cards"][cid]["modality"] == mod), None)
+    same_t = next((cid for _, cid in ranked if idx["cards"][cid]["task_structure"] == task), None)
+    closest = ranked[0][1] if ranked else None
+    level = "strong" if same_tm else ("moderate" if same_t else "weak")
+    notes = {
+        "strong": f"Well-supported: `{same_tm}` matches your task and modality directly.",
+        "moderate": (f"Partly supported: prior workflows share your task ("
+                     f"`{same_t}`) but not your modality, so the frame transfers while the "
+                     f"modality-specific risks may not."),
+        "weak": (f"Novel to this corpus: nothing here shares your task setup. The closest precedent, "
+                 f"`{closest}`" + (f" (a {idx['cards'][closest]['task_structure'].replace('_',' ')} "
+                 f"workflow)" if closest else "") + ", is a cross-task analogy — treat this brief as "
+                 f"directional, not authoritative."),
+    }
+    return {"level": level, "closest": closest, "note": notes[level]}
 
 
 PROBE_COUNT = 4
@@ -109,7 +185,7 @@ def analyze_probes(idx, stub):
         if not cid or not desc:
             continue
         probes.append({"signature": g["signature"], "severity": g["severity"],
-                       "card": cid, "story": desc})
+                       "card": cid, "story": desc, "stake": _stake(desc)})
         if len(probes) >= PROBE_COUNT:
             break
     edge_options = None
@@ -126,13 +202,35 @@ def analyze_inform(idx, stub):
     analogue_ids = [cid for _, cid in near] + [cid for _, cid, _ in far]
     by_sig = {g["signature"]: g for g in bw["guarantees"]}
 
-    principles, used_stories = [], set()
-    for p in bw["principles"][:BRIEF_PRINCIPLES]:
-        # the costliest still-open signature this principle protects — what the customer defends first
+    shown = bw["principles"][:BRIEF_PRINCIPLES]
+    leads = []
+    for p in shown:
         open_sigs = [s for s in p["protects"] if not by_sig.get(s, {}).get("defended")]
-        lead = open_sigs[0] if open_sigs else (p["protects"][0] if p["protects"] else None)
-        story_card, story = (_war_story(idx, lead, analogue_ids, stub, used_stories)
-                             if lead else (None, ""))
+        leads.append(open_sigs[0] if open_sigs else (p["protects"][0] if p["protects"] else None))
+    # Assign war stories in TWO passes so a quantified card lands on the signature it has the number
+    # for: pass 1 claims numeric stories (in cost order — costliest principle gets first pick), pass 2
+    # fills the rest with any apt, unused story. Without this the greedy per-principle pick would burn
+    # the +0.74 card on an earlier non-numeric slot.
+    used_stories, story_by_i = set(), {}
+    for i, p in enumerate(shown):
+        # try a numeric story for the lead first, then any other signature this principle protects
+        # (the +0.74 lives on self_affinity, a SECONDARY risk under Ground-Truth Anchoring)
+        for sig in [leads[i]] + [s for s in p["protects"] if s != leads[i]]:
+            if not sig:
+                continue
+            num = _numeric_story(idx, sig, analogue_ids, stub, used_stories)
+            if num:
+                story_by_i[i] = num
+                break
+    for i, sig in enumerate(leads):
+        if sig and i not in story_by_i:
+            story_by_i[i] = _war_story(idx, sig, analogue_ids, stub, used_stories)
+
+    principles = []
+    for i, p in enumerate(shown):
+        open_sigs = [s for s in p["protects"] if not by_sig.get(s, {}).get("defended")]
+        lead = leads[i]
+        story_card, story = story_by_i.get(i, (None, ""))
         defense = _one_defense(idx, by_sig[lead], analogue_ids) if lead and lead in by_sig else None
         ev = (p.get("evidence") or [{}])[0]
         principles.append({
@@ -140,7 +238,7 @@ def analyze_inform(idx, stub):
             "risks": p["protects"], "lead_risk": lead,
             "severity": by_sig.get(lead, {}).get("severity", "med") if lead else "med",
             "check": p.get("probe", ""),
-            "war_story": {"card": story_card, "desc": story} if story else None,
+            "war_story": {"card": story_card, "desc": story, "stake": _stake(story)} if story else None,
             "defense": defense,
             "source": ev.get("source", ""),
         })
@@ -180,6 +278,7 @@ def analyze_inform(idx, stub):
 
     return {"goal": stub.get("goal", ""), "task": stub.get("task_structure", ""),
             "modality": stub.get("modality", ""), "annotator": stub.get("annotator_structure", ""),
+            "support": _support(idx, stub),
             "principles": principles, "spec_threats": threats,
             "priorities": priorities, "already_covered": covered,
             "mental_model": mental_model, "guidelines": guidelines, "conventions": conventions,
@@ -193,6 +292,10 @@ def render_inform_md(res):
     w(f"# Good Data Brief")
     w(f"\n**Your goal:** {res['goal']}")
     w(f"*{res['modality']} · {res['task']} · {res['annotator']}*\n")
+    s = res.get("support")
+    if s and s["level"] != "strong":
+        mark = "⚠️" if s["level"] == "weak" else "◐"
+        w(f"> {mark} **How far to trust this brief.** {s['note']}\n")
     names = [p["name"].split(" (")[0] for p in res["principles"][:3]]
     w(f"**In one line:** for this data to be good, it has to have "
       f"{', '.join(names[:-1])} and {names[-1]} — each is defined below, with the check that "
@@ -204,8 +307,10 @@ def render_inform_md(res):
         w(f"### {i}. {p['name']}" + ("  ✓ (your plan already covers this)" if p["secured"] else ""))
         w(f"{p['tenet']}")
         if p["war_story"]:
-            w(f"\n> **If you skip it:** {p['war_story']['desc']}  \n"
-              f"> *(a real case: `{p['war_story']['card']}`)*")
+            ws = p["war_story"]
+            head = f"\n> **What it cost, documented:** {ws['stake']}.  " if ws.get("stake") else ""
+            w(f"{head}\n> **If you skip it:** {ws['desc']}  \n"
+              f"> *(a real case: `{ws['card']}`)*")
         if p["check"]:
             w(f"\n**The five-minute check:** {p['check']}")
         if p["defense"] and not p["secured"]:

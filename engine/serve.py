@@ -503,8 +503,9 @@ function renderCalibrate(){
   if(live.length){
     h+=`<p style="margin:0 0 6px"><strong>Would these be expensive for you?</strong> <span class="muted">(each really happened to an analogous workflow)</span></p>`;
     live.forEach(p=>{
+      const stakeHead = p.stake ? `<strong style="color:var(--des,#C7A56B)">${esc(p.stake)}.</strong> ` : '';
       h+=`<div style="border:1px solid var(--line,#333);border-radius:8px;padding:12px 16px;margin-bottom:10px">
-        <p style="margin:0 0 8px;font-size:13.5px">${esc(p.story)} <span class="muted">(${chip(p.signature,'risk')} · <code>${esc(p.card)}</code>)</span></p>
+        <p style="margin:0 0 8px;font-size:13.5px">${stakeHead}${esc(p.story)} <span class="muted">(${chip(p.signature,'risk')} · <code>${esc(p.card)}</code>)</span></p>
         <div style="display:flex;gap:8px"><button class="btn" data-probe="${esc(p.signature)}" data-verdict="costly">Costly for us</button>
         <button class="btn" data-probe="${esc(p.signature)}" data-verdict="tolerable">Tolerable</button>
         <button class="btn" data-probe="${esc(p.signature)}" data-verdict="skip">Not sure</button></div></div>`;});
@@ -539,14 +540,20 @@ function renderBrief(){
   const sevword={high:'costly to get wrong',med:'moderate',low:'cheap to fix later'};
   const names=b.principles.slice(0,3).map(p=>p.name.split(' (')[0]);
   let h=eb()+`<p class="steptitle">Your Good Data Brief</p>
-    <p class="help" style="margin-bottom:12px">${esc(b.goal)}</p>
-    <div class="callout" style="margin-bottom:16px"><strong>In one line:</strong> for this data to be good, it has to have ${names.slice(0,-1).map(esc).join(', ')} and ${esc(names[names.length-1])} — each defined below, with the check that tells you whether you have it and one way to get it.</div>`;
+    <p class="help" style="margin-bottom:12px">${esc(b.goal)}</p>`;
+  if(b.support && b.support.level!=='strong'){
+    const weak=b.support.level==='weak';
+    h+=`<div class="callout" style="margin-bottom:12px;border-left:3px solid ${weak?'#C7A56B':'var(--muted,#888)'}">
+      <strong>${weak?'⚠️ ':'◐ '}How far to trust this brief:</strong> ${esc(b.support.note)}</div>`;}
+  h+=`<div class="callout" style="margin-bottom:16px"><strong>In one line:</strong> for this data to be good, it has to have ${names.slice(0,-1).map(esc).join(', ')} and ${esc(names[names.length-1])} — each defined below, with the check that tells you whether you have it and one way to get it.</div>`;
   b.principles.forEach((p,i)=>{
     const d=p.defense;
     h+=`<div style="border:1px solid var(--line,#333);border-radius:8px;padding:14px 18px;margin-bottom:12px">
       <p style="margin:0 0 6px"><strong>${i+1} · ${esc(p.name)}</strong>${p.secured?' <span class="chip">✓ your plan covers this</span>':''}</p>
       <p class="help" style="margin:0 0 8px">${esc(p.tenet)}</p>`;
-    if(p.war_story) h+=`<p style="margin:0 0 8px;font-size:13px"><strong>If you skip it:</strong> ${esc(p.war_story.desc)} <span class="muted">(a real case: <code>${esc(p.war_story.card)}</code>)</span></p>`;
+    if(p.war_story){
+      if(p.war_story.stake) h+=`<p style="margin:0 0 4px;font-size:13px"><strong style="color:var(--des,#C7A56B)">What it cost, documented:</strong> ${esc(p.war_story.stake)}.</p>`;
+      h+=`<p style="margin:0 0 8px;font-size:13px"><strong>If you skip it:</strong> ${esc(p.war_story.desc)} <span class="muted">(a real case: <code>${esc(p.war_story.card)}</code>)</span></p>`;}
     if(p.check) h+=`<p style="margin:0 0 8px;font-size:13px"><strong>The five-minute check:</strong> ${esc(p.check)}</p>`;
     if(d && !p.secured){
       const done=d.as_done?` — as <code>${esc(d.as_done.card)}</code> does: ${esc(d.as_done.checks)}`:(d.seen_in.length?` — see <code>${esc(d.seen_in[0])}</code>`:'');
