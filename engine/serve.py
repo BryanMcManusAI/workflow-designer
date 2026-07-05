@@ -87,6 +87,13 @@ font-size:13px;border:1px solid var(--line);color:var(--muted);}
 .summary{flex:0 0 230px;position:sticky;top:12px;background:var(--card);border:1px solid var(--line);
 border-radius:12px;padding:12px 14px;}
 .stepmain{flex:1;min-width:300px;}
+/* Below the two-column width the summary would wrap yet stay position:sticky — pinning to the top
+   while the content scrolls behind it. Stack it and drop the sticky so it just sits above the step. */
+@media (max-width:640px){
+  .twocol{flex-direction:column;}
+  .summary{position:static;flex:0 0 auto;width:100%;}
+  .stepmain{min-width:0;}
+}
 .nav{display:flex;justify-content:space-between;align-items:center;margin-top:18px;}
 .eyebrow{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:0 0 2px;}
 label.fld{display:block;font-weight:500;margin:14px 0 1px;font-size:14px;}
