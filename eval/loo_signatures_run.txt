@@ -5,12 +5,12 @@
 
   HONEST CONSTANT (leave-one-out)     0.41
   ORACLE ceiling (knows the answers)  0.53                 class_imbalance, drift, unanchored
-  -> engine, raw count order      0.34  loses to the honest constant by 7.2 pts
-  -> engine, LIFT order           0.49  BEATS the honest constant by 7.2 pts
-  -> 5 distinct top-3 sets across 30 cards  (lift: 18)
+  -> engine, as shipped           0.49  BEATS the honest constant by 7.2 pts
+  -> reference impl, LIFT order   0.49  BEATS the honest constant by 7.2 pts
+  -> 18 distinct top-3 sets across 30 cards  (lift: 18)
   -> best lift variant lift2 = 0.49; BEATS the fixed triple (0.41) by 7.2 pts
 
-  CHECK 1  MET      tail recall beats weighted-random by >= 15 pts   +18.9 pts
-  CHECK 2  MET      tail recall beats single-axis by >= 5 pts        +10.8 pts
-  CHECK 3  MET      >= 1 tail signature named on >= 10 of 30 cards   12 of 30
+  CHECK 1  MET      tail recall beats weighted-random by >= 15 pts   +33.8 pts
+  CHECK 2  MET      tail recall beats single-axis by >= 5 pts        +25.3 pts
+  CHECK 3  MET      >= 1 tail signature named on >= 10 of 30 cards   16 of 30
   CHECK 4  MET      off-vocabulary signatures counted, expect 1      1 ['instrumentation-bug']

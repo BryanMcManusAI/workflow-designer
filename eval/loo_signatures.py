@@ -31,6 +31,13 @@ score, the top-3 takes only 5 distinct values across 30 cards, and 9 of the 12 t
 unreachable at k=3 — including class_imbalance (keyed on 7 cards), drift (4) and priming (4).
 NEXT STEP THE ROW LEAVES: rank by lift over base rate, not by raw analogue count.
 
+TAKEN 2026-09-21. analyze_interrogate now ranks by lift at a support floor of 2, with cost
+demoted to a tiebreak. The engine's own ordering went 0.34 -> 0.49 and its distinct top-3 sets
+5 -> 18, so it now beats the honest leave-one-out constant (0.41) instead of losing to it. The
+paragraph above is left as written: it is the record of the row that failed, and the reason the
+change was made. The engine and reference rows below should now agree — they are the same
+ranking reached two ways, and a gap between them means the port drifted.
+
   PYTHONPATH=engine python3 eval/loo_signatures.py
 """
 import collections, copy, os, random, statistics, sys
@@ -59,7 +66,8 @@ def stub_from(card):
 
 
 def engine_named(idx_minus, stub, k):
-    """The engine's own ordering: open rows first (it sorts by cost then analogue count), then
+    """The engine's own ordering: open rows first (since 2026-09-21 it sorts by lift, support floor 2,
+    cost as tiebreak — so this now tracks engine_named_lift below rather than contrasting with it), then
     defended, then what backwards calls good. Capped at k, because an advisor that names everything
     has said nothing."""
     inter = engine.analyze_interrogate(idx_minus, stub)
@@ -188,7 +196,7 @@ def main():
     print(f"  {'HONEST CONSTANT (leave-one-out)':<34} {fixed_score:>5.2f}")
     print(f"  {'ORACLE ceiling (knows the answers)':<34} {oracle_score:>5.2f}         "
           f"        {', '.join(oracle)}")
-    for label, val in (("engine, raw count order", m["eng"]), ("engine, LIFT order", m["lift2"])):
+    for label, val in (("engine, as shipped", m["eng"]), ("reference impl, LIFT order", m["lift2"])):
         print(f"  -> {label:<28} {val:.2f}  "
               f"{'BEATS' if val > fixed_score else 'loses to'} the honest constant by "
               f"{abs(100*(val-fixed_score)):.1f} pts")

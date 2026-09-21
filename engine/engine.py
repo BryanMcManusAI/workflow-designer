@@ -494,6 +494,24 @@ def risk_counter(idx, cids):
     return sigs
 
 
+MIN_SUPPORT = 2
+
+
+def base_rate(idx):
+    """Share of the whole corpus carrying each failure signature — the denominator for lift.
+
+    Deliberately uncached: it is a pass over 45 cards, and the single-entry id()-keyed caches
+    elsewhere in this module are only safe because their callers keep the old index alive while
+    building the next one. Not worth inheriting that constraint for a loop this cheap.
+    """
+    n = len(idx["cards"]) or 1
+    c = Counter()
+    for card in idx["cards"].values():
+        for sg in card["failure_signatures"]:
+            c[sg] += 1
+    return {sg: v / n for sg, v in c.items()}
+
+
 def defended(idx, stub):
     d = set(stub.get("addressed_signatures", []))
     for pid in stub.get("uses_patterns", []):
@@ -587,17 +605,39 @@ def analyze_interrogate(idx, stub):
     analogue_ids = [cid for _, cid in near] + [cid for _, cid, _ in far]
     full = risk_counter(idx, analogue_ids)
     have = defended(idx, stub)
-    rows = []
-    # Order by cost first (defend the most expensive failures first), then by how many analogues hit it.
-    for sig, n in sorted(full.items(), key=lambda kv: (-signature_priority(kv[0], stub), -kv[1], kv[0])):
+    base = base_rate(idx)
+    n_analogues = len(analogue_ids) or 1
+
+    # Order by LIFT — how concentrated a signature is in THESE analogues against how common it is
+    # in the corpus — not by raw analogue count, and not by cost.
+    #
+    # Raw count ranks the prior, not the setup: sampling_frame and confounded are REPORTED on 42%
+    # and 36% of cards, so they took two of the top three slots on nearly every stub and the top-3
+    # held only 5 distinct values across 30 cards. Lift at a support floor of 2 spreads that to 18
+    # and lifts leave-one-out tail recall from 0.34 to 0.49, against an honest leave-one-out
+    # constant of 0.41 (oracle ceiling 0.53). Cost-first scored 0.38 — it was pinning the same
+    # expensive signatures to the top regardless of situation — so priority is now a tiebreak.
+    #
+    # Below MIN_SUPPORT a lift is computed off one analogue and is noise, so those rows sort last
+    # rather than being dropped: they are still real risks the corpus raised, they have just not
+    # earned a ranking claim.
+    ranked = []
+    for sig, n in full.items():
         if sig in have:
             continue
+        br = base.get(sig, 0.0)
+        ranked.append((sig, n, ((n / n_analogues) / br) if br else 0.0))
+    ranked.sort(key=lambda r: (-(r[1] >= MIN_SUPPORT), -r[2], -signature_priority(r[0], stub), r[0]))
+
+    rows = []
+    for sig, n, lift in ranked:
         defs = [{"id": pid, "name": idx["patterns"][pid]["name"], "cost": idx["patterns"][pid]["cost"]}
                 for pid in patterns_defending(idx, sig)]
         ex_cid, ex_desc = example_card_for(idx, sig, analogue_ids)
         for d in defs:
             d["record"] = defense_record(idx, d["id"], sig)
         rows.append({"signature": sig, "count": n,
+                     "lift": round(lift, 2), "trusted": n >= MIN_SUPPORT,
                      "severity": severity_label(signature_priority(sig, stub)),
                      "question": QUESTIONS.get(sig, f"How will you handle `{sig}`?"),
                      "patterns": defs, "unguarded": not defs,
@@ -1125,7 +1165,14 @@ def render_interrogate(res):
     for i, r in enumerate(res["open"], 1):
         sig, n = r["signature"], r["count"]
         sev = f"  ({r['severity']}-cost)" if r.get("severity") else ""
-        print(f"  {i}. [{sig}]{sev}  (seen in {n} analogue{'s' if n > 1 else ''})")
+        # Show the lift, not just the count: the list is ORDERED by lift, so printing the raw
+        # analogue count alone makes the order look arbitrary (4 above 5 above 2).
+        if r.get("trusted"):
+            why = (f"{n} analogue{'s' if n > 1 else ''}, {r['lift']}x its rate across the corpus"
+                   if r.get("lift") else f"{n} analogue{'s' if n > 1 else ''}")
+        else:
+            why = f"{n} analogue{'s' if n > 1 else ''}, too few to rank"
+        print(f"  {i}. [{sig}]{sev}  ({why})")
         print(wrap(r["question"], "     "))
         if r["unguarded"]:
             print(f"      UNGUARDED — no pattern in the library defends `{sig}` (a corpus gap).")

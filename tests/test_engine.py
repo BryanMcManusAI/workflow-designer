@@ -140,6 +140,21 @@ def test_severity_defaults_and_overrides(eng, idx):
 
 
 @pytest.mark.parametrize("name,stub", ALL_STUBS)
+def test_interrogate_is_lift_ordered(eng, idx, name, stub):
+    """Interrogate ranks by lift, not by analogue count and not by cost (that is analyze_backwards'
+    job). Rows below the support floor keep their place in the list but sort after every trusted
+    row: a lift computed off one analogue makes no ranking claim."""
+    rows = eng.analyze_interrogate(idx, stub)["open"]
+    trusted = [r["trusted"] for r in rows]
+    assert trusted == sorted(trusted, reverse=True), name  # trusted rows first
+    for group in (True, False):
+        lifts = [r["lift"] for r in rows if r["trusted"] is group]
+        assert lifts == sorted(lifts, reverse=True), (name, group)  # descending lift within group
+    for r in rows:
+        assert r["trusted"] == (r["count"] >= eng.MIN_SUPPORT), (name, r["signature"])
+
+
+@pytest.mark.parametrize("name,stub", ALL_STUBS)
 def test_build_list_is_cost_ordered(eng, idx, name, stub):
     bw = eng.analyze_backwards(idx, stub)
     sev_rank = {"high": 3, "med": 2, "low": 1}

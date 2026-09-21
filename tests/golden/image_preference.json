@@ -65,6 +65,13 @@
   ],
   "interrogate_open": [
     [
+      "priming",
+      3,
+      [
+        "order-randomization"
+      ]
+    ],
+    [
       "confounded",
       5,
       [
@@ -83,22 +90,6 @@
       ]
     ],
     [
-      "self_affinity",
-      1,
-      [
-        "cross-family-judges"
-      ]
-    ],
-    [
-      "class_imbalance",
-      1,
-      [
-        "human-audit-sample",
-        "active-learning-loop",
-        "coverage-routing"
-      ]
-    ],
-    [
       "underpowered",
       1,
       [
@@ -106,10 +97,10 @@
       ]
     ],
     [
-      "priming",
-      3,
+      "self_affinity",
+      1,
       [
-        "order-randomization"
+        "cross-family-judges"
       ]
     ],
     [
@@ -120,6 +111,15 @@
         "active-learning-loop",
         "labeling-functions",
         "pooled-sampling"
+      ]
+    ],
+    [
+      "class_imbalance",
+      1,
+      [
+        "human-audit-sample",
+        "active-learning-loop",
+        "coverage-routing"
       ]
     ]
   ],

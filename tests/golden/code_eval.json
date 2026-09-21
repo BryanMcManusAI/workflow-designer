@@ -62,15 +62,6 @@
   ],
   "interrogate_open": [
     [
-      "sampling_frame",
-      9,
-      [
-        "human-audit-sample",
-        "dedup-merge",
-        "coverage-routing"
-      ]
-    ],
-    [
       "label_leakage",
       5,
       [
@@ -80,19 +71,21 @@
       ]
     ],
     [
-      "confounded",
-      4,
+      "class_imbalance",
+      3,
       [
-        "cross-family-judges",
-        "lock-then-score",
-        "order-randomization"
+        "human-audit-sample",
+        "active-learning-loop",
+        "coverage-routing"
       ]
     ],
     [
-      "self_affinity",
-      1,
+      "sampling_frame",
+      9,
       [
-        "cross-family-judges"
+        "human-audit-sample",
+        "dedup-merge",
+        "coverage-routing"
       ]
     ],
     [
@@ -106,12 +99,12 @@
       ]
     ],
     [
-      "class_imbalance",
-      3,
+      "confounded",
+      4,
       [
-        "human-audit-sample",
-        "active-learning-loop",
-        "coverage-routing"
+        "cross-family-judges",
+        "lock-then-score",
+        "order-randomization"
       ]
     ],
     [
@@ -119,6 +112,13 @@
       1,
       [
         "engagement-gate"
+      ]
+    ],
+    [
+      "self_affinity",
+      1,
+      [
+        "cross-family-judges"
       ]
     ]
   ],

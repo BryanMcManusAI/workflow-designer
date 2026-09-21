@@ -64,6 +64,38 @@
   ],
   "interrogate_open": [
     [
+      "priming",
+      4,
+      [
+        "order-randomization"
+      ]
+    ],
+    [
+      "self_affinity",
+      5,
+      [
+        "cross-family-judges"
+      ]
+    ],
+    [
+      "underpowered",
+      2,
+      [
+        "powered-eval-split"
+      ]
+    ],
+    [
+      "inflation",
+      3,
+      [
+        "gold-honeypots",
+        "qualification-calibration",
+        "lock-then-score",
+        "dedup-merge",
+        "engagement-gate"
+      ]
+    ],
+    [
       "confounded",
       7,
       [
@@ -82,28 +114,12 @@
       ]
     ],
     [
-      "self_affinity",
-      5,
-      [
-        "cross-family-judges"
-      ]
-    ],
-    [
-      "inflation",
-      3,
+      "drift",
+      1,
       [
         "gold-honeypots",
         "qualification-calibration",
-        "lock-then-score",
-        "dedup-merge",
-        "engagement-gate"
-      ]
-    ],
-    [
-      "underpowered",
-      2,
-      [
-        "powered-eval-split"
+        "lock-then-score"
       ]
     ],
     [
@@ -116,15 +132,6 @@
       ]
     ],
     [
-      "drift",
-      1,
-      [
-        "gold-honeypots",
-        "qualification-calibration",
-        "lock-then-score"
-      ]
-    ],
-    [
       "under_specification",
       1,
       [
@@ -132,13 +139,6 @@
         "tiered-adjudication",
         "inter-annotator-agreement",
         "edge-case-guidelines"
-      ]
-    ],
-    [
-      "priming",
-      4,
-      [
-        "order-randomization"
       ]
     ]
   ],
