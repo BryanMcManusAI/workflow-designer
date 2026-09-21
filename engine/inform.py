@@ -152,8 +152,9 @@ def _support(idx, stub):
 
 
 def _observed(stub):
-    """Observed failures bridged in from a retrospective diagnosis (~/workflow-retrospective's
-    bridge.py) — the customer's own documented incidents, each {signature, description, source}.
+    """Observed failures bridged in from a retrospective diagnosis — the customer's own
+    documented incidents, each {signature, description, source}. Any upstream tool can produce
+    them; the contract is this shape, not a particular producer.
     A failure that already happened outranks a hypothetical one: their signatures are folded into
     high_cost_signatures, and the brief cites the customer's own case above any corpus example."""
     out = []

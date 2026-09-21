@@ -134,8 +134,8 @@ def test_brief_carries_the_questionnaire_outputs(idx):
 
 
 # ---- the retrospective bridge: observed failures make the brief personal ----
-# A diagnosis from ~/workflow-retrospective's bridge.py arrives as observed_failures — the
-# customer's own documented incidents. Contract: they fold into high-cost (defend-first), the
+# A retrospective diagnosis arrives as observed_failures — the customer's own documented
+# incidents. Contract: they fold into high-cost (defend-first), the
 # brief cites the customer's own case above any corpus example, and an absent/empty field
 # changes nothing.
 
