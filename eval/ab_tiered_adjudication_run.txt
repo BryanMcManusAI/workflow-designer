@@ -1,17 +1,23 @@
-  arm A: 3 junior, escalate to 3 senior | arm B: flat, matched budget
+  arm A: 3 junior, escalate the split to 3 senior | B: flat | C: escalate to non-seniors | D,E: escalate a RANDOM set of the same size
 
-                               A tiered    B flat  C route-only   constant
-  contested tail (PRIMARY)       74.6%     63.0%        69.1%      65.0%
-  all scored items               93.1%     86.5%        88.8%      88.2%
-  minority class                 56.2%     62.8%        83.9%       0.0%
+                                  A tiered        B flat  C route-only D counterfeit   E cf/no-snr   constant
+  contested tail (PRIMARY)          74.6%         63.0%         69.1%         67.6%         65.0%      65.0%
+  all scored items                  93.1%         86.5%         88.8%         88.0%         85.2%      88.2%
+  minority class                    56.2%         62.8%         83.9%         56.4%         78.4%       0.0%
 
-  paired difference on the tail: +11.6 pts
-    mean, 95% CI  [+10.7, +12.5]   <- the DESIGN-level claim
-    single panel  [-1.2, +25.0]   <- where one draw lands; tiered wins 95% of 200 panels
-  passes spent: arm A 1,584 | arm B 1,584 (4.53 per item)
-  routing alone (C - B):        +6.1 pts  95% CI [+5.1, +7.2]
-  seniority adds (A - C):       +5.5 pts
+  the pattern vs the path not taken
+    A - B  tiered over flat         +11.6  95% CI [+10.7, +12.5]   single panel [-1.2, +25.0]
+    C - B  routing alone            +6.1  95% CI [+5.1, +7.2]
+    A - C  seniority adds           +5.5  95% CI [+4.7, +6.3]
 
-  CHECK 1 HARNESS   MET     the two arms spend an identical number of passes
-  CHECK 2 PRIMARY   MET     tiered beats flat on the tail by >= 3.0 pts, CI excludes 0
-  CHECK 3 CONSTANT  MISSED  both arms beat the constant
+  the counterfeit: same form, escalation drawn at random
+    A - D  real vs counterfeit      +7.1  95% CI [+6.2, +7.9]
+    C - E  the same, no seniors     +4.1  95% CI [+3.1, +5.1]
+    D - B  counterfeit over flat    +4.6  95% CI [+3.5, +5.6]   <- what any uneven spend buys
+
+  passes spent: 1,584 in every arm (4.53 per item)
+
+  CHECK 1 HARNESS     MET     the two arms spend an identical number of passes
+  CHECK 2 PRIMARY     MET     tiered beats flat on the tail by >= 3.0 pts, CI excludes 0
+  CHECK 3 CONSTANT    MISSED  both arms beat the constant
+  CHECK 5 COUNTERFEIT MET     the real rule beats the coin (A>D by >=3.0 CI-clear, and C>E)

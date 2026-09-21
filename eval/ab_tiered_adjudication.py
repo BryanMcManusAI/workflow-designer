@@ -39,9 +39,19 @@ CHECKS STATED BEFORE THE ROW RAN (thresholds are not moved; a miss is recorded):
   3. Both arms beat the constant on the primary scorer.
   4. SECONDARY (reported, not gating): balanced accuracy, and accuracy on the minority class.
 
-A win here is still not evidence the pattern works. The counterfeit arm — same machinery, pattern
-drawn at random — has never been run, and until it has, any difference may be the shape of the
-exercise rather than the advice.
+THE COUNTERFEIT ARMS (added 2026-09-21; the threshold was fixed before they were run). NOTES.md
+states the guardrail as "so creativity != counterfeit": the risk is a glib recombination engine
+handing you a plausible workflow with a fabricated rationale. This pattern's rationale is not
+"spend unevenly", it is "spend where they DISAGREE". So the counterfeit holds the form fixed —
+same tier-1 evidence, same number of items escalated, same tier-2 pool, same total budget — and
+replaces only the decision rule with a coin:
+
+  ARM D  escalate a RANDOM set of items, the same size as A's, to the senior tier
+  ARM E  the same, to ordinary raters (the counterfeit of arm C)
+
+  5. COUNTERFEIT: A beats D by >= 3.0 pts with the 95% mean CI excluding 0, and C beats E likewise.
+     A counterfeit that matches the real arm means the advice is not doing the work — any uneven
+     spend would have scored the same, and the margin is the shape of the exercise, not the advice.
 
   python3 eval/ab_tiered_adjudication.py --pool <crossed_pool.json>
 """
@@ -79,30 +89,39 @@ def qualify(items, working, n_seniors):
     return ranked[:n_seniors], ranked[n_seniors:]
 
 
-def arm_tiered(items, juniors, seniors, n1, n2, rng, rng2=None):
-    """Spend n1 junior passes everywhere; where they split, n2 adjudicator passes set gold.
+def tier1_draw(items, juniors, n1, rng):
+    """One junior panel per item, drawn once and shared by every routed arm, so the arms see
+    identical evidence and differ only in which items they escalate and to whom."""
+    return {it["id"]: rng.sample(juniors, n1) for it in items}
 
-    `rng` draws tier 1, `rng2` draws tier 2. Splitting the streams lets two arms share one tier-1
-    draw — so they escalate the SAME items on the SAME evidence for the SAME budget — and differ
-    only in who adjudicates. Without that, the arms escalate different items and the comparison
-    carries a budget difference it cannot separate from the effect.
+
+def split_items(items, t1):
+    """The items whose junior panel did not agree — what tiered-adjudication routes on."""
+    return {it["id"] for it in items if len({it["passes"][r] for r in t1[it["id"]]}) > 1}
+
+
+def arm_routed(items, t1, escalate, tier2_pool, n2, rng2):
+    """Accept the junior panel's answer; on `escalate`, n2 adjudicator passes set gold instead.
+
+    `escalate` is the only thing separating the real arms from the counterfeits: the real ones pass
+    the split set, the counterfeits a random set of the same size. Budget is therefore identical by
+    construction rather than by matching.
     """
-    rng2 = rng2 or rng
     gold, passes, spent = {}, {}, 0
     for it in items:
-        j = rng.sample(juniors, n1)
+        j = t1[it["id"]]
         vals = [it["passes"][r] for r in j]
         used = {r: it["passes"][r] for r in j}
-        spent += n1
-        if len(set(vals)) == 1:
-            gold[it["id"]] = vals[0]
-        else:
-            s = rng2.sample(seniors, n2)
-            used.update({r: it["passes"][r] for r in s})
+        spent += len(j)
+        if it["id"] in escalate:
+            sel = rng2.sample(tier2_pool, n2)
+            used.update({r: it["passes"][r] for r in sel})
             spent += n2
-            g = plurality([it["passes"][r] for r in s])
-            # A senior tier that ties has not decided; fall back to everything the item bought.
-            gold[it["id"]] = g if g is not None else plurality(vals + [it["passes"][r] for r in s])
+            g = plurality([it["passes"][r] for r in sel])
+            # An adjudicator tier that ties has not decided; fall back to all the item bought.
+            gold[it["id"]] = g if g is not None else plurality(vals + [it["passes"][r] for r in sel])
+        else:
+            gold[it["id"]] = plurality(vals)
         passes[it["id"]] = used
     return gold, passes, spent
 
@@ -164,76 +183,86 @@ def main():
     print(f"  truth panel {a.truth} (held out) | working pool {len(working)} "
           f"= {len(seniors)} senior + {len(juniors)} junior")
     print(f"  scored {len(scored)} items | contested tail {len(contested)} | minority class {len(minority)}")
-    print(f"  arm A: {a.tier1} junior, escalate to {a.tier2} senior | arm B: flat, matched budget\n")
+    print(f"  arm A: {a.tier1} junior, escalate the split to {a.tier2} senior | B: flat | "
+          f"C: escalate to non-seniors | D,E: escalate a RANDOM set of the same size\n")
 
+    juniors_l, seniors_l = list(juniors), list(seniors)
+    others = [r for r in working if r not in set(seniors)]
     rows, budgets = [], []
     for i in range(a.repeats):
-        rng = random.Random(a.seed * 1000 + i)
-        ga, _, spent = arm_tiered(items, juniors, seniors, a.tier1, a.tier2, rng,
-                                  random.Random(a.seed * 1000 + i + 700000))
-        gb, _, spent_b = arm_flat(items, working, spent, random.Random(a.seed * 1000 + i + 500000))
-        # ARM C isolates the confound. Seniors were qualified for agreeing with the crowd, and the
-        # answer key IS a crowd majority, so arm A may win merely by routing to raters selected to
-        # agree with what it is scored against. Arm C keeps the routing and drops the seniority:
-        # identical structure and budget, tier 2 drawn at random from the working pool. If the win
-        # survives here it is the routing; if it collapses, arm A's margin was the circularity.
-        gc, _, spent_c = arm_tiered(items, juniors, [r for r in working if r not in set(seniors)],
-                                    a.tier1, a.tier2, random.Random(a.seed * 1000 + i),
-                                    random.Random(a.seed * 1000 + i + 900000))
-        budgets.append((spent, spent_b, spent_c))
-        rows.append({
-            "a_con": score(ga, truth, contested), "b_con": score(gb, truth, contested),
-            "c_con": score(gc, truth, contested),
-            "a_all": score(ga, truth, scored), "b_all": score(gb, truth, scored),
-            "c_all": score(gc, truth, scored),
-            "a_min": score(ga, truth, minority), "b_min": score(gb, truth, minority),
-            "c_min": score(gc, truth, minority),
-        })
+        sd_ = a.seed * 1000 + i
+        t1 = tier1_draw(items, juniors_l, a.tier1, random.Random(sd_))
+        split = split_items(items, t1)
+        # The counterfeits escalate the SAME NUMBER of items, drawn at random instead of by
+        # disagreement. Same evidence, same tier-2 pool, same budget: only the rule differs.
+        fake = set(random.Random(sd_ + 300000).sample([it["id"] for it in items], len(split)))
+
+        ga, _, sp = arm_routed(items, t1, split, seniors_l, a.tier2, random.Random(sd_ + 700000))
+        gc, _, sc = arm_routed(items, t1, split, others, a.tier2, random.Random(sd_ + 900000))
+        gd, _, sd2 = arm_routed(items, t1, fake, seniors_l, a.tier2, random.Random(sd_ + 110000))
+        ge, _, se = arm_routed(items, t1, fake, others, a.tier2, random.Random(sd_ + 130000))
+        gb, _, sb = arm_flat(items, working, sp, random.Random(sd_ + 500000))
+        budgets.append((sp, sb, sc, sd2, se))
+        r = {}
+        for k, g in (("a", ga), ("b", gb), ("c", gc), ("d", gd), ("e", ge)):
+            r[k + "_con"] = score(g, truth, contested)
+            r[k + "_all"] = score(g, truth, scored)
+            r[k + "_min"] = score(g, truth, minority)
+        rows.append(r)
 
     m = lambda k: statistics.mean(r[k] for r in rows)
-    diffs = [r["a_con"] - r["b_con"] for r in rows]
-
-    # Two different questions, and conflating them is how a design-level win gets talked out of.
-    #   SPREAD  — where a SINGLE panel's difference lands. Wide by nature: one panel scores 80
-    #             contested items with ~4.5 raters each, so a single draw is noisy.
-    #   MEAN CI — where the DESIGN's average difference lands, bootstrapped over the panels. This
-    #             is what "tiered beats flat" claims, and it is the one check 2 gates on.
-    sd = sorted(diffs)
-    slo, shi = sd[int(.025 * len(sd))], sd[int(.975 * len(sd)) - 1]
     br = random.Random(a.seed)
-    boots = sorted(statistics.mean(br.choices(diffs, k=len(diffs))) for _ in range(2000))
-    lo, hi = boots[int(.025 * len(boots))], boots[int(.975 * len(boots)) - 1]
-    winrate = sum(d > 0 for d in diffs) / len(diffs)
+
+    def ci(x, y):
+        """Bootstrapped 95% interval on the MEAN paired difference — the design-level claim."""
+        d = [r[x] - r[y] for r in rows]
+        b = sorted(statistics.mean(br.choices(d, k=len(d))) for _ in range(2000))
+        return statistics.mean(d), b[int(.025 * len(b))], b[int(.975 * len(b)) - 1], d
+
     const_all = labels[major] / len(scored)
     const_con = sum(truth[i] == major for i in contested) / len(contested)
+    cols = [("A tiered", "a"), ("B flat", "b"), ("C route-only", "c"),
+            ("D counterfeit", "d"), ("E cf/no-snr", "e")]
+    hdr = "".join(f"{n:>14}" for n, _ in cols)
+    print(f"  {'':<26}{hdr}{'constant':>11}")
+    for lab, suf, const in (("contested tail (PRIMARY)", "_con", const_con),
+                            ("all scored items", "_all", const_all),
+                            ("minority class", "_min", 0.0)):
+        cells = "".join(f"{m(k + suf):>13.1%} " for _, k in cols)
+        print(f"  {lab:<26}{cells}{const:>10.1%}")
 
-    print(f"  {'':<26}{'A tiered':>11}{'B flat':>10}{'C route-only':>14}{'constant':>11}")
-    print(f"  {'contested tail (PRIMARY)':<26}{m('a_con'):>10.1%}{m('b_con'):>10.1%}{m('c_con'):>13.1%}{const_con:>11.1%}")
-    print(f"  {'all scored items':<26}{m('a_all'):>10.1%}{m('b_all'):>10.1%}{m('c_all'):>13.1%}{const_all:>11.1%}")
-    print(f"  {'minority class':<26}{m('a_min'):>10.1%}{m('b_min'):>10.1%}{m('c_min'):>13.1%}{0.0:>11.1%}")
-    print(f"\n  paired difference on the tail: {100*m('a_con')-100*m('b_con'):+.1f} pts")
-    print(f"    mean, 95% CI  [{100*lo:+.1f}, {100*hi:+.1f}]   <- the DESIGN-level claim")
-    print(f"    single panel  [{100*slo:+.1f}, {100*shi:+.1f}]   <- where one draw lands; "
-          f"tiered wins {winrate:.0%} of {a.repeats} panels")
-    print(f"  passes spent: arm A {budgets[0][0]:,} | arm B {budgets[0][1]:,} "
-          f"({budgets[0][0]/len(items):.2f} per item)")
-
-    cd_ = [r["c_con"] - r["b_con"] for r in rows]
-    cb = sorted(statistics.mean(br.choices(cd_, k=len(cd_))) for _ in range(2000))
-    clo, chi = cb[int(.025 * len(cb))], cb[int(.975 * len(cb)) - 1]
-    print(f"  routing alone (C - B):        {100*statistics.mean(cd_):+.1f} pts  "
-          f"95% CI [{100*clo:+.1f}, {100*chi:+.1f}]")
-    print(f"  seniority adds (A - C):       {100*(m('a_con')-m('c_con')):+.1f} pts")
-    eq = all(x == y == z for x, y, z in budgets)
+    d_ab, lo, hi, diffs = ci("a_con", "b_con")
+    sdd = sorted(diffs)
+    print(f"\n  the pattern vs the path not taken")
+    print(f"    A - B  tiered over flat        {100*d_ab:+6.1f}  95% CI [{100*lo:+.1f}, {100*hi:+.1f}]"
+          f"   single panel [{100*sdd[int(.025*len(sdd))]:+.1f}, {100*sdd[int(.975*len(sdd))-1]:+.1f}]")
+    for lab, x, y in (("C - B  routing alone         ", "c_con", "b_con"),
+                      ("A - C  seniority adds        ", "a_con", "c_con")):
+        d_, l_, h_, _ = ci(x, y)
+        print(f"    {lab} {100*d_:+6.1f}  95% CI [{100*l_:+.1f}, {100*h_:+.1f}]")
+    print(f"\n  the counterfeit: same form, escalation drawn at random")
+    cf = {}
+    for lab, x, y in (("A - D  real vs counterfeit   ", "a_con", "d_con"),
+                      ("C - E  the same, no seniors  ", "c_con", "e_con")):
+        d_, l_, h_, _ = ci(x, y)
+        cf[x[0]] = (d_, l_, h_)
+        print(f"    {lab} {100*d_:+6.1f}  95% CI [{100*l_:+.1f}, {100*h_:+.1f}]")
+    d_db, ldb, hdb, _ = ci("d_con", "b_con")
+    print(f"    D - B  counterfeit over flat  {100*d_db:+6.1f}  95% CI [{100*ldb:+.1f}, {100*hdb:+.1f}]"
+          f"   <- what any uneven spend buys")
+    print(f"\n  passes spent: {budgets[0][0]:,} in every arm ({budgets[0][0]/len(items):.2f} per item)")
+    eq = all(len(set(b)) == 1 for b in budgets)
     d = 100 * (m("a_con") - m("b_con"))
     checks = [
         ("1 HARNESS", eq, "the two arms spend an identical number of passes"),
         ("2 PRIMARY", d >= 3.0 and lo > 0, "tiered beats flat on the tail by >= 3.0 pts, CI excludes 0"),
         ("3 CONSTANT", m("a_con") > const_con and m("b_con") > const_con, "both arms beat the constant"),
+        ("5 COUNTERFEIT", cf["a"][0] * 100 >= 3.0 and cf["a"][1] > 0 and cf["c"][1] > 0,
+         "the real rule beats the coin (A>D by >=3.0 CI-clear, and C>E)"),
     ]
     print()
     for name, ok, what in checks:
-        print(f"  CHECK {name:<12}{'MET   ' if ok else 'MISSED'}  {what}")
+        print(f"  CHECK {name:<14}{'MET   ' if ok else 'MISSED'}  {what}")
 
     if a.write_pools:
         import os
