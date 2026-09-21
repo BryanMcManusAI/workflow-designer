@@ -1,0 +1,27 @@
+CrowdGleason, stub = image / classification / expert
+  the engine's ranked patterns: human-audit-sample, active-learning-loop, coverage-routing,
+    gold-honeypots, qualification-calibration, lock-then-score, multi-annotator-aggregate,
+    inter-annotator-agreement
+  its top REALIZABLE pick: human-audit-sample
+  both arms 2,812 items, 9,388 passes
+
+JUDGELAB'S VERDICT (agreement release, check "DIFFERENT_VALUE: value >= 2")
+
+  arm                          recall    FA   PPV@   NPV@   adjudicate      authority
+  A  human-audit-sample (engine)  79%   11%    42%    96%   29.2% -> 29.2%  WITHHELD
+  B  flat, same budget            93%    7%    51%    98%   26.4% ->  9.2%  EARNED
+
+  A: "earned the authority to type: nothing"; 820 disputed pages, 170 gold
+  B: "earned the authority to type: ['DIFFERENT_VALUE']"; 742 disputed pages, 147 gold
+     rework 0.0% -> 17.2%
+
+  judgelab's violation profile ranks the raters from the passes alone, with no key:
+    arm A  marker7 120 | marker1 37 | marker2 17 | marker3 17 | marker4 10 | marker6 6 | marker5 4
+    against ground truth marker7 is the worst rater (33.8%) and marker5 the best (91.7%).
+
+THE ENGINE'S RECOMMENDATION LOST TO THE PATH NOT TAKEN.
+
+Not claimed: one pool, one stub, one realization. The engine recommends a PATTERN, not its
+parameters; the 30% audit fraction and +2 extra passes are this file's choices, and a different
+sizing may do better. For the DICES stub the engine's true top pick is `engagement-gate`, which no
+resampling can realize, so this tests the most measurable quarter of the recommendation only.
