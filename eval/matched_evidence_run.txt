@@ -1,0 +1,24 @@
+pool 350 items | truth panel 61 | seniors 15 | escalate to 3 | 100 panels
+
+  arm                         tail acc  adj load  silent   spend   decided on
+
+  tier-1 = 3
+  tiered (tier-1=3)             74.8%     50.6%     5.3    1581      3x auto
+    flat @ same budget          63.0%     57.8%     1.0    1581       varies
+    flat @ same panel (3)       65.5%     44.8%     4.2    1050       3x all
+    routing, evidence matched    +9.3 pts  95% CI [+8.1, +10.5]
+    routing, budget matched     +11.8 pts  95% CI [+10.5, +13.1]
+
+  tier-1 = 4
+  tiered (tier-1=4)             73.4%     60.0%     2.1    2030      4x auto
+    flat @ same budget          65.5%     65.3%     0.3    2030       varies
+    flat @ same panel (4)       56.9%     54.1%     1.5    1400       4x all
+    routing, evidence matched   +16.5 pts  95% CI [+15.4, +17.7]
+    routing, budget matched      +8.0 pts  95% CI [+6.7, +9.1]
+
+  tier-1 = 5
+  tiered (tier-1=5)             73.0%     67.4%     0.8    2457      5x auto
+    flat @ same budget          72.4%     71.1%     0.1    2457       varies
+    flat @ same panel (5)       68.7%     60.9%     0.5    1750       5x all
+    routing, evidence matched    +4.2 pts  95% CI [+3.1, +5.4]
+    routing, budget matched      +0.6 pts  95% CI [-0.5, +1.7]
