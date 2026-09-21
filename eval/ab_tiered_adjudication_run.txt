@@ -1,0 +1,17 @@
+  arm A: 3 junior, escalate to 3 senior | arm B: flat, matched budget
+
+                               A tiered    B flat  C route-only   constant
+  contested tail (PRIMARY)       74.6%     63.0%        69.1%      65.0%
+  all scored items               93.1%     86.5%        88.8%      88.2%
+  minority class                 56.2%     62.8%        83.9%       0.0%
+
+  paired difference on the tail: +11.6 pts
+    mean, 95% CI  [+10.7, +12.5]   <- the DESIGN-level claim
+    single panel  [-1.2, +25.0]   <- where one draw lands; tiered wins 95% of 200 panels
+  passes spent: arm A 1,584 | arm B 1,584 (4.53 per item)
+  routing alone (C - B):        +6.1 pts  95% CI [+5.1, +7.2]
+  seniority adds (A - C):       +5.5 pts
+
+  CHECK 1 HARNESS   MET     the two arms spend an identical number of passes
+  CHECK 2 PRIMARY   MET     tiered beats flat on the tail by >= 3.0 pts, CI excludes 0
+  CHECK 3 CONSTANT  MISSED  both arms beat the constant
