@@ -267,10 +267,19 @@ def main():
     if a.write_pools:
         import os
         os.makedirs(a.write_pools, exist_ok=True)
-        rng = random.Random(a.seed * 1000)
-        _, pa, spent = arm_tiered(items, juniors, seniors, a.tier1, a.tier2, rng)
-        _, pb, _ = arm_flat(items, working, spent, random.Random(a.seed * 1000 + 500000))
-        for nm, p in (("arm_a_tiered", pa), ("arm_b_flat", pb)):
+        sd_ = a.seed * 1000
+        t1 = tier1_draw(items, juniors_l, a.tier1, random.Random(sd_))
+        split = split_items(items, t1)
+        fake = set(random.Random(sd_ + 300000).sample([it["id"] for it in items], len(split)))
+        _, pa, spent = arm_routed(items, t1, split, seniors_l, a.tier2, random.Random(sd_ + 700000))
+        _, pc, _ = arm_routed(items, t1, split, others, a.tier2, random.Random(sd_ + 900000))
+        _, pd, _ = arm_routed(items, t1, fake, seniors_l, a.tier2, random.Random(sd_ + 110000))
+        _, pb, _ = arm_flat(items, working, spent, random.Random(sd_ + 500000))
+        # One panel of each arm, same seed as panel 0 of the row above, so the pools judgelab scores
+        # are the same draws the harness scored — not a fresh sample that would answer a different
+        # question.
+        for nm, p in (("arm_a_tiered", pa), ("arm_b_flat", pb),
+                      ("arm_c_route_only", pc), ("arm_d_counterfeit", pd)):
             out = {"items": [{"id": i["id"], "passes": p[i["id"]],
                               "when": {r: i["when"][r] for r in p[i["id"]] if r in (i.get("when") or {})}}
                              for i in items],
