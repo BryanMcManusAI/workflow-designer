@@ -1,0 +1,4 @@
+  tail cards: 30
+  LIFT order, support>=2        0.453
+  COIN order, support>=2        0.284   <- the counterfeit
+  lift - coin    +16.9 pts  95% CI [+3.2, +30.9]   CLEARS 0
