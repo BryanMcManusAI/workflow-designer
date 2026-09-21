@@ -40,3 +40,27 @@ def test_payload_matches_engine(eng, idx):
 def test_norm_accepts_partial_stub():
     n = serve._norm({"modality": "text"})
     assert n["uses_patterns"] == [] and n["modality"] == "text"
+
+
+def test_preloaded_stub_reaches_the_page(monkeypatch):
+    """serve --stub: the bridged retrospective stub must survive _norm (observed_failures
+    intact) and ride the meta payload so the page can open pre-populated on the brief."""
+    import serve as srv
+    bridged = {
+        "goal": "Rebuild the catalog workflow so last quarter's defects do not recur",
+        "modality": "text", "task_structure": "extraction", "annotator_structure": "crowd",
+        "high_cost_signatures": ["drift", "sampling_frame"],
+        "observed_failures": [{"signature": "drift", "description": "week-6 definition change",
+                               "source": "retrospective:catalog (Q3 2025)"}],
+        "source_diagnosis": "catalog",
+    }
+    monkeypatch.setattr(srv, "PRELOAD", srv._norm(bridged))
+    m = srv.meta()
+    pre = m["preloaded_stub"]
+    assert pre["observed_failures"][0]["signature"] == "drift", \
+        "_norm must carry observed failures through, not coerce or drop them"
+    assert pre["source_diagnosis"] == "catalog"
+    assert pre["high_cost_signatures"] == ["drift", "sampling_frame"]
+    # and the default meta (no preload) stays None
+    monkeypatch.setattr(srv, "PRELOAD", None)
+    assert srv.meta()["preloaded_stub"] is None

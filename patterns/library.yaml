@@ -365,6 +365,25 @@ patterns:
       outputs the candidate models produced, reuse the rubric across them). 'Don't judge the whole space' is invariant.
     exemplified_by: [relevance-pooling-trec, judge-eval-study]
 
+  - id: control-attestation
+    name: Control Attestation (No Assumed Controls)
+    phase: convention
+    play: "Every convention-required control names an owner and attaches evidence it ran; 'assumed handled upstream' is not an allowed status — an unattested control is treated as absent and audited."
+    does: >
+      Require each convention-mandated control to be explicitly attested at execution — owner, version,
+      and evidence it was applied — so a control can't be silently reclassified as an out-of-scope
+      assumption. Anything marked 'assumed' or unattested is scoped INTO the audit, not out of it, closing
+      the gap where the primary control and its only catch layer disappear together.
+    defends: [assumption_laundering]
+    pairs_with: [human-audit-sample, lock-then-score, gold-honeypots]
+    conflicts_with: []
+    cost: "Attestation overhead per control + the discipline to audit the assumptions; surfaces work that was previously (wrongly) counted as done."
+    modality_notes: >
+      Invariant across modalities — the control list is workflow-specific, but 'an assumed control is an
+      unaudited control' holds everywhere. This is the datasheet discipline applied to the audit strategy
+      itself: make the assumed-handled steps explicit so they become checkable rather than presumed.
+    exemplified_by: [datasheets-documentation]
+
   - id: partial-input-baseline
     name: Partial-Input Baseline (Leakage Diagnostic)
     phase: audit

@@ -131,3 +131,63 @@ def test_brief_carries_the_questionnaire_outputs(idx):
     assert res["conventions"] and len(res["conventions"]) <= 6, "condensed conventions, not a catalog"
     md = inform.render_inform_md(res)
     assert "Decision guidelines" in md and "Starter conventions" in md and "think about this task" in md
+
+
+# ---- the retrospective bridge: observed failures make the brief personal ----
+# A diagnosis from ~/workflow-retrospective's bridge.py arrives as observed_failures — the
+# customer's own documented incidents. Contract: they fold into high-cost (defend-first), the
+# brief cites the customer's own case above any corpus example, and an absent/empty field
+# changes nothing.
+
+OBSERVED = [
+    {"signature": "drift",
+     "description": "acceptance bar moved mid-campaign; 24% of Q3 defects predate the guideline change",
+     "source": "retrospective:catalog_enrichment_q3_2025 (Q3 2025)"},
+    {"signature": "under_specification",
+     "description": "annotators disagreed on brand attribution for 412 records (49% of defects)",
+     "source": "retrospective:catalog_enrichment_q3_2025 (Q3 2025)"},
+]
+
+
+def test_observed_failures_fold_into_high_cost(idx):
+    res = inform.analyze_inform(idx, dict(CUSTOMER, observed_failures=[dict(o) for o in OBSERVED]))
+    assert len(res["observed"]) == 2
+    # semantics: observed signatures behave exactly as if the customer declared them high-cost
+    manual = inform.analyze_inform(idx, dict(CUSTOMER,
+                                             high_cost_signatures=["drift", "under_specification"]))
+    assert [p["signature"] for p in res["priorities"]] == \
+           [p["signature"] for p in manual["priorities"]], \
+        "observed failures must reprioritize like declared high-cost signatures"
+
+
+def test_observed_story_cited_above_corpus(idx):
+    res = inform.analyze_inform(idx, dict(CUSTOMER, observed_failures=[dict(o) for o in OBSERVED]))
+    own = [p for p in res["principles"] if p.get("own_story")]
+    assert own, "a principle protecting an observed signature must cite the customer's own case"
+    for p in own:
+        assert p["own_story"]["description"]
+        assert p["own_story"]["source"].startswith("retrospective:")
+    assert any(p["own_story"].get("stake") for p in own), \
+        "stake extraction must work on the customer's own words too"
+    md = inform.render_inform_md(res)
+    assert "This already happened in your workflow" in md
+    assert "Grounded in your own history" in md
+
+
+def test_json_stub_round_trip(tmp_path, idx):
+    import json
+    import engine
+    stub_path = tmp_path / "bridged_stub.json"
+    stub_path.write_text(json.dumps(dict(
+        CUSTOMER, observed_failures=OBSERVED, high_cost_signatures="drift")))
+    stub = engine.load_stub(str(stub_path))
+    assert stub["observed_failures"][0]["signature"] == "drift", \
+        "structured fields must survive a JSON stub"
+    assert stub["high_cost_signatures"] == ["drift"], "list normalization applies to JSON stubs too"
+    assert inform.analyze_inform(idx, stub)["observed"]
+
+
+def test_absent_observed_changes_nothing(idx):
+    a = inform.analyze_inform(idx, dict(CUSTOMER))
+    b = inform.analyze_inform(idx, dict(CUSTOMER, observed_failures=[]))
+    assert a == b, "an empty bridge field must be a no-op (existing briefs unchanged)"

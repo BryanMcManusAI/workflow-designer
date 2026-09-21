@@ -1,0 +1,14 @@
+--------------------------------------------------------------------------------------------
+  A  proposed defenses on correctly-named signatures : 39
+     of those, already adopted by the failing card   : 0  (0.0%)
+
+  B  guarded/unguarded call on 15 correctly-named signatures
+     record says something caught it : 11/15 (73%)
+     engine accuracy                 : 46.7%   better constant 73.3%
+     both guarded 7 · engine guarded, record UNGUARDED 4 · engine unguarded, record guarded 4 · both unguarded 0
+
+  C  signatures named with at least one defense attached : 54/82  (65.9%)
+--------------------------------------------------------------------------------------------
+  CHECK A  MET      already-adopted defenses <= 25%                  0.0%
+  CHECK B  NOT MET  guarded call beats the constant by >= 5 pts      -26.7 pts
+  CHECK C  NOT MET  a defense attached on >= 70% of named signatures 65.9%

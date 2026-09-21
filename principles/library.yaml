@@ -247,10 +247,11 @@ principles:
       The origin, collection process, and labeling decisions must be recorded, so the data's fitness
       can be audited rather than assumed. Documentation is the cross-cutting precondition that makes
       every other principle checkable after the fact.
-    protects_against: []   # cross-cutting: enables auditing of ALL principles rather than defending one signature
-    operationalized_by: []   # NOTE: motivates promoting the candidate pattern `provenance-datasheet`
-    #   (surfaced in cards but never promoted — the principle tier reveals the pattern-library gap)
-    probe: "Could a downstream user reconstruct who labeled what, under which guideline version, sampled from where?"
+    protects_against: [assumption_laundering]   # a control that is undocumented / "assumed handled" is
+    #   functionally unaudited; documentation + attestation is what turns an assumed control into a
+    #   checkable one. (Still cross-cutting in spirit — it enables auditing of every other principle too.)
+    operationalized_by: [control-attestation]
+    probe: "Could a downstream user reconstruct who labeled what, under which guideline version, sampled from where — and is every convention-required control attested rather than assumed?"
     evidence:
       - claim: >
           A datasheet of 57 questions across 7 categories (motivation, composition, collection

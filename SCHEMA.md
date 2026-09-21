@@ -67,9 +67,13 @@ modality and task; the shared signature is what the partner uses to interrogate 
 | `label_leakage` | The label is derivable from a feature it shouldn't be / answer visible in the prompt |
 | `class_imbalance` | Rare classes under-sampled, so the model never learns them |
 | `gaming` | Annotators optimize the incentive (pay/quota), not quality — Goodhart | Template-farming, redundant low-value items to maximize earnings |
+| `assumption_laundering` | A convention-required control is silently reclassified as an out-of-scope assumption — so it's neither implemented nor audited (the primary control and its only catch layer disappear together) |
 
 Prefer reusing a signature over inventing one. New ones earn their place by recurring across ≥2
-task structures.
+task structures. `assumption_laundering` was added 2026-07-24 — surfaced by the Workflow
+Retrospective across three completed workflows (and both reliability batches) reaching for the same
+missing signature; defended by the `control-attestation` pattern, covered by the
+`provenance-documentation` principle.
 
 **Scope.** Signatures name *systematic data-quality* failures — ways the data or the judgments are
 biased, noisy, unrepresentative, or unanchored. They deliberately do **not** cover

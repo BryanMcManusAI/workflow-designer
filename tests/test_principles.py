@@ -68,3 +68,21 @@ def test_spec_threats_cite_the_literature(idx, stubs):
     bw = engine.analyze_backwards(idx, stubs["marketing_copy"])
     cited = [s for s in bw["spec_threats"] if s.get("cite") and s["cite"].get("source")]
     assert cited, "the spec stress-test should cite the principle + paper behind each probe"
+
+
+def test_declared_signature_routes_its_defense(idx):
+    """A customer-declared high-cost signature must enter the risk set and receive its library
+    defense even when NO corpus analogue logged it (the retrospective->designer bridge case).
+    assumption_laundering has no exemplar card, only the control-attestation pattern + the
+    provenance-documentation principle; declaring it must still surface both."""
+    from conftest import make_stub
+    stub = make_stub(
+        goal="Rebuild a completed workflow so an assumed-away control can't recur",
+        modality="multimodal", task_structure="demonstration", annotator_structure="expert",
+        high_cost_signatures=["assumption_laundering"])
+    bw = engine.analyze_backwards(idx, stub)
+    assert "assumption_laundering" in bw["good_means"], "declared signature dropped from the risk set"
+    assert any(n["for"] == "assumption_laundering" and n["id"] == "control-attestation"
+               for n in bw["needed_patterns"]), "control-attestation not routed for the declared signature"
+    assert "provenance-documentation" in {row["id"] for row in bw["principles"]}, \
+        "provenance-documentation principle should surface for assumption_laundering"

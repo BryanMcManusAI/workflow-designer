@@ -20,7 +20,7 @@ import engine  # noqa: E402  (after sys.path mutation)
 SIGNATURE_VOCAB = {
     "confounded", "unanchored", "self_affinity", "inflation", "underpowered", "priming",
     "sampling_frame", "drift", "bottleneck", "over_specification", "under_specification",
-    "label_leakage", "class_imbalance", "gaming",
+    "label_leakage", "class_imbalance", "gaming", "assumption_laundering",
 }
 
 # Controlled qa_mechanism vocabulary (SCHEMA.md) — underscored, no hyphens.

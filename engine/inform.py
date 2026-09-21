@@ -151,6 +151,19 @@ def _support(idx, stub):
     return {"level": level, "closest": closest, "note": notes[level]}
 
 
+def _observed(stub):
+    """Observed failures bridged in from a retrospective diagnosis (~/workflow-retrospective's
+    bridge.py) — the customer's own documented incidents, each {signature, description, source}.
+    A failure that already happened outranks a hypothetical one: their signatures are folded into
+    high_cost_signatures, and the brief cites the customer's own case above any corpus example."""
+    out = []
+    for e in stub.get("observed_failures") or []:
+        if isinstance(e, dict) and e.get("signature"):
+            out.append({"signature": e["signature"], "description": e.get("description", ""),
+                        "source": e.get("source", "your retrospective")})
+    return out
+
+
 PROBE_COUNT = 4
 
 
@@ -197,6 +210,15 @@ def analyze_probes(idx, stub):
 
 def analyze_inform(idx, stub):
     """Compose the customer-facing Good Data Brief from the existing engine passes."""
+    observed = _observed(stub)
+    if observed:
+        stub = dict(stub)
+        stub["high_cost_signatures"] = sorted(
+            set(engine._as_list(stub.get("high_cost_signatures")))
+            | {o["signature"] for o in observed})
+    obs_by_sig = {}
+    for o in observed:
+        obs_by_sig.setdefault(o["signature"], o)
     bw = engine.analyze_backwards(idx, stub)
     near, far = engine._near_far(idx, stub)
     analogue_ids = [cid for _, cid in near] + [cid for _, cid, _ in far]
@@ -233,12 +255,14 @@ def analyze_inform(idx, stub):
         story_card, story = story_by_i.get(i, (None, ""))
         defense = _one_defense(idx, by_sig[lead], analogue_ids) if lead and lead in by_sig else None
         ev = (p.get("evidence") or [{}])[0]
+        own = next((obs_by_sig[s] for s in [lead] + p["protects"] if s and s in obs_by_sig), None)
         principles.append({
             "name": p["name"], "tenet": p["tenet"], "secured": not open_sigs,
             "risks": p["protects"], "lead_risk": lead,
             "severity": by_sig.get(lead, {}).get("severity", "med") if lead else "med",
             "check": p.get("probe", ""),
             "war_story": {"card": story_card, "desc": story, "stake": _stake(story)} if story else None,
+            "own_story": {**own, "stake": _stake(own["description"])} if own else None,
             "defense": defense,
             "source": ev.get("source", ""),
         })
@@ -278,7 +302,7 @@ def analyze_inform(idx, stub):
 
     return {"goal": stub.get("goal", ""), "task": stub.get("task_structure", ""),
             "modality": stub.get("modality", ""), "annotator": stub.get("annotator_structure", ""),
-            "support": _support(idx, stub),
+            "support": _support(idx, stub), "observed": observed,
             "principles": principles, "spec_threats": threats,
             "priorities": priorities, "already_covered": covered,
             "mental_model": mental_model, "guidelines": guidelines, "conventions": conventions,
@@ -291,11 +315,21 @@ def render_inform_md(res):
     w = L.append
     w(f"# Good Data Brief")
     w(f"\n**Your goal:** {res['goal']}")
-    w(f"*{res['modality']} · {res['task']} · {res['annotator']}*\n")
+    axes = [res["modality"], res["task"], res["annotator"]]
+    if any(axes):  # bridged stubs may carry no axes; a line of bare dots helps no one
+        w(f"*{' · '.join(a or '—' for a in axes)}*\n")
+    else:
+        w("")
     s = res.get("support")
     if s and s["level"] != "strong":
         mark = "⚠️" if s["level"] == "weak" else "◐"
         w(f"> {mark} **How far to trust this brief.** {s['note']}\n")
+    if res.get("observed"):
+        n = len(res["observed"])
+        src = res["observed"][0].get("source", "your retrospective")
+        w(f"> 📌 **Grounded in your own history:** {n} documented failure{'s' if n != 1 else ''} "
+          f"from {src} shape{'s' if n == 1 else ''} this brief — those signatures are treated as "
+          f"high-cost and lead the defend-hardest order.\n")
     names = [p["name"].split(" (")[0] for p in res["principles"][:3]]
     w(f"**In one line:** for this data to be good, it has to have "
       f"{', '.join(names[:-1])} and {names[-1]} — each is defined below, with the check that "
@@ -306,10 +340,17 @@ def render_inform_md(res):
         sev = {"high": "▲ costly to get wrong", "med": "● moderate", "low": "○ cheap to fix later"}
         w(f"### {i}. {p['name']}" + ("  ✓ (your plan already covers this)" if p["secured"] else ""))
         w(f"{p['tenet']}")
+        if p.get("own_story"):
+            own = p["own_story"]
+            head = (f"\n> **What it cost you, documented:** {own['stake']}.  "
+                    if own.get("stake") else "")
+            w(f"{head}\n> **This already happened in your workflow** ({own['source']}): "
+              f"{own['description']}")
         if p["war_story"]:
             ws = p["war_story"]
             head = f"\n> **What it cost, documented:** {ws['stake']}.  " if ws.get("stake") else ""
-            w(f"{head}\n> **If you skip it:** {ws['desc']}  \n"
+            label = "The same failure in the corpus" if p.get("own_story") else "If you skip it"
+            w(f"{head}\n> **{label}:** {ws['desc']}  \n"
               f"> *(a real case: `{ws['card']}`)*")
         if p["check"]:
             w(f"\n**The five-minute check:** {p['check']}")

@@ -194,20 +194,26 @@ def load_index(path=None):
 
 
 def load_stub(path):
-    stub = {}
-    with open(path) as f:
-        for line in f:
-            line = line.split("#", 1)[0].rstrip()
-            if not line.strip() or ":" not in line:
-                continue
-            key, _, val = line.partition(":")
-            key, val = key.strip(), val.strip()
-            if val.startswith("[") and val.endswith("]"):
-                stub[key] = [x.strip().strip("\"'") for x in val[1:-1].split(",") if x.strip()]
-            elif val:
-                stub[key] = val.strip("\"'")
-            else:
-                stub[key] = []
+    if str(path).endswith(".json"):
+        # Machine-authored stubs (e.g. the retrospective bridge): JSON keeps structured
+        # fields like observed_failures intact. The flat format below stays the human path.
+        with open(path) as f:
+            stub = json.load(f) or {}
+    else:
+        stub = {}
+        with open(path) as f:
+            for line in f:
+                line = line.split("#", 1)[0].rstrip()
+                if not line.strip() or ":" not in line:
+                    continue
+                key, _, val = line.partition(":")
+                key, val = key.strip(), val.strip()
+                if val.startswith("[") and val.endswith("]"):
+                    stub[key] = [x.strip().strip("\"'") for x in val[1:-1].split(",") if x.strip()]
+                elif val:
+                    stub[key] = val.strip("\"'")
+                else:
+                    stub[key] = []
     for k in ("qa_mechanism", "uses_patterns", "addressed_signatures", "failure_signatures",
               "high_cost_signatures", "tolerable_signatures"):
         v = stub.get(k, [])
@@ -434,6 +440,52 @@ def far_analogues(idx, stub, risk, n=4):
     return out[:n]
 
 
+_DEFENSE_CACHE = {}
+
+def defense_record(idx, pattern, signature):
+    """How a pattern has actually FARED against a signature, from the corpus, not from its declaration.
+
+      adopted — cards that ran this pattern and for which this signature is declared defended by it
+      failed  — of those, the ones that REPORTED that failure anyway
+      caught  — cards whose failure_modes record this pattern as what caught it
+
+    The declaration in `patterns[].defends` is an intention. This is the record. They disagree often:
+    edge-case-guidelines is declared to defend under_specification and failed on 6 of the 6 cards that
+    adopted it.
+    """
+    k = id(idx)
+    if k not in _DEFENSE_CACHE:
+        adopted, failed, caught = Counter(), Counter(), Counter()
+        names = {pid: {pid.replace("-", " ").lower(), (pp.get("name") or "").lower()}
+                 for pid, pp in idx["patterns"].items()}
+        for card in idx["cards"].values():
+            rep = {fm["signature"] for fm in (card.get("failure_modes") or [])
+                   if (fm.get("evidence") or "").upper().startswith("REPORTED")}
+            for fm in (card.get("failure_modes") or []):
+                cb = (fm.get("caught_by") or "").lower()
+                for pid, ns in names.items():
+                    if any(n and n in cb for n in ns):
+                        caught[(pid, fm["signature"])] += 1
+            for pid in (card.get("uses_patterns") or []):
+                for sg in (idx["patterns"].get(pid, {}).get("defends") or []):
+                    adopted[(pid, sg)] += 1
+                    if sg in rep:
+                        failed[(pid, sg)] += 1
+        _DEFENSE_CACHE.clear()
+        _DEFENSE_CACHE[k] = (adopted, failed, caught)
+    adopted, failed, caught = _DEFENSE_CACHE[k]
+    key = (pattern, signature)
+    return {"adopted": adopted[key], "failed": failed[key], "caught": caught[key]}
+
+
+# NOTE: an evidence-grounded `unguarded` verdict was built here and REVERTED 2026-09-21. It asked a
+# corpus-wide question (do all declared defenders of this signature have a failure record and none a
+# catch record), which is a property of the SIGNATURE, not of the workflow, so it fired on the same six
+# signatures every time and scored 46.7% against the per-card record where always-guarded scores 73.3%.
+# The records below are kept; the verdict needs to be conditioned on the retrieved analogues, and on
+# more ground truth than the 15 cases it was measured against. See eval/loo_patterns.py.
+
+
 def risk_counter(idx, cids):
     sigs = Counter()
     for cid in cids:
@@ -543,6 +595,8 @@ def analyze_interrogate(idx, stub):
         defs = [{"id": pid, "name": idx["patterns"][pid]["name"], "cost": idx["patterns"][pid]["cost"]}
                 for pid in patterns_defending(idx, sig)]
         ex_cid, ex_desc = example_card_for(idx, sig, analogue_ids)
+        for d in defs:
+            d["record"] = defense_record(idx, d["id"], sig)
         rows.append({"signature": sig, "count": n,
                      "severity": severity_label(signature_priority(sig, stub)),
                      "question": QUESTIONS.get(sig, f"How will you handle `{sig}`?"),
@@ -811,6 +865,17 @@ def analyze_backwards(idx, stub):
     near, far = _near_far(idx, stub)
     analogue_ids = [cid for _, cid in near] + [cid for _, cid, _ in far]
     full = risk_counter(idx, analogue_ids)
+    # Seed the risk set with signatures the customer DECLARED (high-cost / observed / failure_signatures)
+    # even when no corpus analogue logged them. A failure that already happened to the customer must
+    # still receive its library defense — grounded in their own war story rather than a corpus example —
+    # instead of being silently dropped because the public corpus never recorded that signature.
+    declared = (set(_as_list(stub.get("high_cost_signatures")))
+                | set(_as_list(stub.get("failure_signatures")))
+                | {f.get("signature") for f in (stub.get("observed_failures") or [])
+                   if isinstance(f, dict) and f.get("signature")})
+    for sig in declared:
+        if sig and sig not in full:
+            full[sig] = 0  # count 0 = customer-declared, no corpus analogue; priority still ranks it
     have = defended(idx, stub)
     good_means, guarantees = [], []
     # Cost-first ordering: the build list leads with the most expensive failures to be free of.
@@ -1065,7 +1130,13 @@ def render_interrogate(res):
         if r["unguarded"]:
             print(f"      UNGUARDED — no pattern in the library defends `{sig}` (a corpus gap).")
         for p in r["patterns"]:
-            print(f"      borrow `{p['id']}` — {p['name']} (defends {sig}; cost: {p['cost']})")
+            rc = p.get("record") or {}
+            note = ""
+            if rc.get("adopted"):
+                note = f"; {rc['failed']} of {rc['adopted']} workflows that ran it still hit this"
+                if rc.get("caught"):
+                    note += f", {rc['caught']} record it catching this"
+            print(f"      borrow `{p['id']}` — {p['name']} (defends {sig}; cost: {p['cost']}{note})")
         ex = r["example"]
         if ex["card"]:
             tag = "" if not ex["desc"] else f": {ex['desc'][:120]}"

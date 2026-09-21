@@ -30,6 +30,11 @@ def test_interrogate_invariants(eng, idx, name, stub):
         for p in r["patterns"]:
             assert p["id"] in pids, (name, p["id"])
             assert r["signature"] in idx["patterns"][p["id"]]["defends"], (name, r["signature"])
+        # Every offered defense carries its corpus record, and the record is internally consistent.
+        for p in r["patterns"]:
+            rc = p["record"]
+            assert set(rc) == {"adopted", "failed", "caught"}, (name, p["id"])
+            assert 0 <= rc["failed"] <= rc["adopted"], (name, p["id"], rc)
         # unguarded <=> no defending pattern.
         assert r["unguarded"] == (len(r["patterns"]) == 0), (name, r["signature"])
         # The example card (when present) really exhibits the signature.

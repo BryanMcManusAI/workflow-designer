@@ -32,7 +32,12 @@ def _norm(stub):
            "process_mode": stub.get("process_mode"),
            # the good-data-questionnaire scalar answers (edge-case philosophy, workflow context)
            "edge_case_mode": stub.get("edge_case_mode"),
-           "downstream": stub.get("downstream")}
+           "downstream": stub.get("downstream"),
+           # the retrospective bridge: the customer's own documented incidents (list of dicts —
+           # kept as-is, not coerced through LIST_KEYS) and where they came from
+           "observed_failures": [f for f in (stub.get("observed_failures") or [])
+                                 if isinstance(f, dict)],
+           "source_diagnosis": stub.get("source_diagnosis")}
     for k in LIST_KEYS:
         v = stub.get(k, [])
         out[k] = [v] if isinstance(v, str) else list(v or [])
@@ -61,12 +66,19 @@ def payload(stub):
     }
 
 
+# A stub preloaded at launch (--stub path) — the one-URL demo: `serve.py --stub
+# output/<id>_designer_stub.json` opens straight onto the Good Data Brief for a bridged
+# retrospective diagnosis, the customer's own failures already in place.
+PRELOAD = None
+
+
 def meta():
     v = engine.vocab(IDX)
     patterns = [{"id": pid, "name": p["name"]} for pid, p in sorted(IDX["patterns"].items())]
     return {"vocab": v, "patterns": patterns,
             "examples": build_site.EXAMPLES, "llm_available": llm.available(),
             "signature_help": engine.QUESTIONS,
+            "preloaded_stub": PRELOAD,
             "n_cards": len(IDX["cards"]), "n_patterns": len(IDX["patterns"])}
 
 
@@ -246,6 +258,11 @@ const HELP = {modality:"what the data is — text, image, audio, code…",
 async function init(){
   META = await (await fetch('/api/meta')).json();
   $('#corpus').textContent = `${META.n_cards} recipes · ${META.n_patterns} patterns · deterministic core`;
+  if(META.preloaded_stub){
+    // bridged from a retrospective diagnosis: land directly on the populated brief
+    Object.assign(stub, META.preloaded_stub);
+    MODE='advise'; STEP=steps().length-1;
+  }
   await analyze(); render();
 }
 async function analyze(){
@@ -662,7 +679,13 @@ def main():
     ap = argparse.ArgumentParser(description="Workflow Designer — local interactive web UI (stdlib).")
     ap.add_argument("--port", type=int, default=8011)
     ap.add_argument("--host", default="127.0.0.1")
+    ap.add_argument("--stub", help="open pre-loaded on this stub's Good Data Brief "
+                                   "(e.g. a bridged retrospective diagnosis)")
     args = ap.parse_args()
+    if args.stub:
+        global PRELOAD
+        PRELOAD = _norm(engine.load_stub(args.stub))
+        print(f"preloaded stub: {args.stub} -> opening on the Good Data Brief")
     srv = ThreadingHTTPServer((args.host, args.port), Handler)
     print(f"Workflow Designer running → http://localhost:{args.port}  (Ctrl-C to stop)")
     try:
