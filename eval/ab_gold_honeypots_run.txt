@@ -1,0 +1,21 @@
+pool 350 items | truth panel 61 | bank 10 items (excluded from scoring) | drop 15 of 62 | 100 panels
+screening costs 620 passes; arm A then buys 3/item from survivors, arm B spends the same total on 4-5/item with no screen
+
+  arm                           tail acc  minority  adj load  silent   spend
+  A screened (3/item)             68.9%     59.0%     33.2%     3.9    1634
+  B unscreened, same budget       66.7%     68.6%     59.6%     0.6    1634
+  D counterfeit, random drop      66.2%     66.9%     45.0%     4.2    1634
+  E unscreened, same evidence     65.4%     66.8%     45.0%     4.2    1014
+  constant                        64.9%
+
+  A - B  screen vs the money      +2.1 pts  95% CI [+0.9, +3.4]
+  A - E  screen, evidence held    +3.5 pts  95% CI [+2.0, +4.9]
+  A - D  screen vs a coin         +2.7 pts  95% CI [+1.5, +3.8]
+
+  positive control: screen drops raters at 63.6% truth agreement, keeps raters at 84.7%
+
+  CHECK 1 HARNESS     MET     A, B and D spend the same (actual, not intended)
+  CHECK 2 CONTROL     MET     the screen drops worse raters than it keeps
+  CHECK 3 PRIMARY     MISSED  A beats B by >= 3.0 pts, CI excludes 0
+  CHECK 4 COUNTERFEIT MISSED  A beats the coin by >= 3.0 pts, CI excludes 0
+  CHECK 5 CONSTANT    MET     A beats the constant
