@@ -25,3 +25,26 @@ Not claimed: one pool, one stub, one realization. The engine recommends a PATTER
 parameters; the 30% audit fraction and +2 extra passes are this file's choices, and a different
 sizing may do better. For the DICES stub the engine's true top pick is `engagement-gate`, which no
 resampling can realize, so this tests the most measurable quarter of the recommendation only.
+
+================================================================================
+RE-RUN 2026-09-21 AFTER DEFENSES WERE RANKED BY RECORD (`2099154`)
+
+  the engine's ranked patterns: human-audit-sample, coverage-routing, active-learning-loop,
+    gold-honeypots, qualification-calibration, lock-then-score, human-gold-anchor,
+    inter-annotator-agreement
+  its top REALIZABLE pick: human-audit-sample   (UNCHANGED)
+
+  arm                          recall    FA   PPV@   NPV@   authority
+  A  human-audit-sample (engine)  79%   11%    42%    96%   WITHHELD
+  B  flat, same budget            93%    7%    51%    98%   EARNED
+
+  VERDICT UNCHANGED. The ranking did not move this recommendation, because human-audit-sample
+  genuinely holds the best record against class_imbalance in the corpus (5 adopted, 1 failed) and
+  was already first for a reason, not only by file order.
+
+  WHAT THAT MEANS. The engine's pick is well grounded in the corpus record and still loses to
+  spending the same budget evenly. The problem is therefore UPSTREAM of ordering: either the
+  adopted/failed record does not predict this outcome, or this realization of the pattern is wrong,
+  or the pattern's value depends on the pool in a way no corpus count can carry. Fixing the ordering
+  was worth doing — eight golden rows moved and `unanchored` now leads with a 13/2 record instead of
+  a 13/4 one — but it was not the cause of this loss.
