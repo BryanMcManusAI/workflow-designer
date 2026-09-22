@@ -1,5 +1,16 @@
 #!/usr/bin/env python3
-"""Does the abstention arc hold, or was it one draw?
+"""SUPERSEDED — its headline was noise. Read eval/price_check.py instead.
+
+⚠ THIS FILE'S "31 of 40" IS WRONG. The 40 runs are 5 settings over the SAME 8 seeds, and the
+gold-honeypots block draws from an RNG the human-audit-sample block has already consumed, so the
+settings are correlated rather than independent. Eight seeds is also simply too few on this pool.
+Re-run on 60 independent seeds in price_check.py, gold-honeypots' error advantage is +0.2 points
+with both-right at 30 of 60 — a coin, not 31 of 40. The load result (-2.6 points) survives; the
+error result does not.
+
+What the file still does correctly is the point about stubs, which is why it is kept.
+
+Does the abstention arc hold, or was it one draw?
 
 close_the_loop.py + loop_scorecard.py showed one before/after: the engine's pick without abstention
 (human-audit-sample) merely TRADED human load for error against flat, while its pick with abstention

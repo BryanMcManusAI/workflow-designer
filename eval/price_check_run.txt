@@ -1,0 +1,23 @@
+  pool 2812 items, 7 raters, key 'ground truth', 60 seeds, 3 passes/item base
+
+  gold-honeypots
+      corpus price   inflation              adopted  5 failed  0  -> floor 0.566
+      corpus price   drift                  adopted  5 failed  0  -> floor 0.566
+      pool says      load -2.6 pts, error +0.2 pts vs flat, both-right 30/60
+      -> PRICE OPTIMISTIC — quoted as sound, but it trades quality for load
+
+  human-audit-sample
+      corpus price   class_imbalance        adopted  5 failed  1  -> floor 0.376
+      corpus price   unanchored             adopted  5 failed  3  -> floor 0.118
+      corpus price   sampling_frame         adopted  5 failed  4  -> floor 0.036
+      pool says      load -3.4 pts, error +0.7 pts vs flat, both-right 7/60
+      -> PRICE HONEST — quoted as weak, and it is weak
+
+  tiered-adjudication
+      corpus price   bottleneck             adopted  5 failed  2  -> floor 0.231
+      corpus price   under_specification    adopted  5 failed  4  -> floor 0.036
+      pool says      load -1.8 pts, error -1.3 pts vs flat, both-right 58/60
+      -> PRICE PESSIMISTIC — quoted as weak, does better than that
+
+  A price HOLDS when the corpus's record and the pool's behaviour agree. That is what an
+  idea tool owes the person choosing: not the right answer, an honest cost on each option.
