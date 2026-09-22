@@ -79,3 +79,37 @@ WHAT THIS DOES AND DOES NOT SHOW.
     That result is adjudicator-dependent and the two runs are not comparable — different arm sizes
     AND a different adjudicator. Do not read this run as overturning that one; read both as
     under-specified until the adjudicator is fixed across the whole comparison.
+
+================================================================================
+ADJUDICATOR FIXED 2026-09-21 — AND THE HEADLINE ABOVE DOES NOT SURVIVE IT
+
+`answer --majority N` is an ABSOLUTE threshold, so across arms of different depth it is not one
+standard: 2 of 3 passes is 67% of the evidence, 2 of 6 is 33%, and 3 of 3 is unsatisfiable on a
+disputed item. A tiered or audit design spends unevenly BY CONSTRUCTION, so no fixed N is fair to
+both arms. eval/proportional_answer.py resolves a unit when strictly more than half of THAT ITEM'S
+own passes share a reading — 3 needs 2, 4 needs 3, 6 needs 4 — so the standard is identical at every
+depth. All four arms re-released on it:
+
+  arm                              recall    FA  PPV@  NPV@  rejects       adjudicate
+  loop2/arm_a_human_audit_sample      82%   14%   39%   97%    False      29.2 -> 29.2%
+  loop2/arm_b_flat                    82%   17%   34%   97%    False      26.4 -> 26.4%
+  loop3/arm_a_gold_honeypots          80%   20%   14%   98%    False      11.8 -> 11.8%
+  loop3/arm_b_flat                    82%   18%   34%   96%    False      27.3 -> 27.3%
+
+RETRACTED: "THE ENGINE'S RECOMMENDATION LOST TO THE PATH NOT TAKEN." It did not. That claim rested
+entirely on a gate flip — arm B earning authority while arm A did not — measured at `--majority 3`,
+which arm A's depth could not satisfy. Under one standard NO arm earns authority, and on the numbers
+the engine's pick is if anything the better of the two: same recall, lower false alarms (14% vs 17%),
+higher projected PPV (39% vs 34%).
+
+WHAT IS LEFT, WHICH IS WEAKER AND TRUE:
+  - The gate does not discriminate these arms on this pool. Nothing earns authority, so it cannot
+    rank them. An instrument that returns the same verdict for every arm is not measuring the arms.
+  - ADJUDICATION LOAD still discriminates, and sharply: the abstention-driven pick carries 11.8%
+    against flat's 27.3%. Screening out the two worst raters more than halves what a person must
+    settle. That is a real difference and it survives the fix.
+  - So the loop's usable output right now is the human-load column, not the gate verdict.
+
+WHAT THIS COSTS THE EARLIER ROWS. Every gate verdict quoted before this section was measured under a
+depth-dependent standard and should be read as void, including the one this file opens with. The
+non-gate numbers (violation profiles, disputed counts, rater rankings) are unaffected.
