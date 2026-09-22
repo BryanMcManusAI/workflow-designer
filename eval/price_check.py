@@ -29,6 +29,35 @@ they were not 40 independent draws. Re-run here on 60 independent seeds, its err
 +0.2 points and both-right is 30 of 60 — a coin. The 31/40 was noise. Anything below ~30 seeds on
 this pool should not be quoted.
 
+⚠️ READ THIS BEFORE QUOTING THE VERDICTS. The two sides may not be commensurable, and if they are
+not then a disagreement is this file's fault rather than the corpus's.
+
+  the corpus record asks   of the cards that adopted pattern P, how many still REPORTED failure
+                           signature S in their published account?
+  this pool measure asks   does design P lower human load and shipped error against a flat arm?
+
+Those are different questions. A pattern can cut error on a pool while the papers that adopted it
+still report the signature — adopting a detection pattern is exactly what makes a team find and
+report the thing. And a 0-of-5 record can mean the five cards never looked for S, not that P
+prevented it. Worse, the record is PER SIGNATURE while the pool measure is signature-agnostic:
+gold-honeypots is priced here against `inflation` and `drift`, but the pool number is overall
+load/error on an ordinal grading task, which is nearer to rater quality than to either. So the
+verdicts below should be read as "the record does not predict this pool outcome", never as "the
+corpus price is false". A fair test would measure the SAME signature on the pool, which for drift
+needs a clock (DICES has one, CrowdGleason does not) and for inflation may not be realizable at all.
+
+TWO STRUCTURAL PROBLEMS IN THE RECORD ARE REAL WHATEVER THIS FILE MEASURES, both checked 2026-09-21:
+  - `caught` is non-zero on 2 of 40 records. The record is almost purely a failure count, so a
+    pattern can lose points and essentially never gain them. What it calls a survival rate is a
+    rate of not-being-blamed.
+  - the median record rests on 5 adoptions. Wilson bounds that honestly, which is why the engine
+    sorts on the floor, but it cannot manufacture evidence that is not there.
+A COLLECTIVE-BLAME HYPOTHESIS WAS TESTED AND REJECTED: a card reporting S blames every pattern it
+ran that declares S, so patterns in busy workflows should accumulate blame. They do not — failure
+rate against co-adoption count is rho -0.19, and patterns in busy workflows fail LESS (0.35) than
+those in lean ones (0.41). Reporting verbosity is weakly positive (rho +0.28, n=32) and is the only
+survivor of the three mechanisms tried.
+
   python3 eval/price_check.py --pool <crossed>.json
 """
 import argparse, collections, json, os, random, statistics, sys
