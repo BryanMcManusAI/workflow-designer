@@ -494,6 +494,14 @@ def _wilson_lower(k, n, z=1.96):
     return max(0.0, (centre - spread) / d)
 
 
+# A defense is PROVEN when its Wilson floor clears 0.5: the corpus can say at 95% that it survives
+# more often than it fails. Below that the corpus cannot distinguish it from a coin, whatever its
+# raw rate looks like. The line is 0.5 because "more often than not" is the weakest claim worth
+# making, not because it was tuned — though two scores (sampling_frame 0.036, class_imbalance 0.376)
+# were already known when it was chosen, so treat what it flags as an outcome, not a calibration.
+PROVEN_FLOOR = 0.5
+
+
 def defense_rank(record):
     """Order a signature's defenses by how they have actually FARED, not by corpus file order.
 
@@ -677,8 +685,13 @@ def analyze_interrogate(idx, stub):
         # replaced. Reorder only where there is evidence to reorder on.
         defs.sort(key=lambda d: (-defense_rank(d["record"])[0], -d["record"]["caught"],
                                  -d["record"]["adopted"]))
+        best = max((d["record_score"] for d in defs), default=0.0)
         rows.append({"signature": sig, "count": n,
                      "lift": round(lift, 2), "trusted": n >= MIN_SUPPORT,
+                     # Distinct from `unguarded`, which means the library declares NO defender.
+                     # `unproven` means defenders are declared and not one of them has a record the
+                     # corpus can stand behind. The engine used to offer both with equal confidence.
+                     "unproven": bool(defs) and best < PROVEN_FLOOR, "best_record": round(best, 3),
                      "severity": severity_label(signature_priority(sig, stub)),
                      "question": QUESTIONS.get(sig, f"How will you handle `{sig}`?"),
                      "patterns": defs, "unguarded": not defs,
@@ -1217,6 +1230,10 @@ def render_interrogate(res):
         print(wrap(r["question"], "     "))
         if r["unguarded"]:
             print(f"      UNGUARDED — no pattern in the library defends `{sig}` (a corpus gap).")
+        elif r.get("unproven"):
+            print(f"      UNPROVEN — patterns below are declared to defend `{sig}`, but none has a "
+                  f"record the corpus can stand behind (best survival floor "
+                  f"{r['best_record']:.2f} < {PROVEN_FLOOR}). Treat these as untested, not advised.")
         for p in r["patterns"]:
             rc = p.get("record") or {}
             note = ""

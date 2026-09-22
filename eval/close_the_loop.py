@@ -37,55 +37,94 @@ def main():
     ap.add_argument("--base", type=int, default=3, help="passes on every item")
     ap.add_argument("--audit-frac", type=float, default=0.30)
     ap.add_argument("--audit-extra", type=int, default=2)
+    ap.add_argument("--honeypots", type=int, default=40)
+    ap.add_argument("--drop", type=int, default=2)
     ap.add_argument("--seed", type=int, default=22)
     a = ap.parse_args()
 
     idx = engine.load_index()
     stub = engine.load_stub(a.stub)
     inter = engine.analyze_interrogate(idx, stub)
-    order = []
-    for r in inter["open"]:
-        for p in r["patterns"]:
-            if p["id"] not in order:
-                order.append(p["id"])
-    pick = next((p for p in order if p in REALIZABLE), None)
+    def ranked(rows):
+        out = []
+        for r in rows:
+            for p in r["patterns"]:
+                if p["id"] not in out:
+                    out.append(p["id"])
+        return out
+
+    order = ranked(inter["open"])
+    # Take the first pattern the engine can STAND BEHIND. A row it marks `unproven` has declared
+    # defenders and not one with a record the corpus supports, so recommending from it is offering
+    # an untested option with the confidence of a tested one.
+    proven = ranked([r for r in inter["open"] if not r.get("unproven")])
+    pick = next((p for p in proven if p in REALIZABLE), None)
+    naive = next((p for p in order if p in REALIZABLE), None)
     print(f"  the engine's ranked patterns: {', '.join(order[:8])}")
-    print(f"  its top REALIZABLE pick: {pick}")
+    print(f"  unproven rows skipped: "
+          f"{', '.join(r['signature'] for r in inter['open'] if r.get('unproven')) or '(none)'}")
+    print(f"  top realizable pick ignoring proof: {naive}")
+    print(f"  TOP REALIZABLE PICK IT CAN STAND BEHIND: {pick}")
     if pick is None:
         raise SystemExit("  nothing the engine recommends can be realized by subsampling.")
-    if pick != "human-audit-sample":
-        print(f"  NOTE: this file only realizes human-audit-sample; {pick} needs its own arm.")
+    if pick not in ("human-audit-sample", "gold-honeypots"):
+        raise SystemExit(f"  this file realizes human-audit-sample and gold-honeypots; "
+                         f"{pick} needs its own arm.")
 
     D = json.load(open(a.pool))
     raters = sorted({r for it in D["items"] for r in it["passes"]})
     items = [it for it in D["items"] if len(it["passes"]) == len(raters)]
     rng = random.Random(a.seed)
-    audit = set(rng.sample([it["id"] for it in items], int(a.audit_frac * len(items))))
 
-    pa, spend = {}, 0
-    for it in items:
-        sel = rng.sample(raters, a.base)
-        if it["id"] in audit:
-            sel += [r for r in rng.sample(raters, a.audit_extra) if r not in sel]
-        pa[it["id"]] = {r: it["passes"][r] for r in sel}
-        spend += len(sel)
-    base, extra = divmod(spend, len(items))
-    bump = set(rng.sample([it["id"] for it in items], extra))
+    # Each arm realizes the pattern it is NAMED for. An earlier version named the arm after the
+    # engine's pick and then built an audit sample regardless, which would have tested the wrong
+    # design under the right label.
+    if pick == "human-audit-sample":
+        audit = set(rng.sample([it["id"] for it in items], int(a.audit_frac * len(items))))
+        live, pa, spend = items, {}, 0
+        for it in items:
+            sel = rng.sample(raters, a.base)
+            if it["id"] in audit:
+                sel += [r for r in rng.sample(raters, a.audit_extra) if r not in sel]
+            pa[it["id"]] = {r: it["passes"][r] for r in sel}
+            spend += len(sel)
+    else:  # gold-honeypots: pay to screen raters on a reserved bank, then collect from survivors.
+        bank = set(rng.sample([it["id"] for it in items], a.honeypots))
+        ans = {it["id"]: max(set(it["passes"].values()), key=list(it["passes"].values()).count)
+               for it in items if it["id"] in bank}
+        # The bank's answers are the pool's own consensus, never any held-out key.
+        hp = {r: sum(1 for it in items if it["id"] in bank and it["passes"][r] == ans[it["id"]])
+              for r in raters}
+        kept = sorted(raters, key=lambda r: (-hp[r], r))[:len(raters) - a.drop]
+        print(f"  screened {len(raters)} raters on {a.honeypots} bank items, kept {len(kept)}: "
+              f"{', '.join(kept)}")
+        live = [it for it in items if it["id"] not in bank]
+        pa, spend = {}, len(raters) * a.honeypots
+        for it in live:
+            sel = rng.sample(kept, a.base)
+            pa[it["id"]] = {r: it["passes"][r] for r in sel}
+            spend += len(sel)
+
+    base, extra = divmod(spend, len(live))
+    bump = set(rng.sample([it["id"] for it in live], extra))
     pb = {it["id"]: {r: it["passes"][r] for r in
                      rng.sample(raters, min(base + (1 if it["id"] in bump else 0), len(raters)))}
-          for it in items}
+          for it in live}
 
     os.makedirs(a.out, exist_ok=True)
     ctx = [k for k in items[0] if k not in ("id", "passes", "when")]
     for nm, p in (("arm_a_" + pick.replace("-", "_"), pa), ("arm_b_flat", pb)):
         out = {"items": [{"id": it["id"], "passes": p[it["id"]],
-                          **{k: it[k] for k in ctx}} for it in items],
+                          **{k: it[k] for k in ctx}} for it in live],
                "source": f"{D.get('source','')} | {nm} | engine-recommended arm vs path not taken",
                "task": D.get("task", {"kind": "value", "ordinal": True, "tolerance": 1.0,
                                       "span_labels": []})}
         with open(os.path.join(a.out, nm + ".json"), "w") as f:
             json.dump(out, f)
-        print(f"  wrote {nm}.json  ({sum(len(x['passes']) for x in out['items']):,} passes)")
+        collected = sum(len(x["passes"]) for x in out["items"])
+        screen = spend - collected if nm.startswith("arm_a") else 0
+        note = f" + {screen:,} screening" if screen else ""
+        print(f"  wrote {nm}.json  ({collected:,} collected{note} = {collected + screen:,} total)")
 
     print("\n  then, per arm, judgelab delivers the verdict:")
     print("    python3 -m judgelab.agreement queue   ARM.json --shape json --pages P.json --key K.json")

@@ -48,3 +48,34 @@ RE-RUN 2026-09-21 AFTER DEFENSES WERE RANKED BY RECORD (`2099154`)
   or the pattern's value depends on the pool in a way no corpus count can carry. Fixing the ordering
   was worth doing — eight golden rows moved and `unanchored` now leads with a 13/2 record instead of
   a 13/4 one — but it was not the cause of this loss.
+
+================================================================================
+RE-RUN 2026-09-21 WITH ABSTENTION (`unproven`) STEERING THE PICK
+
+  unproven rows skipped: class_imbalance, confounded, under_specification, sampling_frame,
+                         over_specification, self_affinity
+  top realizable pick ignoring proof:      human-audit-sample   (what lost, twice)
+  TOP REALIZABLE PICK IT CAN STAND BEHIND: gold-honeypots       (CHANGED)
+
+  The screen kept marker2/3/4/5/6 and dropped marker1 and marker7 — the two worst raters against
+  the withheld key (53.3% and 33.8%). It never saw the key; the bank is the pool's own consensus.
+
+  ADJUDICATOR CHANGED, AND IT HAD TO. `--majority 3` cannot answer a disputed item in a 3-pass
+  design: three passes that disagree can never have three sharing a reading. Arm A returned 0
+  answers on 0 units. Both arms were re-run at `--majority 2`, which is the only setting that works
+  for both.
+
+  arm                    disputed        recall    FA   PPV@   authority
+  A  gold-honeypots     326 (11.8%)         80%   20%    14%   WITHHELD
+  B  flat, same budget  756 (27.3%)         78%   18%    33%   WITHHELD
+
+WHAT THIS DOES AND DOES NOT SHOW.
+  DOES: abstention changes the recommendation, from the pattern that lost twice to a different one,
+    on a signal the engine already computes. The new pick MORE THAN HALVES the human adjudication
+    load, 11.8% against 27.3%, which is the cost the pattern exists to reduce.
+  DOES NOT: establish a gate win. NEITHER arm earns authority here.
+  ⚠ AND IT COSTS THE EARLIER HEADLINE. The "flat EARNS authority" verdict above was measured at
+    `--majority 3` on differently-sized arms. At `--majority 2` on these arms flat does NOT earn it.
+    That result is adjudicator-dependent and the two runs are not comparable — different arm sizes
+    AND a different adjudicator. Do not read this run as overturning that one; read both as
+    under-specified until the adjudicator is fixed across the whole comparison.
