@@ -478,6 +478,38 @@ def defense_record(idx, pattern, signature):
     return {"adopted": adopted[key], "failed": failed[key], "caught": caught[key]}
 
 
+def _wilson_lower(k, n, z=1.96):
+    """Conservative lower bound on a success rate, so a thin record cannot outrank a thick one.
+
+    A pattern adopted twice and never failed looks perfect at 2/2, but two cards is not evidence.
+    Wilson pulls it down (~0.34) while a 13-of-13 record holds near 0.77, which is the ordering a
+    reader would defend. The plain rate would put the two-card pattern first.
+    """
+    if n <= 0:
+        return 0.0
+    p = k / n
+    d = 1 + z * z / n
+    centre = p + z * z / (2 * n)
+    spread = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))
+    return max(0.0, (centre - spread) / d)
+
+
+def defense_rank(record):
+    """Order a signature's defenses by how they have actually FARED, not by corpus file order.
+
+    `patterns_defending` returns whatever order the library happens to hold, so before this the
+    engine led `unanchored` with multi-annotator-aggregate (adopted 13, FAILED 4) and buried
+    qualification-calibration (3, 0) and human-gold-anchor (13, 2) below it. The record was computed
+    and printed for a human to read while the ordering ignored it.
+
+    Sorts on the Wilson floor of the survival rate, then on catches (direct evidence the pattern
+    caught this signature), then on how many cards adopted it at all. A pattern nothing has adopted
+    for this signature scores 0 and sorts last: no record is not the same as a good one.
+    """
+    a, f, c = record["adopted"], record["failed"], record["caught"]
+    return (_wilson_lower(a - f, a), c, a)
+
+
 # NOTE: an evidence-grounded `unguarded` verdict was built here and REVERTED 2026-09-21. It asked a
 # corpus-wide question (do all declared defenders of this signature have a failure record and none a
 # catch record), which is a property of the SIGNATURE, not of the workflow, so it fired on the same six
@@ -636,6 +668,15 @@ def analyze_interrogate(idx, stub):
         ex_cid, ex_desc = example_card_for(idx, sig, analogue_ids)
         for d in defs:
             d["record"] = defense_record(idx, d["id"], sig)
+            d["record_score"] = round(defense_rank(d["record"])[0], 3)
+        # Lift ranks which risk to worry about; this ranks which defense to reach for. Before it,
+        # the pick was whatever sat first in the library file.
+        # No id tiebreak: Python's sort is stable, so defenses the record cannot separate keep the
+        # order they came inrather than being alphabetised. sampling_frame's top two are both 5
+        # adopted / 4 failed, and ordering those by spelling would be the same arbitrariness this
+        # replaced. Reorder only where there is evidence to reorder on.
+        defs.sort(key=lambda d: (-defense_rank(d["record"])[0], -d["record"]["caught"],
+                                 -d["record"]["adopted"]))
         rows.append({"signature": sig, "count": n,
                      "lift": round(lift, 2), "trusted": n >= MIN_SUPPORT,
                      "severity": severity_label(signature_priority(sig, stub)),

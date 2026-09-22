@@ -89,10 +89,10 @@
       3,
       [
         "gold-honeypots",
-        "qualification-calibration",
-        "lock-then-score",
         "dedup-merge",
-        "engagement-gate"
+        "qualification-calibration",
+        "engagement-gate",
+        "lock-then-score"
       ]
     ],
     [
@@ -127,17 +127,17 @@
       1,
       [
         "human-audit-sample",
-        "active-learning-loop",
-        "coverage-routing"
+        "coverage-routing",
+        "active-learning-loop"
       ]
     ],
     [
       "under_specification",
       1,
       [
+        "inter-annotator-agreement",
         "multi-annotator-aggregate",
         "tiered-adjudication",
-        "inter-annotator-agreement",
         "edge-case-guidelines"
       ]
     ]

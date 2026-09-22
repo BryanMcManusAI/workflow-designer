@@ -65,8 +65,8 @@
       "label_leakage",
       5,
       [
-        "split-isolation",
         "dedup-merge",
+        "split-isolation",
         "partial-input-baseline"
       ]
     ],
@@ -75,8 +75,8 @@
       3,
       [
         "human-audit-sample",
-        "active-learning-loop",
-        "coverage-routing"
+        "coverage-routing",
+        "active-learning-loop"
       ]
     ],
     [
@@ -92,9 +92,9 @@
       "under_specification",
       6,
       [
+        "inter-annotator-agreement",
         "multi-annotator-aggregate",
         "tiered-adjudication",
-        "inter-annotator-agreement",
         "edge-case-guidelines"
       ]
     ],

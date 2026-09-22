@@ -107,10 +107,10 @@
       "bottleneck",
       1,
       [
-        "tiered-adjudication",
-        "active-learning-loop",
         "labeling-functions",
-        "pooled-sampling"
+        "active-learning-loop",
+        "pooled-sampling",
+        "tiered-adjudication"
       ]
     ],
     [
@@ -118,8 +118,8 @@
       1,
       [
         "human-audit-sample",
-        "active-learning-loop",
-        "coverage-routing"
+        "coverage-routing",
+        "active-learning-loop"
       ]
     ]
   ],
