@@ -1,0 +1,22 @@
+  350 items x 123 raters, all timestamped
+  per-rater bar shift |late - early| : median 0.035, p90 0.112, max 0.261
+
+  selector                        drift of DROPPED   of KEPT      gap
+  honeypot screen                            0.091     0.045   +0.046
+  random drop (coin)                         0.049     0.051   -0.002
+  oracle (drops top drifters)                0.156     0.036   +0.120
+
+  screen's gap: +0.046  95% CI [+0.044, +0.049]
+  as a share of what an oracle drop achieves: 38%
+
+  corpus quotes gold-honeypots vs drift at 5 adopted / 0 failed, floor 0.566 (sound)
+  -> PRICE HOLDS — the screen does preferentially remove drifters
+
+MECHANISM (measured, not assumed)
+  |drift| vs mean agreement                                    rho -0.45  (n=123)
+  low-agreement half, mean |drift|                             0.069
+  high-agreement half, mean |drift|                            0.033
+  inside the high-agreement half, dropping its lowest 15:      dropped 0.056 vs kept 0.026
+  -> the screen removes drifters as a side effect of removing low agreement, and the association
+     survives within a stratum rather than being one split's artifact. It does NOT detect change,
+     so a symmetric drifter averaging to high agreement would be missed.
