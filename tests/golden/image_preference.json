@@ -118,8 +118,8 @@
       1,
       [
         "human-audit-sample",
-        "coverage-routing",
-        "active-learning-loop"
+        "active-learning-loop",
+        "coverage-routing"
       ]
     ]
   ],

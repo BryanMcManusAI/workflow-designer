@@ -447,7 +447,13 @@ def defense_record(idx, pattern, signature):
 
       adopted — cards that ran this pattern and for which this signature is declared defended by it
       failed  — of those, the ones that REPORTED that failure anyway
-      caught  — cards whose failure_modes record this pattern as what caught it
+      caught  — cards whose failure_modes name this pattern in `caught_by`. ⚠ NEARLY ALWAYS 0, and
+                not a defect to be fixed by better matching: `caught_by` is free prose describing
+                what caught the failure in that workflow ("human verification (partial)",
+                "post-hoc simple-majority rule", "UNGUARDED"), not a pattern id. Substring-matching
+                pattern names against it hits 2 of 152 modes, and those 2 are accidents. It is kept
+                for the record and is NO LONGER a ranking signal. The real evidence in that field is
+                whether anything caught the failure at all — see unguarded_rate().
 
     The declaration in `patterns[].defends` is an intention. This is the record. They disagree often:
     edge-case-guidelines is declared to defend under_specification and failed on 6 of the 6 cards that
@@ -476,6 +482,29 @@ def defense_record(idx, pattern, signature):
     adopted, failed, caught = _DEFENSE_CACHE[k]
     key = (pattern, signature)
     return {"adopted": adopted[key], "failed": failed[key], "caught": caught[key]}
+
+
+def unguarded_rate(idx, sig):
+    """How often the corpus records that NOTHING caught this signature when it occurred.
+
+    Every failure mode carries a `caught_by`, and 69 of 152 across the corpus read UNGUARDED — the
+    workflow hit this and nothing in it caught the hit. That is direct evidence about whether a
+    defense is known to exist, and it was being thrown away while the engine tried to parse the same
+    field for pattern names it does not contain.
+
+    Returns (unguarded, total). sampling_frame reads 25 of 36, which corroborates from the other
+    direction what defense_rank finds: every declared defense for it has a survival floor at or
+    below 0.036.
+    """
+    u = n = 0
+    for card in idx["cards"].values():
+        for fm in (card.get("failure_modes") or []):
+            if fm.get("signature") != sig:
+                continue
+            n += 1
+            if (fm.get("caught_by") or "").upper().startswith("UNGUARDED"):
+                u += 1
+    return u, n
 
 
 def _wilson_lower(k, n, z=1.96):
@@ -514,8 +543,10 @@ def defense_rank(record):
     caught this signature), then on how many cards adopted it at all. A pattern nothing has adopted
     for this signature scores 0 and sorts last: no record is not the same as a good one.
     """
-    a, f, c = record["adopted"], record["failed"], record["caught"]
-    return (_wilson_lower(a - f, a), c, a)
+    a, f = record["adopted"], record["failed"]
+    # `caught` used to sit here as the second key. It fires on 2 of 152 failure modes, both by
+    # accident of substring matching, so it was a tiebreak driven by noise. Adoptions now break ties.
+    return (_wilson_lower(a - f, a), a)
 
 
 # NOTE: an evidence-grounded `unguarded` verdict was built here and REVERTED 2026-09-21. It asked a
@@ -683,8 +714,7 @@ def analyze_interrogate(idx, stub):
         # order they came inrather than being alphabetised. sampling_frame's top two are both 5
         # adopted / 4 failed, and ordering those by spelling would be the same arbitrariness this
         # replaced. Reorder only where there is evidence to reorder on.
-        defs.sort(key=lambda d: (-defense_rank(d["record"])[0], -d["record"]["caught"],
-                                 -d["record"]["adopted"]))
+        defs.sort(key=lambda d: (-defense_rank(d["record"])[0], -d["record"]["adopted"]))
         best = max((d["record_score"] for d in defs), default=0.0)
         rows.append({"signature": sig, "count": n,
                      "lift": round(lift, 2), "trusted": n >= MIN_SUPPORT,
@@ -692,6 +722,7 @@ def analyze_interrogate(idx, stub):
                      # `unproven` means defenders are declared and not one of them has a record the
                      # corpus can stand behind. The engine used to offer both with equal confidence.
                      "unproven": bool(defs) and best < PROVEN_FLOOR, "best_record": round(best, 3),
+                     "corpus_unguarded": unguarded_rate(idx, sig),
                      "severity": severity_label(signature_priority(sig, stub)),
                      "question": QUESTIONS.get(sig, f"How will you handle `{sig}`?"),
                      "patterns": defs, "unguarded": not defs,
@@ -1234,6 +1265,10 @@ def render_interrogate(res):
             print(f"      UNPROVEN — patterns below are declared to defend `{sig}`, but none has a "
                   f"record the corpus can stand behind (best survival floor "
                   f"{r['best_record']:.2f} < {PROVEN_FLOOR}). Treat these as untested, not advised.")
+        ug, ut = r.get("corpus_unguarded") or (0, 0)
+        if ut and ug / ut >= 0.5:
+            print(f"      ...and when `{sig}` hit in the corpus, nothing caught it {ug} times of "
+                  f"{ut}. The gap is in the field, not just in this library.")
         for p in r["patterns"]:
             rc = p.get("record") or {}
             note = ""
