@@ -113,3 +113,26 @@ WHAT IS LEFT, WHICH IS WEAKER AND TRUE:
 WHAT THIS COSTS THE EARLIER ROWS. Every gate verdict quoted before this section was measured under a
 depth-dependent standard and should be read as void, including the one this file opens with. The
 non-gate numbers (violation profiles, disputed counts, rater rankings) are unaffected.
+
+================================================================================
+RE-RUN 2026-09-21 WITH THE STUB FILLED IN (9 fields, eval/stub_gleason_full.yaml)
+
+  ranked patterns: gold-honeypots, qualification-calibration, lock-then-score, dedup-merge,
+    engagement-gate, human-audit-sample, coverage-routing, active-learning-loop
+  TOP REALIZABLE PICK IT CAN STAND BEHIND: gold-honeypots
+
+  WITH THE STUB FILLED, gold-honeypots is the engine's OUTRIGHT #1, not its 4th choice. Under the
+  four-field stub the order was human-audit-sample, coverage-routing, active-learning-loop,
+  gold-honeypots — so the loop had been testing a fallback and calling it the top realizable pick.
+  It now tests what the tool actually recommends.
+
+  ARMS ARE BYTE-IDENTICAL to the thin-stub run, because arms are realized from the PATTERN, not the
+  stub. Scorecard therefore unchanged: gold-honeypots load 2.8% / error 4.4% against flat's
+  8.8% / 10.4% on this draw.
+  ⚠ That is ONE DRAW. Over 60 independent seeds (eval/price_check.py) the error advantage is +0.2
+  and both-right is 30/60. Quote the 60-seed figure, never this one.
+
+  ⚠ AND THE LOOP STILL DOES NOT TEST THE ADVICE ON ITS OWN TERMS. The engine's first risk here is
+  `drift` (lift 4.0) and gold-honeypots is recommended FOR DRIFT. CrowdGleason has the independent
+  key but no clock, so drift cannot be measured on it; DICES-350 has the clock but no key, so
+  nothing can score it. A signature-matched check needs one pool with both, and neither has both.

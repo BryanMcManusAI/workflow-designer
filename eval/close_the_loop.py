@@ -38,6 +38,18 @@ The deeper version: this tool is a guided traversal that elicits those fifteen a
 at a time. Calling analyze_interrogate on a YAML file is its batch-mode shadow, and that is what
 every harness in this directory drives. A judgement about the partner is not available from here.
 
+⚠️ THE LOOP NEVER TESTS THE ADVICE ON ITS OWN TERMS, and no substrate to hand can fix it. The engine
+names a RISK and recommends a pattern FOR THAT RISK. This file then measures the pattern's effect on
+overall human load and shipped error, which is a different question. For the filled Gleason stub the
+engine's first risk is `drift` at lift 4.0 and gold-honeypots is recommended against drift — and:
+
+  CrowdGleason   key YES, clock NO    outcome measurable, drift is not
+  DICES-350      key NO,  clock YES   drift visible, nothing to score it against
+
+So the pattern is validated generically and never against the failure the advice actually named. A
+signature-matched check needs one pool with both a clock and an independent key, and neither of
+these has both.
+
   python3 eval/close_the_loop.py --pool <crossed>.json --stub <stub>.yaml --out <dir>
   then the printed judgelab chain.
 """
