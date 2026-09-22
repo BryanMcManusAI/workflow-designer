@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Piece 6: A/B what the ENGINE recommends, and let judgelab deliver the verdict.
+"""Piece 6: A/B what the ENGINE recommends, and let the layer deliver the verdict.
 
 Every earlier row picked its pattern by hand off the realizable list, so they tested PATTERNS. This
 one asks the engine what to adopt for a stub, realizes its top realizable pick against the path not
-taken at identical budget, and hands both to judgelab. The engine is in the loop and the verdict is
-judgelab's gate, not this file's arithmetic. That is what the six-piece design was for.
+taken at identical budget, and hands both to the layer. The engine is in the loop and the verdict is
+The layer's gate, not this file's arithmetic. That is what the six-piece design was for.
 
   1. engine.analyze_interrogate(stub) -> its ranked patterns (the SUGGESTION)
   2. realize the top realizable pick as arm A; the same budget spread evenly as arm B
-  3. judgelab: read -> queue -> answer --majority 3 -> record -> release
+  3. the agreement layer: read -> queue -> answer --majority 3 -> record -> release
   4. the verdict is whether the release EARNS AUTHORITY, and what it does to the human load
 
 Only 10 of the 25 patterns can be realized by subsampling a crossed pool at all (aggregation,
@@ -51,7 +51,7 @@ signature-matched check needs one pool with both a clock and an independent key,
 these has both.
 
   python3 eval/close_the_loop.py --pool <crossed>.json --stub <stub>.yaml --out <dir>
-  then the printed judgelab chain.
+  then the printed the agreement layer chain.
 """
 import argparse, json, os, random, sys
 
@@ -160,11 +160,11 @@ def main():
         note = f" + {screen:,} screening" if screen else ""
         print(f"  wrote {nm}.json  ({collected:,} collected{note} = {collected + screen:,} total)")
 
-    print("\n  then, per arm, judgelab delivers the verdict:")
-    print("    python3 -m judgelab.agreement queue   ARM.json --shape json --pages P.json --key K.json")
-    print("    python3 -m judgelab.agreement answer  --pages P.json --key K.json --majority 3 --out A.csv")
-    print("    python3 -m judgelab.agreement record  --pages P.json --key K.json --answers A.csv --out R.json")
-    print("    python3 -m judgelab.agreement release ARM.json --shape json --pages P.json --key K.json \\")
+    print("\n  then, per arm, the layer delivers the verdict:")
+    print("    python3 -m <layer> queue   ARM.json --shape json --pages P.json --key K.json")
+    print("    python3 -m <layer> answer  --pages P.json --key K.json --majority 3 --out A.csv")
+    print("    python3 -m <layer> record  --pages P.json --key K.json --answers A.csv --out R.json")
+    print("    python3 -m <layer> release ARM.json --shape json --pages P.json --key K.json \\")
     print("                --answers A.csv --name ARM --check 'DIFFERENT_VALUE: value >= 2' --out REL.json")
     print("  the verdict: does the release EARN AUTHORITY, and what does it do to the human load?")
 

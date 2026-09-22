@@ -5,7 +5,7 @@ arm_b_flat                       54.6%            158              0           1
 arm_c_route_only                 50.9%            171              3            98.2%   on 3x171
 arm_d_counterfeit                54.9%            157              2            98.7%   on 3x85/6x72
 
-  adjudication load = items judgelab sends to a person (the arm's human cost)
+  adjudication load = items the agreement layer sends to a person (the arm's human cost)
   silent errors     = auto-accepted items whose consensus is wrong; these ship unseen
   on NxM            = M auto-accepts were decided by N agreeing raters. Compare these
                       before reading a low load as routing skill: an arm that decides on

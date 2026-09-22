@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """An adjudicator whose standard does not change with how deep an arm bought.
 
-judgelab's `answer --majority N` resolves a disputed unit when N passes share a reading. N is
+The layer's `answer --majority N` resolves a disputed unit when N passes share a reading. N is
 absolute, so across arms of different depth it is not one standard:
 
   --majority 2  on a 3-pass item wants 67% of the evidence; on a 6-pass item it wants 33%.

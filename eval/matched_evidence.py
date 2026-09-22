@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Separate "routes better" from "decides on a smaller panel".
 
-The judgelab hand-off found arm A sending 4 points fewer items to a person than flat, and shipping
+The the agreement layer hand-off found arm A sending 4 points fewer items to a person than flat, and shipping
 3 silent errors where flat shipped 0 — but every one of A's auto-accepts rested on 3 agreeing
 raters against flat's 4 or 5. A was not necessarily routing better; it was deciding on less
 evidence. This row separates the two.
@@ -21,8 +21,8 @@ flats, and the pair of answers is the honest result:
 Read together: if tiered beats flat@panel on the tail, routing earns its extra spend. If tiered's
 load advantage over flat@budget disappears at flat@panel, that advantage was panel size all along.
 
-Routing is computed here as "the shipped passes disagree", which is what judgelab's agreement layer
-does; it was validated against the real thing in eval/judgelab_handoff.py, where judgelab queued
+Routing is computed here as "the shipped passes disagree", which is what an external agreement layer
+does; it was validated against the real thing in eval/external_handoff.py, where the layer queued
 exactly the 178 items this rule selects.
 
 READING THE TABLE. Two things in it are properties of the substrate, not of the pattern:

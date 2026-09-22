@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Score the loop on what a design COSTS A PERSON and what it SHIPS WRONG when nobody looks.
 
-judgelab's gate returned `withheld` for every arm on this pool, so it cannot rank designs here — an
+The layer's gate returned `withheld` for every arm on this pool, so it cannot rank designs here — an
 instrument that gives the same verdict to everything is not measuring the things. Adjudication load
 does separate them, so that becomes the scorecard.
 
@@ -18,7 +18,7 @@ load down and error up; buying more does the reverse. The pair makes that trade 
 letting either number stand alone.
 
 The decision rule matches eval/proportional_answer.py, and the ROUTING half of it was validated
-against judgelab in eval/judgelab_handoff.py, where judgelab queued exactly the items this rule
+against the layer in eval/external_handoff.py, where the layer queued exactly the items this rule
 selects. The key is used only to score, never to decide.
 
   python3 eval/loop_scorecard.py --arms <dir> --gold-key "ground truth"

@@ -146,14 +146,14 @@ def score(gold, truth, ids):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--pool", required=True, help="a fully crossed pool in judgelab's pool.json shape")
+    ap.add_argument("--pool", required=True, help="a fully crossed pool in the agreement layer's pool.json shape")
     ap.add_argument("--truth", type=int, default=61)
     ap.add_argument("--seniors", type=int, default=15)
     ap.add_argument("--tier1", type=int, default=3)
     ap.add_argument("--tier2", type=int, default=3)
     ap.add_argument("--repeats", type=int, default=200)
     ap.add_argument("--seed", type=int, default=22)
-    ap.add_argument("--write-pools", help="directory to write arm_a/arm_b pool.json for judgelab")
+    ap.add_argument("--write-pools", help="directory to write arm_a/arm_b pool.json for the agreement layer")
     a = ap.parse_args()
 
     D = json.load(open(a.pool))
@@ -275,7 +275,7 @@ def main():
         _, pc, _ = arm_routed(items, t1, split, others, a.tier2, random.Random(sd_ + 900000))
         _, pd, _ = arm_routed(items, t1, fake, seniors_l, a.tier2, random.Random(sd_ + 110000))
         _, pb, _ = arm_flat(items, working, spent, random.Random(sd_ + 500000))
-        # One panel of each arm, same seed as panel 0 of the row above, so the pools judgelab scores
+        # One panel of each arm, same seed as panel 0 of the row above, so the pools the agreement layer scores
         # are the same draws the harness scored — not a fresh sample that would answer a different
         # question.
         for nm, p in (("arm_a_tiered", pa), ("arm_b_flat", pb),

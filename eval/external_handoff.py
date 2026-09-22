@@ -1,25 +1,30 @@
 #!/usr/bin/env python3
-"""Score the A/B arms with judgelab deciding what ships, instead of the harness grading itself.
+"""Score the A/B arms with the agreement layer deciding what ships, instead of the harness grading itself.
 
 ab_tiered_adjudication.py builds the arms AND scores them. That is one script marking its own
-homework. This hands each arm to judgelab's agreement layer, lets IT route every item, and scores
+homework. This hands each arm to an external agreement layer, lets IT route every item, and scores
 only what it says can ship without an adjudicator.
 
-  python3 -m judgelab.agreement queue <arm>.json --pages <arm>_pages.json --key <arm>_key.json
+  python3 -m <layer> queue <arm>.json --pages <arm>_pages.json --key <arm>_key.json
 
-Every item judgelab queues is one a human or model must be paid to settle; every item it does not
+`<layer>` is a separate inter-annotator-agreement tool, not part of this repo and not released. What
+matters here is the SHAPE of the contract, not the tool: it reads a pool of passes, routes every
+item to auto-accept or adjudicate, and will not hand back a verdict it cannot stand behind. Any
+layer with those three properties can take its place.
+
+Every item the layer queues is one a human or model must be paid to settle; every item it does not
 queue, it is willing to auto-accept on consensus. So an arm has two numbers that matter operationally
 and that the internal scorer never showed:
 
   ADJUDICATION LOAD  the share of items it sends to a person. The pattern's whole promise is that
                      this is small and well-chosen.
-  SILENT ERROR       the items judgelab auto-accepts where the consensus is WRONG against the
+  SILENT ERROR       the items the layer auto-accepts where the consensus is WRONG against the
                      held-out truth panel. These are the ones that ship broken with nobody looking.
 
 Silent error is the number that decides a workflow, and it is invisible to the tail accuracy the
 internal harness reports: an arm can win the contested tail and still ship more quiet mistakes.
 
-  python3 eval/judgelab_handoff.py --pool <crossed>.json --arms <dir written by --write-pools>
+  python3 eval/external_handoff.py --pool <crossed>.json --arms <dir written by --write-pools>
 """
 import argparse, collections, glob, json, os
 
@@ -29,7 +34,7 @@ import ab_tiered_adjudication as ab
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--pool", required=True, help="the full crossed pool the truth panel comes from")
-    ap.add_argument("--arms", required=True, help="directory of arm pools + judgelab's *_pages.json")
+    ap.add_argument("--arms", required=True, help="directory of arm pools + the layer's *_pages.json")
     ap.add_argument("--truth", type=int, default=61)
     ap.add_argument("--seed", type=int, default=22)
     a = ap.parse_args()
@@ -51,7 +56,7 @@ def main():
             continue
         pages_path = os.path.join(a.arms, f"{name}_pages.json")
         if not os.path.exists(pages_path):
-            print(f"{name:<20}  no pages — run judgelab queue on it first")
+            print(f"{name:<20}  no pages — run the agreement layer queue on it first")
             continue
         pool = json.load(open(pool_path))
         queued = {p["item_id"] for p in json.load(open(pages_path))["pages"]
@@ -63,7 +68,7 @@ def main():
                 continue
             auto += 1
             scored += 1
-            # judgelab auto-accepts on consensus, so the shipped label is what its passes agree on.
+            # the layer auto-accepts on consensus, so the shipped label is what its passes agree on.
             g = ab.plurality(list(it["passes"].values()))
             if g != truth[it["id"]]:
                 wrong += 1
@@ -77,7 +82,7 @@ def main():
               f"{(scored-wrong)/scored if scored else float('nan'):>17.1%}"
               f"   on {'/'.join(f'{k}x{v}' for k, v in sorted(ev.items()))}")
 
-    print("\n  adjudication load = items judgelab sends to a person (the arm's human cost)")
+    print("\n  adjudication load = items the agreement layer sends to a person (the arm's human cost)")
     print("  silent errors     = auto-accepted items whose consensus is wrong; these ship unseen")
     print("  on NxM            = M auto-accepts were decided by N agreeing raters. Compare these")
     print("                      before reading a low load as routing skill: an arm that decides on")
