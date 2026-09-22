@@ -16,6 +16,28 @@ overlap, routing, adjudication). The engine's true top pick is often outside tha
 DICES stub it is `engagement-gate`, which no resampling can touch — so this tests the engine on its
 most measurable quarter, never on the whole recommendation.
 
+⚠️ THE STUB MUST BE FILLED IN, AND THE FIRST RUNS OF THIS FILE WERE NOT. The engine reads fifteen
+fields — goal, domain, modality, task_structure, annotator_structure, qa_mechanism, uses_patterns,
+addressed_signatures, failure_signatures, high_cost_signatures, tolerable_signatures, downstream,
+edge_case_mode, process_mode, observed_failures. The stubs used on 2026-09-21 carried four. That is
+not a thin version of the tool's advice, it is a different one:
+
+  - `high_cost_signatures` and `downstream` feed signature_priority, so with both empty the COST half
+    of the ranking is inert and every signature carries its default severity.
+  - `uses_patterns` and `addressed_signatures` feed defended(), so with both empty the engine
+    believes the workflow has no QA at all — while the pool it is being tested on runs a seven-rater
+    panel.
+
+Filled to nine fields, the CrowdGleason stub's advice changes: drift goes from third at lift 2.0 to
+first at 4.0, inflation appears at 2.86 where it was absent, class_imbalance drops a place but rises
+to high severity, and unanchored and under_specification are struck as already covered. The top
+realizable pick happens to survive, so the arms those runs built still stand — but nothing about the
+QUALITY of the tool's advice should be read off a four-field stub.
+
+The deeper version: this tool is a guided traversal that elicits those fifteen answers one decision
+at a time. Calling analyze_interrogate on a YAML file is its batch-mode shadow, and that is what
+every harness in this directory drives. A judgement about the partner is not available from here.
+
   python3 eval/close_the_loop.py --pool <crossed>.json --stub <stub>.yaml --out <dir>
   then the printed judgelab chain.
 """

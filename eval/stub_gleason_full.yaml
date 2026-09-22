@@ -1,0 +1,9 @@
+goal: Grade tissue images on an ordinal severity scale with a small panel of trained graders
+modality: image
+task_structure: classification
+annotator_structure: expert
+qa_mechanism: [agreement]
+uses_patterns: [multi-annotator-aggregate]
+high_cost_signatures: [class_imbalance]
+downstream: evaluation
+process_mode: strict
