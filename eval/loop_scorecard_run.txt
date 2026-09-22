@@ -1,0 +1,33 @@
+=== loop2: the engine's pick BEFORE abstention ===
+  arm                                 human load  shipped error   decided   passes
+  arm_a_human_audit_sample                 8.8%           8.7%      2564    9,388
+  arm_b_flat                              12.8%           8.0%      2451    9,388
+
+  NB the passes column counts COLLECTED passes only. A screening arm also pays for its
+     bank up front (gold-honeypots: 280 passes), which close_the_loop.py matches against
+     the flat arm's total. Equal budgets can therefore show unequal columns here.
+     Arms in different directories also cover different item counts (a bank is reserved
+     out of the pool), so compare WITHIN a pair, never across two.
+
+  human load     items no strict majority settles, so a person must  (the human cost)
+  shipped error  of the items it DID decide, the share that are wrong  (the quality cost)
+  Quote them together. Either alone can be bought with the other.
+
+  arm_a_human_audit_sample vs arm_b_flat: load -4.0 pts, error +0.7 pts -> a TRADE, not a win: it buys one with the other
+
+=== loop3: the engine's pick AFTER abstention ===
+  arm                                 human load  shipped error   decided   passes
+  arm_a_gold_honeypots                     2.8%           4.4%      2693    8,316
+  arm_b_flat                               8.8%          10.4%      2529    8,596
+
+  NB the passes column counts COLLECTED passes only. A screening arm also pays for its
+     bank up front (gold-honeypots: 280 passes), which close_the_loop.py matches against
+     the flat arm's total. Equal budgets can therefore show unequal columns here.
+     Arms in different directories also cover different item counts (a bank is reserved
+     out of the pool), so compare WITHIN a pair, never across two.
+
+  human load     items no strict majority settles, so a person must  (the human cost)
+  shipped error  of the items it DID decide, the share that are wrong  (the quality cost)
+  Quote them together. Either alone can be bought with the other.
+
+  arm_a_gold_honeypots vs arm_b_flat: load -5.9 pts, error -6.0 pts -> moves both the right way
