@@ -1,0 +1,106 @@
+id: annotation-audit-conllpp-relabel
+title: Auditing a Finished Expert Dataset by Re-Annotation (CoNLL++)
+modality: text
+task_structure: extraction
+annotator_structure: tiered_review
+lineage: wang et al. 2019 (CrossWeigh / CoNLL++)
+qa_mechanism: [adjudication, agreement, audit_sampling]
+failure_signatures: [unanchored, under_specification, class_imbalance]
+uses_patterns: [human-gold-anchor, tiered-adjudication, gold-in-tiers, lock-then-score]
+distinctive: >
+  The annotation-QA shape: the work already exists (a released expert dataset), and the job is to
+  AUDIT it. A second pass re-annotates under the same guidelines, disagreements are adjudicated, and
+  the corrections become the gold the original labels are scored against, per error code.
+
+provenance_meta:
+  source: "Wang et al., CrossWeigh: Training Named Entity Tagger from Imperfect Annotations, EMNLP 2019 (arXiv:1909.01441); the CoNLL++ corrected test set"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "ner-conll2003 is the PRODUCTION of the labels; this card is the AUDIT of them after release. Same data, opposite direction; distinct skeleton (audit a finished artifact against an adjudicated correction)."
+
+decision: >
+  Decide how much of a released expert annotation can be trusted, code by code, by re-annotating it
+  and adjudicating every disagreement, so that the corrections become a gold the original labels
+  (and any judge of them) are measured against.
+
+inputs:
+  - source: the released labels (CoNLL-2003 test, 3,453 sentences)
+    provenance: a professional annotation effort, published as gold in 2003
+    assumption: a published gold is correct (the audit's premise is that this is unchecked)
+  - source: the same guidelines the original annotators used
+    provenance: the shared-task annotation guidelines
+    assumption: a second annotator applying the same guidelines lands on the same spans (the hidden risk; boundaries and MISC do not)
+
+actors:
+  - role: re-annotators
+    does: label the sentences again, blind to the released labels, under the same guidelines
+    type: human (expert)
+  - role: adjudicator
+    does: resolve every disagreement between the release and the re-annotation; writes the corrected gold
+    type: human (expert)
+  - role: scorer
+    does: diffs the released labels against the corrected gold and types each difference (missed entity, spurious entity, wrong type, wrong span)
+    type: hybrid
+
+steps:
+  - freeze the guidelines and the error-code taxonomy before any sentence is re-read
+  - re-annotate the release blind, in document order
+  - diff release against re-annotation; route every disagreement to adjudication
+  - adjudicator decides; decisions become the corrected gold (CoNLL++)
+  - score the release against the corrected gold per error code, with prevalence beside each rate
+  - keep the corrected set as the anchor tier for any later judge of this annotator
+
+quality_gates:
+  - gate: guideline and taxonomy freeze
+    checks: the audit scores the release against the rules it was produced under, not new ones
+    catches: drift [REPORTED]
+  - gate: blind re-annotation
+    checks: the second pass cannot defer to the first
+    catches: priming [REPORTED]
+  - gate: adjudication of every diff
+    checks: a difference is a correction only when a third reading says so
+    catches: under_specification [REPORTED]
+  - gate: per-code scoring with prevalence
+    checks: a 0.3% code is not read on the same footing as a 2% code
+    catches: class_imbalance [REPORTED]
+
+output:
+  shape: corrected gold (CoNLL++) + per-sentence diff typed by error code + per-code rates of the release
+  consumed_by: anyone training or evaluating on the set; any judge built to check this kind of annotation
+
+failure_modes:
+  - signature: unanchored
+    evidence: REPORTED
+    description: >
+      The published gold itself carried mistakes: CrossWeigh found label errors in about 5% of the
+      CoNLL-2003 test sentences and released the corrected CoNLL++. A model or a judge scored against
+      the original was scored against a flawed key.
+    caught_by: adjudicated re-annotation (this workflow)
+  - signature: under_specification
+    evidence: REPORTED
+    description: >
+      Most corrections fall on boundary and type calls the guidelines leave open (MISC against ORG,
+      where a multi-word name ends), the same places the original annotators disagreed.
+    caught_by: adjudication, with the open rule recorded rather than forced
+  - signature: class_imbalance
+    evidence: INFERRED
+    description: >
+      At about 95% clean sentences, the rare codes (a spurious entity in a few sentences per thousand)
+      give too few instances to validate a check or a judge on; a rate on them is a wide interval, not
+      a number. Not reported in the source, which corrects labels rather than scoring checks.
+    caught_by: UNGUARDED in the source; gold-in-tiers (a coverage tier) in later practice
+  - signature: priming
+    evidence: INFERRED
+    description: >
+      A re-annotator shown the original labels keeps most of them; the correction then measures
+      deference, not error. The source re-annotates blind, which is the defense.
+    caught_by: blind re-annotation
+
+cost_profile:
+  throughput: low — a full second expert pass over the set, then adjudication of every diff
+  bottleneck: the adjudicator; every disagreement needs a third reading
+  human_cost: high per item, paid once; the corrected set is reused as an anchor for years
+
+provenance: >
+  Real program (the CoNLL++ correction of the CoNLL-2003 test set, Wang et al. 2019), read as the
+  general shape "audit a finished annotation by blind re-annotation and adjudication, score per code".

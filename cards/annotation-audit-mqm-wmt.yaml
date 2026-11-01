@@ -1,0 +1,116 @@
+id: annotation-audit-mqm-wmt
+title: Professional Error-Span Annotation with Planted Checks and No Reference (WMT MQM)
+modality: text
+task_structure: transcription_translation
+annotator_structure: multi_aggregate
+lineage: freitag et al. 2021 / google WMT MQM releases
+qa_mechanism: [agreement, gold_honeypots, guideline_freeze]
+failure_signatures: [under_specification, unanchored, priming, drift]
+uses_patterns: [multi-annotator-aggregate, inter-annotator-agreement, tamper-to-ground-truth, gold-in-tiers, lock-then-score]
+distinctive: >
+  Three professional raters each mark error SPANS with a category and a severity on the same
+  translations, with no reference answer: gold is wherever the raters agree, and the audit layer has
+  to read disagreement span by span. Planted attention-check errors ride in the stream.
+
+provenance_meta:
+  source: "Freitag, Foster, Grangier, Ratnakar, Tan, Macherey, Experts, Errors, and Context: A Large-Scale Study of Human Evaluation for Machine Translation, TACL 2021 (arXiv:2104.14478); google/wmt-mqm-human-evaluation (Apache-2.0); Kocmi, Zouhar et al., ESA, WMT 2024; Riley et al., arXiv:2510.24664"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "the only span-level error-code annotation card; distinct from rubric-rating and preference recipes (the unit is a marked span with a category and a severity, and there are several passes and no key)"
+
+decision: >
+  Produce error-span annotations of machine translations that can rank systems and train or
+  validate automatic graders, where no reference answer exists and the quality of the annotation
+  itself has to be read from how far the raters agree.
+
+inputs:
+  - source: machine translations of fixed source segments (ten or more systems per campaign)
+    provenance: WMT shared-task submissions
+    assumption: the source segment is itself sound (a bad source makes every translation "wrong"; the release marks source issues separately)
+  - source: the MQM typology (categories x severities) and a scoring scheme
+    provenance: the campaign's locked rubric
+    assumption: two professionals applying it mark the same spans (the hidden risk; they mostly do not)
+  - source: planted attention-check errors
+    provenance: inserted by the campaign into some segments
+    assumption: a rater who finds the planted errors is reading (it shows attention, not calibration)
+
+actors:
+  - role: professional raters (three per segment)
+    does: mark error spans with category and severity, from scratch, on the same segments
+    type: human (expert)
+  - role: campaign owner
+    does: locks the rubric, plants the checks, reads agreement per rater and per code
+    type: human
+  - role: agreement layer
+    does: finds where passes disagree span by span, implicates the minority reading, routes to adjudication or a stated majority policy
+    type: hybrid
+
+steps:
+  - lock the typology, severities and scoring before any rating
+  - three raters rate every segment from scratch, blind to each other
+  - plant known errors into some segments; read each rater's recovery of them
+  - read agreement per code (not one global number); profile each rater against the pool
+  - gold = the readings the raters share; disputes typed (defect in the item, a rule broken, or a boundary the rubric leaves open) and routed
+  - re-annotation campaigns, if any, record what prior the rater saw
+
+quality_gates:
+  - gate: planted attention checks
+    checks: each rater's recovery of inserted errors
+    catches: inflation (a rater marking nothing) [REPORTED]
+  - gate: per-rater reliability read
+    checks: each rater's scores sit within a band around the pool (the source reports a per-rater score ratio within ±20% for en-de)
+    catches: drift [REPORTED]
+  - gate: agreement per code with the pool
+    checks: a rater who is the lone marker of a code on most of its splits is held for protocol review
+    catches: under_specification, drift [REPORTED]
+    induces: unanchored   # the gate reads raters against each other, never against a truth
+
+output:
+  shape: per segment per rater, a list of (span, category, severity) + source-issue flags + planted-check outcomes
+  consumed_by: system rankings; metric and LLM-grader validation; the gold tiers of an evaluation pipeline
+
+failure_modes:
+  - signature: under_specification
+    evidence: REPORTED
+    description: >
+      Two annotator groups on the same WMT23 en-de segments overlap on only about half of their
+      marked errors; on overlapping errors they pick the same severity 23.7% of the time and the same
+      category 24.1%. The same annotator two months later overlaps 29.3% of their own marks.
+    caught_by: UNGUARDED in the protocol (reported as low agreement); read span by span by an agreement layer
+  - signature: unanchored
+    evidence: REPORTED
+    description: >
+      There is no reference answer. The release reports reliability as per-rater score ratios around
+      the mean, not agreement against a truth; "gold" for any later grader is the raters' shared
+      readings, so a grader is only ever as good as one rater against the others.
+    caught_by: gold-in-tiers (an anchor tier where all raters agree, reported apart from the rest)
+  - signature: priming
+    evidence: REPORTED
+    description: >
+      When raters edit a prior set of errors instead of starting blank, how much survives depends on
+      whose prior it is: 81–83% of their own earlier marks, 62–67% of another human's, 48% of an
+      automatic system's. Artificially inserted errors were kept 12.8–24.8% of the time, and one rater
+      kept 78.8% of them.
+    caught_by: planted errors as the deference instrument; blind scratch passes
+  - signature: drift
+    evidence: REPORTED
+    description: >
+      Rubric rules carried between campaigns silently change what counts as an error (a five-error cap
+      per segment, a category treated as exclusive); applied to a later campaign's longer segments they
+      call ordinary passes violations.
+    caught_by: lock-then-score, with the rubric versioned per campaign
+  - signature: class_imbalance
+    evidence: REPORTED
+    description: >
+      Some categories are too rare to read a rater or a grader on (a handful of non-translation marks
+      in a campaign); a recall on them cannot be confirmed either way.
+    caught_by: UNGUARDED; reported as "cannot be confirmed" rather than as a number
+
+cost_profile:
+  throughput: low — three professional passes per segment, span-level, with severities
+  bottleneck: adjudication of boundary disputes, which are most of the disputes
+  human_cost: high; professional translators, paid per campaign
+
+provenance: >
+  Real program (Google's WMT20, WMT23 and WMT24 MQM releases and the three cited studies), read as
+  the general shape "several expert passes, no key, planted checks, agreement read per code".

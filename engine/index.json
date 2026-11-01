@@ -68,6 +68,517 @@
     "human_cost": "standard crowd; low welfare risk"
    }
   },
+  "annotation-audit-conllpp-relabel": {
+   "id": "annotation-audit-conllpp-relabel",
+   "title": "Auditing a Finished Expert Dataset by Re-Annotation (CoNLL++)",
+   "modality": "text",
+   "task_structure": "extraction",
+   "annotator_structure": "tiered_review",
+   "scale": "expert + review (tiered)",
+   "domain": "general",
+   "lineage": "wang et al. 2019 (CrossWeigh / CoNLL++)",
+   "distinctive": "The annotation-QA shape: the work already exists (a released expert dataset), and the job is to AUDIT it. A second pass re-annotates under the same guidelines, disagreements are adjudicated, and the corrections become the gold the original labels are scored against, per error code.",
+   "qa_mechanism": [
+    "adjudication",
+    "agreement",
+    "audit_sampling"
+   ],
+   "failure_signatures": [
+    "unanchored",
+    "under_specification",
+    "class_imbalance"
+   ],
+   "uses_patterns": [
+    "human-gold-anchor",
+    "tiered-adjudication",
+    "gold-in-tiers",
+    "lock-then-score"
+   ],
+   "decision": "Decide how much of a released expert annotation can be trusted, code by code, by re-annotating it and adjudicating every disagreement, so that the corrections become a gold the original labels (and any judge of them) are measured against.",
+   "failure_modes": [
+    {
+     "signature": "unanchored",
+     "evidence": "REPORTED",
+     "description": "The published gold itself carried mistakes: CrossWeigh found label errors in about 5% of the CoNLL-2003 test sentences and released the corrected CoNLL++. A model or a judge scored against the original was scored against a flawed key.",
+     "caught_by": "adjudicated re-annotation (this workflow)"
+    },
+    {
+     "signature": "under_specification",
+     "evidence": "REPORTED",
+     "description": "Most corrections fall on boundary and type calls the guidelines leave open (MISC against ORG, where a multi-word name ends), the same places the original annotators disagreed.",
+     "caught_by": "adjudication, with the open rule recorded rather than forced"
+    },
+    {
+     "signature": "class_imbalance",
+     "evidence": "INFERRED",
+     "description": "At about 95% clean sentences, the rare codes (a spurious entity in a few sentences per thousand) give too few instances to validate a check or a judge on; a rate on them is a wide interval, not a number. Not reported in the source, which corrects labels rather than scoring checks.",
+     "caught_by": "UNGUARDED in the source; gold-in-tiers (a coverage tier) in later practice"
+    },
+    {
+     "signature": "priming",
+     "evidence": "INFERRED",
+     "description": "A re-annotator shown the original labels keeps most of them; the correction then measures deference, not error. The source re-annotates blind, which is the defense.",
+     "caught_by": "blind re-annotation"
+    }
+   ],
+   "quality_gates": [
+    {
+     "gate": "guideline and taxonomy freeze",
+     "checks": "the audit scores the release against the rules it was produced under, not new ones",
+     "catches": [
+      "drift",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "blind re-annotation",
+     "checks": "the second pass cannot defer to the first",
+     "catches": [
+      "priming",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "adjudication of every diff",
+     "checks": "a difference is a correction only when a third reading says so",
+     "catches": [
+      "under_specification",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "per-code scoring with prevalence",
+     "checks": "a 0.3% code is not read on the same footing as a 2% code",
+     "catches": [
+      "class_imbalance",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "low — a full second expert pass over the set, then adjudication of every diff",
+    "bottleneck": "the adjudicator; every disagreement needs a third reading",
+    "human_cost": "high per item, paid once; the corrected set is reused as an anchor for years"
+   }
+  },
+  "annotation-audit-crowdgleason-pathology": {
+   "id": "annotation-audit-crowdgleason-pathology",
+   "title": "Multi-Expert Ordinal Grading Where the Released Gold Is the Experts' Majority (CrowdGleason)",
+   "modality": "image",
+   "task_structure": "classification",
+   "annotator_structure": "expert",
+   "scale": "expert (low-throughput / high-skill)",
+   "domain": "general",
+   "lineage": "crowdgleason (gleason grading by several pathologists)",
+   "distinctive": "Several pathologists grade the same tissue patches on an ordinal scale and the release ships a gold column; reading the file shows the gold is the graders' own most common grade on nearly every patch. The anchor is the pool, so \"agreement with gold\" measures agreement with the majority.",
+   "qa_mechanism": [
+    "agreement",
+    "consensus_threshold"
+   ],
+   "failure_signatures": [
+    "unanchored",
+    "underpowered",
+    "under_specification"
+   ],
+   "uses_patterns": [
+    "multi-annotator-aggregate",
+    "inter-annotator-agreement",
+    "gold-in-tiers"
+   ],
+   "decision": "Produce Gleason grades for tissue patches from several pathologists so that a grading model can be trained and evaluated, with a gold grade per patch for scoring.",
+   "failure_modes": [
+    {
+     "signature": "unanchored",
+     "evidence": "REPORTED",
+     "description": "On the released test split the gold grade equals the graders' own most common grade on 2,829 of 2,926 patches and one of the tied grades on the other 97. Agreement with this gold is agreement with the majority; a grader who disagrees with the pool is \"wrong\" by construction, and a model trained to the gold learns the pool's central habit.",
+     "caught_by": "UNGUARDED in the release; an outside anchor (biopsy outcome, a reference panel) would be the defense"
+    },
+    {
+     "signature": "under_specification",
+     "evidence": "REPORTED",
+     "description": "Pairwise agreement among the seven graders sits near half of the patches, and two graders sit systematically harsher than the rest (about one step and half a step on the scale); the disagreement is bias to estimate, not noise to average.",
+     "caught_by": "per-grader offsets read against the pool"
+    },
+    {
+     "signature": "underpowered",
+     "evidence": "REPORTED",
+     "description": "Patches are nested in slides. A rate computed over patches has a design effect large enough that a check clearing a recall bar on patch counts fails it on the effective count.",
+     "caught_by": "with the slide as the cluster"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "INFERRED",
+     "description": "The train split is sparse (a median of two graders per patch), so train-time agreement and test-time agreement are read on different designs; a model's reported accuracy on test does not describe the labels it learned from.",
+     "caught_by": "UNGUARDED"
+    }
+   ],
+   "quality_gates": [
+    {
+     "gate": "several graders per patch on the test split",
+     "checks": "every grader pair is measurable; each grader can be read against the pool",
+     "catches": [
+      "under_specification",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "gold grade per patch",
+     "checks": "a scoring key exists",
+     "catches": [
+      "nothing",
+      "beyond",
+      "the",
+      "pool;",
+      "see",
+      "unanchored"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "low — expert pathologists, thousands of patches, up to seven reads each",
+    "bottleneck": "pathologist time; full crossing only affordable on a test split",
+    "human_cost": "high; the multi-read test split is the expensive part"
+   }
+  },
+  "annotation-audit-dices-safety": {
+   "id": "annotation-audit-dices-safety",
+   "title": "Fully Crossed Safety Ratings from a Diverse Rater Pool, Disagreement Kept (DICES-350)",
+   "modality": "text",
+   "task_structure": "classification",
+   "annotator_structure": "crowd",
+   "scale": "crowd (high-throughput)",
+   "domain": "general",
+   "lineage": "aroyo et al. 2023 (DICES)",
+   "distinctive": "Every rater rates every item: 123 raters on 350 conversations, so every pair of raters is measurable on the full set, and rater demographics travel with each rating. Disagreement is the released object, not something aggregated away.",
+   "qa_mechanism": [
+    "agreement",
+    "audit_sampling"
+   ],
+   "failure_signatures": [
+    "under_specification",
+    "sampling_frame",
+    "drift"
+   ],
+   "uses_patterns": [
+    "multi-annotator-aggregate",
+    "inter-annotator-agreement",
+    "human-gold-anchor",
+    "order-randomization"
+   ],
+   "decision": "Produce safety labels for model conversations in a design where rater disagreement can be read and attributed (to the item, to a rater, to a demographic group) rather than averaged out, so that a safety judge or an aggregation policy can be validated against it.",
+   "failure_modes": [
+    {
+     "signature": "under_specification",
+     "evidence": "REPORTED",
+     "description": "Raters disagree systematically on what is unsafe, and the disagreement is structured by group rather than random; a single majority label hides which groups the label represents.",
+     "caught_by": "the fully crossed design and per-group reads; a policy must say whose majority it ships"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "REPORTED",
+     "description": "350 conversations and one rater pool; the authors frame the set as a study instrument, not a deployment benchmark, so rates on it do not transfer to a product's traffic.",
+     "caught_by": "UNGUARDED; stated scope"
+    },
+    {
+     "signature": "drift",
+     "evidence": "INFERRED",
+     "description": "With 350 items per rater in one sitting, a rater's standard can move across the session; the timing column makes it readable but the release does not report it.",
+     "caught_by": "UNGUARDED in the source; readable from the clock"
+    },
+    {
+     "signature": "inflation",
+     "evidence": "INFERRED",
+     "description": "A judge validated against the pooled majority inherits the pool's composition; a differently composed pool would move the key. Not a finding of the source, a consequence of its design.",
+     "caught_by": "human-gold-anchor beside the majority; per-group reads"
+    }
+   ],
+   "quality_gates": [
+    {
+     "gate": "full crossing",
+     "checks": "every rater pair is measured on the same 350 items; no pooling of raters who never shared an item",
+     "catches": [
+      "under_specification",
+      "(made",
+      "visible",
+      "not",
+      "removed)",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "gold label per item",
+     "checks": "a majority or a group can be read against a reference, not only against itself",
+     "catches": [
+      "unanchored",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "a time per rating",
+     "checks": "a rater's pace and change over the session can be read",
+     "catches": [
+      "drift",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "low — 43,050 ratings for 350 items",
+    "bottleneck": "rater hours; full crossing scales as items x raters",
+    "human_cost": "high per item by design; the design buys attributable disagreement"
+   }
+  },
+  "annotation-audit-frank-factuality": {
+   "id": "annotation-audit-frank-factuality",
+   "title": "Typed Factual-Error Annotation of Model Output, Three Raters per Sentence (FRANK)",
+   "modality": "text",
+   "task_structure": "classification",
+   "annotator_structure": "multi_aggregate",
+   "scale": "crowd (aggregated)",
+   "domain": "general",
+   "lineage": "pagnoni et al. 2021 (FRANK)",
+   "distinctive": "Annotators read model-written summaries sentence by sentence and tag each factual error with a TYPE from a fixed typology, three raters per sentence. The typology, not a score, is the output, so the audit question is per error type: which types do raters agree on, and which can a judge see.",
+   "qa_mechanism": [
+    "agreement",
+    "consensus_threshold"
+   ],
+   "failure_signatures": [
+    "class_imbalance",
+    "sampling_frame",
+    "under_specification"
+   ],
+   "uses_patterns": [
+    "multi-annotator-aggregate",
+    "inter-annotator-agreement",
+    "gold-in-tiers",
+    "edge-case-guidelines"
+   ],
+   "decision": "Produce per-sentence, typed factual-error labels for machine-written summaries, so that factuality metrics and LLM graders can be validated per error type rather than on one score.",
+   "failure_modes": [
+    {
+     "signature": "class_imbalance",
+     "evidence": "REPORTED",
+     "description": "On the XSum half nearly every summary is unfaithful, so the set holds almost no clean negatives there: a judge's false-alarm rate cannot be read, and \"catches 95% of failures\" is the base rate. Some error types are rare enough that no rate on them is readable.",
+     "caught_by": "UNGUARDED in the release; report per corpus and per type, never pooled"
+    },
+    {
+     "signature": "sampling_frame",
+     "evidence": "REPORTED",
+     "description": "Summaries come from specific model families of 2020; error types and their rates shift with the generator, so a grader validated here may face a different mix on newer systems.",
+     "caught_by": "UNGUARDED; a field read on new traffic is the only check"
+    },
+    {
+     "signature": "under_specification",
+     "evidence": "REPORTED",
+     "description": "Adjacent types (an entity error against a circumstance error, an out-of-article claim against an unverifiable one) split the annotators; agreement on WHETHER a sentence errs is higher than on WHICH type.",
+     "caught_by": "majority per sentence; grouped types as a coarser rubric"
+    },
+    {
+     "signature": "unanchored",
+     "evidence": "INFERRED",
+     "description": "The three raters are anonymous slots in the release, so no rater can be profiled across items and no rater-level drift or deference can be read; agreement is all the audit has.",
+     "caught_by": "UNGUARDED"
+    }
+   ],
+   "quality_gates": [
+    {
+     "gate": "three readings per sentence",
+     "checks": "a type is credited on agreement, and disagreement is visible in the release",
+     "catches": [
+      "under_specification",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "typology training",
+     "checks": "annotators share the type boundaries before live work",
+     "catches": [
+      "under_specification",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "medium — crowd annotators, sentence level, three per sentence",
+    "bottleneck": "reading the source document for every sentence; typology training",
+    "human_cost": "moderate per summary, times three"
+   }
+  },
+  "annotation-audit-mqm-wmt": {
+   "id": "annotation-audit-mqm-wmt",
+   "title": "Professional Error-Span Annotation with Planted Checks and No Reference (WMT MQM)",
+   "modality": "text",
+   "task_structure": "transcription_translation",
+   "annotator_structure": "multi_aggregate",
+   "scale": "crowd (aggregated)",
+   "domain": "general",
+   "lineage": "freitag et al. 2021 / google WMT MQM releases",
+   "distinctive": "Three professional raters each mark error SPANS with a category and a severity on the same translations, with no reference answer: gold is wherever the raters agree, and the audit layer has to read disagreement span by span. Planted attention-check errors ride in the stream.",
+   "qa_mechanism": [
+    "agreement",
+    "gold_honeypots",
+    "guideline_freeze"
+   ],
+   "failure_signatures": [
+    "under_specification",
+    "unanchored",
+    "priming",
+    "drift"
+   ],
+   "uses_patterns": [
+    "multi-annotator-aggregate",
+    "inter-annotator-agreement",
+    "tamper-to-ground-truth",
+    "gold-in-tiers",
+    "lock-then-score"
+   ],
+   "decision": "Produce error-span annotations of machine translations that can rank systems and train or validate automatic graders, where no reference answer exists and the quality of the annotation itself has to be read from how far the raters agree.",
+   "failure_modes": [
+    {
+     "signature": "under_specification",
+     "evidence": "REPORTED",
+     "description": "Two annotator groups on the same WMT23 en-de segments overlap on only about half of their marked errors; on overlapping errors they pick the same severity 23.7% of the time and the same category 24.1%. The same annotator two months later overlaps 29.3% of their own marks.",
+     "caught_by": "UNGUARDED in the protocol (reported as low agreement); read span by span by an agreement layer"
+    },
+    {
+     "signature": "unanchored",
+     "evidence": "REPORTED",
+     "description": "There is no reference answer. The release reports reliability as per-rater score ratios around the mean, not agreement against a truth; \"gold\" for any later grader is the raters' shared readings, so a grader is only ever as good as one rater against the others.",
+     "caught_by": "gold-in-tiers (an anchor tier where all raters agree, reported apart from the rest)"
+    },
+    {
+     "signature": "priming",
+     "evidence": "REPORTED",
+     "description": "When raters edit a prior set of errors instead of starting blank, how much survives depends on whose prior it is: 81–83% of their own earlier marks, 62–67% of another human's, 48% of an automatic system's. Artificially inserted errors were kept 12.8–24.8% of the time, and one rater kept 78.8% of them.",
+     "caught_by": "planted errors as the deference instrument; blind scratch passes"
+    },
+    {
+     "signature": "drift",
+     "evidence": "REPORTED",
+     "description": "Rubric rules carried between campaigns silently change what counts as an error (a five-error cap per segment, a category treated as exclusive); applied to a later campaign's longer segments they call ordinary passes violations.",
+     "caught_by": "lock-then-score, with the rubric versioned per campaign"
+    },
+    {
+     "signature": "class_imbalance",
+     "evidence": "REPORTED",
+     "description": "Some categories are too rare to read a rater or a grader on (a handful of non-translation marks in a campaign); a recall on them cannot be confirmed either way.",
+     "caught_by": "UNGUARDED; reported as \"cannot be confirmed\" rather than as a number"
+    }
+   ],
+   "quality_gates": [
+    {
+     "gate": "planted attention checks",
+     "checks": "each rater's recovery of inserted errors",
+     "catches": [
+      "inflation",
+      "(a",
+      "rater",
+      "marking",
+      "nothing)",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "per-rater reliability read",
+     "checks": "each rater's scores sit within a band around the pool (the source reports a per-rater score ratio within ±20% for en-de)",
+     "catches": [
+      "drift",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "agreement per code with the pool",
+     "checks": "a rater who is the lone marker of a code on most of its splits is held for protocol review",
+     "catches": [
+      "under_specification",
+      "drift",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "low — three professional passes per segment, span-level, with severities",
+    "bottleneck": "adjudication of boundary disputes, which are most of the disputes",
+    "human_cost": "high; professional translators, paid per campaign"
+   }
+  },
+  "annotation-audit-summeval-expert-crowd": {
+   "id": "annotation-audit-summeval-expert-crowd",
+   "title": "Crowd and Expert Ratings of the Same Outputs, Kept Apart (SummEval)",
+   "modality": "text",
+   "task_structure": "rubric_rating",
+   "annotator_structure": "multi_aggregate",
+   "scale": "crowd (aggregated)",
+   "domain": "general",
+   "lineage": "fabbri et al. 2021 (SummEval)",
+   "distinctive": "The same 1,600 summaries rated on four dimensions by five crowd workers AND three experts, with both sets released. The design makes the crowd's record auditable against an expert anchor on the same items, which is what shows a crowd majority to be a lenient key.",
+   "qa_mechanism": [
+    "agreement",
+    "audit_sampling"
+   ],
+   "failure_signatures": [
+    "unanchored",
+    "inflation",
+    "underpowered"
+   ],
+   "uses_patterns": [
+    "multi-annotator-aggregate",
+    "human-gold-anchor",
+    "inter-annotator-agreement",
+    "gold-in-tiers"
+   ],
+   "decision": "Produce quality ratings of model summaries that can validate automatic metrics, and measure whether a crowd can stand in for experts by rating the same items with both.",
+   "failure_modes": [
+    {
+     "signature": "inflation",
+     "evidence": "REPORTED",
+     "description": "The crowd ratings agree poorly with the experts, and the authors recommend the expert set for validating metrics. A pipeline that files the crowd's consensus as gold files a lenient key: a judge trained on the crowd's record learns the crowd's leniency rather than the experts' standard.",
+     "caught_by": "human-gold-anchor (the experts), kept apart from the crowd"
+    },
+    {
+     "signature": "unanchored",
+     "evidence": "REPORTED",
+     "description": "Without the expert pass, nothing in the crowd data says which disagreements are the crowd being wrong; agreement among workers is not accuracy.",
+     "caught_by": "human-gold-anchor"
+    },
+    {
+     "signature": "underpowered",
+     "evidence": "REPORTED",
+     "description": "Sixteen summaries share each article, so 1,600 rows are 100 clusters; an interval or a significance test that counts rows as independent is too narrow.",
+     "caught_by": "UNGUARDED in the release; count effective items by article"
+    },
+    {
+     "signature": "under_specification",
+     "evidence": "INFERRED",
+     "description": "Coherence and relevance are the dimensions where even experts spread most; a 1-to-5 scale without anchors leaves the middle of the scale to each rater's habit.",
+     "caught_by": "UNGUARDED"
+    }
+   ],
+   "quality_gates": [
+    {
+     "gate": "expert ratings on the same items",
+     "checks": "the crowd's majority against an expert anchor, item by item",
+     "catches": [
+      "inflation",
+      "unanchored",
+      "[REPORTED]"
+     ]
+    },
+    {
+     "gate": "per-rater release",
+     "checks": "a consumer can read agreement and lean per rater, not just a mean",
+     "catches": [
+      "inflation",
+      "[REPORTED]"
+     ]
+    }
+   ],
+   "cost_profile": {
+    "throughput": "medium for the crowd pass; low for the expert pass",
+    "bottleneck": "three experts over 1,600 summaries x 4 dimensions",
+    "human_cost": "the expert pass is the expensive, reusable part; the crowd pass is the cheap one it audits"
+   }
+  },
   "audio-transcription-commonvoice": {
    "id": "audio-transcription-commonvoice",
    "title": "Crowdsourced Read-Speech Corpus with Vote Validation (Common Voice)",
@@ -3600,7 +4111,8 @@
    ],
    "pairs_with": [
     "qualification-calibration",
-    "inter-annotator-agreement"
+    "inter-annotator-agreement",
+    "gold-in-tiers"
    ],
    "conflicts_with": [],
    "cost": "Authoring + maintaining a fresh honeypot bank (raters memorize stale ones).",
@@ -3608,6 +4120,33 @@
    "exemplified_by": [
     "text-preference-rlhf",
     "image-bbox-adjudicated"
+   ]
+  },
+  "gold-in-tiers": {
+   "id": "gold-in-tiers",
+   "name": "Gold in Tiers",
+   "phase": "audit",
+   "play": "Keep gold as four tiers that are never pooled: an anchor where every rater agrees, a random slice committed before any label is read, the harvest of audits and reviews the pipeline produces as it runs, and planted errors beside clean twins; report each tier on its own and refuse the combined number.",
+   "does": "Treat gold as a pipeline, not a set. Four tiers with different costs and different claims: an ANCHOR (items every rater agreed on; cheap to find, leans clean), a RANDOM SLICE (drawn from ids before any label is read; the only tier that estimates prevalence), the HARVEST (every audit and review the live pipeline already pays for, closed as gold), and PLANTED errors beside their clean twins (cheap recall checks that overstate recall on real errors). Each tier is reported apart; a check \"sees\" an error code only when its recall holds on real errors in the random slice, not on plants alone.",
+   "defends": [
+    "unanchored",
+    "class_imbalance",
+    "sampling_frame"
+   ],
+   "pairs_with": [
+    "human-gold-anchor",
+    "tamper-to-ground-truth",
+    "gold-honeypots",
+    "human-audit-sample",
+    "tiered-adjudication"
+   ],
+   "conflicts_with": [],
+   "cost": "Bookkeeping per tier; the random slice costs full adjudication on items that are mostly clean; the harvest is nearly free because the reviews happen anyway.",
+   "modality_notes": "Invariant across modalities. What changes is the planter: a flipped label, a cut span, a swapped pronoun, a mislabelled patch. The rule that planted recall does not stand in for real recall holds everywhere a plant is easier to find than a natural error.",
+   "exemplified_by": [
+    "annotation-audit-mqm-wmt",
+    "annotation-audit-conllpp-relabel",
+    "annotation-audit-summeval-expert-crowd"
    ]
   },
   "qualification-calibration": {
@@ -3913,7 +4452,8 @@
    "pairs_with": [
     "human-audit-sample",
     "cross-family-judges",
-    "gold-honeypots"
+    "gold-honeypots",
+    "gold-in-tiers"
    ],
    "conflicts_with": [],
    "cost": "Planting effort; and the planted distribution may differ from natural errors (overstates real recall).",

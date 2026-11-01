@@ -1,0 +1,100 @@
+id: annotation-audit-crowdgleason-pathology
+title: Multi-Expert Ordinal Grading Where the Released Gold Is the Experts' Majority (CrowdGleason)
+modality: image
+task_structure: classification
+annotator_structure: expert
+lineage: crowdgleason (gleason grading by several pathologists)
+qa_mechanism: [agreement, consensus_threshold]
+failure_signatures: [unanchored, underpowered, under_specification]
+uses_patterns: [multi-annotator-aggregate, inter-annotator-agreement, gold-in-tiers]
+distinctive: >
+  Several pathologists grade the same tissue patches on an ordinal scale and the release ships a
+  gold column; reading the file shows the gold is the graders' own most common grade on nearly every
+  patch. The anchor is the pool, so "agreement with gold" measures agreement with the majority.
+
+provenance_meta:
+  source: "the CrowdGleason release (prostate tissue patches graded on the Gleason scale by several pathologists, with a per-patch gold); the majority-equals-gold observation comes from reading the released test split, not from a paper"
+  extraction_confidence: medium (the structural facts are read directly from the release; the study's own reliability claims were not re-read for this card)
+  provenance: extracted-then-audited
+  dedup_hint: "distinct from clinical-chexpert-labeler (programmatic labels) and image-classification-imagenet (crowd verification): this is EXPERT ordinal grading with a pool-derived gold, the shape of most medical multi-reader sets"
+
+decision: >
+  Produce Gleason grades for tissue patches from several pathologists so that a grading model can be
+  trained and evaluated, with a gold grade per patch for scoring.
+
+inputs:
+  - source: tissue microarray patches, nested in slides
+    provenance: digitised pathology slides, cut into patches
+    assumption: patches are independent items (they are not; a slide is hard or easy for every grader at once)
+  - source: the Gleason scale (ordinal, 0 to 3 in the release)
+    provenance: clinical grading convention
+    assumption: experienced graders agree within a step (they differ systematically)
+  - source: a gold grade per patch
+    provenance: derived from the graders
+    assumption: gold is a truth outside the pool (on the test split it is the pool's own majority)
+
+actors:
+  - role: pathologists (seven on the test split; a median of two per patch on the sparse train split)
+    does: grade each patch
+    type: human (expert)
+  - role: release owners
+    does: derive the gold grade and publish grades and gold
+    type: human
+
+steps:
+  - cut slides into patches; assign patches to graders (fully crossed on test, sparse on train)
+  - each grader assigns a Gleason grade per patch
+  - derive a gold grade per patch from the graders' grades
+  - release per-grader grades and the gold
+
+quality_gates:
+  - gate: several graders per patch on the test split
+    checks: every grader pair is measurable; each grader can be read against the pool
+    catches: under_specification [REPORTED]
+  - gate: gold grade per patch
+    checks: a scoring key exists
+    catches: nothing beyond the pool; see unanchored
+    induces: unanchored
+
+output:
+  shape: per patch, each grader's grade; a gold grade; slide membership
+  consumed_by: grading-model training and evaluation; reader-reliability studies
+
+failure_modes:
+  - signature: unanchored
+    evidence: REPORTED
+    description: >
+      On the released test split the gold grade equals the graders' own most common grade on 2,829 of
+      2,926 patches and one of the tied grades on the other 97. Agreement with this gold is agreement
+      with the majority; a grader who disagrees with the pool is "wrong" by construction, and a model
+      trained to the gold learns the pool's central habit.
+    caught_by: UNGUARDED in the release; an outside anchor (biopsy outcome, a reference panel) would be the defense
+  - signature: under_specification
+    evidence: REPORTED
+    description: >
+      Pairwise agreement among the seven graders sits near half of the patches, and two graders sit
+      systematically harsher than the rest (about one step and half a step on the scale); the
+      disagreement is bias to estimate, not noise to average.
+    caught_by: per-grader offsets read against the pool
+  - signature: underpowered
+    evidence: REPORTED
+    description: >
+      Patches are nested in slides. A rate computed over patches has a design effect large enough
+      that a check clearing a recall bar on patch counts fails it on the effective count.
+    caught_by: with the slide as the cluster
+  - signature: sampling_frame
+    evidence: INFERRED
+    description: >
+      The train split is sparse (a median of two graders per patch), so train-time agreement and
+      test-time agreement are read on different designs; a model's reported accuracy on test does not
+      describe the labels it learned from.
+    caught_by: UNGUARDED
+
+cost_profile:
+  throughput: low — expert pathologists, thousands of patches, up to seven reads each
+  bottleneck: pathologist time; full crossing only affordable on a test split
+  human_cost: high; the multi-read test split is the expensive part
+
+provenance: >
+  Real release (CrowdGleason), with the gold-equals-majority and slide-nesting facts observed in the
+  released test split. Read as the general shape "multi-expert ordinal grading with a pool-derived gold".

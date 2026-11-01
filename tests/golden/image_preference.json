@@ -28,15 +28,15 @@
         "priming",
         "drift",
         "inflation",
-        "unanchored",
-        "confounded"
+        "confounded",
+        "unanchored"
       ]
     ],
     [
       "content-moderation-abuse",
       [
-        "drift",
         "bottleneck",
+        "drift",
         "class_imbalance",
         "confounded",
         "under_specification",
@@ -44,11 +44,12 @@
       ]
     ],
     [
-      "judge-eval-study",
+      "annotation-audit-mqm-wmt",
       [
         "priming",
-        "inflation",
-        "unanchored"
+        "drift",
+        "unanchored",
+        "under_specification"
       ]
     ],
     [
@@ -56,8 +57,8 @@
       [
         "inflation",
         "class_imbalance",
-        "unanchored",
         "confounded",
+        "unanchored",
         "sampling_frame"
       ]
     ]
@@ -73,6 +74,7 @@
       "sampling_frame",
       6,
       [
+        "gold-in-tiers",
         "human-audit-sample",
         "dedup-merge",
         "coverage-routing"
@@ -89,7 +91,7 @@
     ],
     [
       "self_affinity",
-      3,
+      2,
       [
         "cross-family-judges"
       ]
@@ -98,16 +100,10 @@
       "class_imbalance",
       5,
       [
+        "gold-in-tiers",
         "human-audit-sample",
         "active-learning-loop",
         "coverage-routing"
-      ]
-    ],
-    [
-      "underpowered",
-      1,
-      [
-        "powered-eval-split"
       ]
     ],
     [
@@ -141,26 +137,21 @@
     "unanchored",
     "self_affinity",
     "class_imbalance",
-    "inflation",
     "under_specification",
     "drift",
-    "underpowered",
+    "inflation",
     "priming",
     "bottleneck",
     "over_specification"
   ],
   "backwards_needed": [
     [
-      "human-audit-sample",
+      "gold-in-tiers",
       "sampling_frame"
     ],
     [
       "cross-family-judges",
       "confounded"
-    ],
-    [
-      "powered-eval-split",
-      "underpowered"
     ],
     [
       "order-randomization",
@@ -180,17 +171,16 @@
     "confounded",
     "unanchored",
     "self_affinity",
-    "inflation",
     "under_specification",
     "drift",
+    "inflation",
     "over_specification"
   ],
   "workflow_chosen": [
     "multi-annotator-aggregate",
     "gold-honeypots",
-    "human-audit-sample",
+    "gold-in-tiers",
     "cross-family-judges",
-    "powered-eval-split",
     "order-randomization",
     "tiered-adjudication",
     "edge-case-guidelines"
@@ -237,8 +227,7 @@
   ],
   "workflow_audit": [
     "gold-honeypots",
-    "human-audit-sample",
-    "cross-family-judges",
-    "powered-eval-split"
+    "gold-in-tiers",
+    "cross-family-judges"
   ]
 }

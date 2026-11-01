@@ -17,7 +17,7 @@
       3
     ],
     [
-      "content-moderation-welfare-ops",
+      "annotation-audit-crowdgleason-pathology",
       2
     ]
   ],
@@ -47,7 +47,7 @@
       ]
     ],
     [
-      "benchmark-bigbench",
+      "annotation-audit-frank-factuality",
       [
         "class_imbalance",
         "under_specification",
@@ -63,6 +63,7 @@
       "sampling_frame",
       8,
       [
+        "gold-in-tiers",
         "human-audit-sample",
         "dedup-merge",
         "coverage-routing"
@@ -107,29 +108,17 @@
       "class_imbalance",
       4,
       [
+        "gold-in-tiers",
         "human-audit-sample",
         "active-learning-loop",
         "coverage-routing"
       ]
     ],
     [
-      "drift",
+      "underpowered",
       1,
       [
-        "gold-honeypots",
-        "qualification-calibration",
-        "lock-then-score"
-      ]
-    ],
-    [
-      "inflation",
-      1,
-      [
-        "gold-honeypots",
-        "qualification-calibration",
-        "lock-then-score",
-        "dedup-merge",
-        "engagement-gate"
+        "powered-eval-split"
       ]
     ]
   ],
@@ -141,12 +130,11 @@
     "self_affinity",
     "under_specification",
     "class_imbalance",
-    "drift",
-    "inflation"
+    "underpowered"
   ],
   "backwards_needed": [
     [
-      "human-audit-sample",
+      "gold-in-tiers",
       "sampling_frame"
     ],
     [
@@ -162,8 +150,8 @@
       "under_specification"
     ],
     [
-      "gold-honeypots",
-      "drift"
+      "powered-eval-split",
+      "underpowered"
     ]
   ],
   "backwards_spec_threats": [
@@ -172,17 +160,15 @@
     "confounded",
     "unanchored",
     "self_affinity",
-    "under_specification",
-    "drift",
-    "inflation"
+    "under_specification"
   ],
   "workflow_chosen": [
     "execution-verification",
-    "human-audit-sample",
+    "gold-in-tiers",
     "split-isolation",
     "cross-family-judges",
     "multi-annotator-aggregate",
-    "gold-honeypots"
+    "powered-eval-split"
   ],
   "workflow_steps": [
     [
@@ -224,8 +210,8 @@
   ],
   "workflow_conventions": [],
   "workflow_audit": [
-    "human-audit-sample",
+    "gold-in-tiers",
     "cross-family-judges",
-    "gold-honeypots"
+    "powered-eval-split"
   ]
 }

@@ -1,0 +1,97 @@
+id: annotation-audit-summeval-expert-crowd
+title: Crowd and Expert Ratings of the Same Outputs, Kept Apart (SummEval)
+modality: text
+task_structure: rubric_rating
+annotator_structure: multi_aggregate
+lineage: fabbri et al. 2021 (SummEval)
+qa_mechanism: [agreement, audit_sampling]
+failure_signatures: [unanchored, inflation, underpowered]
+uses_patterns: [multi-annotator-aggregate, human-gold-anchor, inter-annotator-agreement, gold-in-tiers]
+distinctive: >
+  The same 1,600 summaries rated on four dimensions by five crowd workers AND three experts, with
+  both sets released. The design makes the crowd's record auditable against an expert anchor on the
+  same items, which is what shows a crowd majority to be a lenient key.
+
+provenance_meta:
+  source: "Fabbri, Kryscinski, McCann, Xiong, Socher, Radev, SummEval: Re-evaluating Summarization Evaluation, TACL 2021 (arXiv:2007.12626); Yale-LILY/SummEval (MIT)"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "distinct from text-preference-rlhf (absolute 1–5 ratings on fixed dimensions, two rater populations on identical items, released separately)"
+
+decision: >
+  Produce quality ratings of model summaries that can validate automatic metrics, and measure
+  whether a crowd can stand in for experts by rating the same items with both.
+
+inputs:
+  - source: 100 source articles x 16 summarisation systems = 1,600 summaries
+    provenance: model outputs on CNN/DailyMail
+    assumption: summaries of one article are independent items (they are not; 16 share each article)
+  - source: four rated dimensions (coherence, consistency, fluency, relevance), 1 to 5
+    provenance: the benchmark's rubric
+    assumption: crowd workers and experts read the scale the same way (the study exists because they do not)
+
+actors:
+  - role: crowd workers (five per summary)
+    does: rate each summary on the four dimensions
+    type: human (crowd)
+  - role: experts (three per summary)
+    does: rate the same summaries on the same dimensions
+    type: human (expert)
+  - role: benchmark owners
+    does: release both rating sets per summary and compare metrics against each
+    type: human
+
+steps:
+  - fix the four dimensions and the scale
+  - five crowd workers rate every summary; three experts rate every summary
+  - release both, per rater, never merged
+  - validate automatic metrics against the expert ratings; read the crowd against the experts
+
+quality_gates:
+  - gate: expert ratings on the same items
+    checks: the crowd's majority against an expert anchor, item by item
+    catches: inflation, unanchored [REPORTED]
+  - gate: per-rater release
+    checks: a consumer can read agreement and lean per rater, not just a mean
+    catches: inflation [REPORTED]
+
+output:
+  shape: per summary, five crowd and three expert ratings on four dimensions, plus the summary text and article id
+  consumed_by: metric validation; LLM-judge validation; studies of crowd against expert gold
+
+failure_modes:
+  - signature: inflation
+    evidence: REPORTED
+    description: >
+      The crowd ratings agree poorly with the experts, and the authors recommend the expert set for
+      validating metrics. A pipeline that files the crowd's consensus as gold files a lenient key:
+      a judge trained on the crowd's record learns the crowd's leniency rather than the experts'
+      standard.
+    caught_by: human-gold-anchor (the experts), kept apart from the crowd
+  - signature: unanchored
+    evidence: REPORTED
+    description: >
+      Without the expert pass, nothing in the crowd data says which disagreements are the crowd
+      being wrong; agreement among workers is not accuracy.
+    caught_by: human-gold-anchor
+  - signature: underpowered
+    evidence: REPORTED
+    description: >
+      Sixteen summaries share each article, so 1,600 rows are 100 clusters; an interval or a
+      significance test that counts rows as independent is too narrow.
+    caught_by: UNGUARDED in the release; count effective items by article
+  - signature: under_specification
+    evidence: INFERRED
+    description: >
+      Coherence and relevance are the dimensions where even experts spread most; a 1-to-5 scale
+      without anchors leaves the middle of the scale to each rater's habit.
+    caught_by: UNGUARDED
+
+cost_profile:
+  throughput: medium for the crowd pass; low for the expert pass
+  bottleneck: three experts over 1,600 summaries x 4 dimensions
+  human_cost: the expert pass is the expensive, reusable part; the crowd pass is the cheap one it audits
+
+provenance: >
+  Real program (the SummEval release), read as the general shape "two rater populations on the same
+  items, released apart, the expert set as the anchor".

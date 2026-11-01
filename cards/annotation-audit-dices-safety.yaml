@@ -1,0 +1,99 @@
+id: annotation-audit-dices-safety
+title: Fully Crossed Safety Ratings from a Diverse Rater Pool, Disagreement Kept (DICES-350)
+modality: text
+task_structure: classification
+annotator_structure: crowd
+lineage: aroyo et al. 2023 (DICES)
+qa_mechanism: [agreement, audit_sampling]
+failure_signatures: [under_specification, sampling_frame, drift]
+uses_patterns: [multi-annotator-aggregate, inter-annotator-agreement, human-gold-anchor, order-randomization]
+distinctive: >
+  Every rater rates every item: 123 raters on 350 conversations, so every pair of raters is
+  measurable on the full set, and rater demographics travel with each rating. Disagreement is the
+  released object, not something aggregated away.
+
+provenance_meta:
+  source: "Aroyo, Taylor, Díaz, Homan, Parrish, Serapio-García, Aguirre, Wang, Hernández, DICES Dataset: Diversity in Conversational AI Evaluation for Safety, NeurIPS 2023 Datasets & Benchmarks (arXiv:2306.11247)"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "distinct from content-moderation-abuse (a production triage pipeline): this is a RESEARCH-grade fully crossed design built to study rater disagreement itself"
+
+decision: >
+  Produce safety labels for model conversations in a design where rater disagreement can be read
+  and attributed (to the item, to a rater, to a demographic group) rather than averaged out, so that
+  a safety judge or an aggregation policy can be validated against it.
+
+inputs:
+  - source: 350 adversarial multi-turn conversations with a dialogue model
+    provenance: sampled from a larger safety corpus
+    assumption: the sample covers the harm types a deployed judge will face (a sampling-frame risk the authors state)
+  - source: a safety questionnaire (overall safety plus harm sub-questions)
+    provenance: the study's rating instrument
+    assumption: unsafe means one thing across raters (the study's premise is that it does not)
+  - source: rater demographics and a time per rating
+    provenance: collected with each rating
+    assumption: none; released as data
+
+actors:
+  - role: raters (123, every one rates every item)
+    does: answer the safety questionnaire per conversation
+    type: human (crowd, recruited for demographic diversity)
+  - role: study owners
+    does: hold a gold safety label per item, read agreement by pair and by group, release all ratings
+    type: human
+
+steps:
+  - fix the questionnaire; recruit a pool balanced on stated demographic axes
+  - every rater rates every conversation; item order varies per rater
+  - release every rating with rater id, group membership and timing
+  - read agreement per pair and per group; compare group majorities against each other and against the gold
+
+quality_gates:
+  - gate: full crossing
+    checks: every rater pair is measured on the same 350 items; no pooling of raters who never shared an item
+    catches: under_specification (made visible, not removed) [REPORTED]
+  - gate: gold label per item
+    checks: a majority or a group can be read against a reference, not only against itself
+    catches: unanchored [REPORTED]
+  - gate: a time per rating
+    checks: a rater's pace and change over the session can be read
+    catches: drift [REPORTED]
+
+output:
+  shape: 350 x 123 ratings with questionnaire answers, rater group labels, timing; one gold safety label per item
+  consumed_by: safety-judge validation; aggregation-policy studies; disagreement research
+
+failure_modes:
+  - signature: under_specification
+    evidence: REPORTED
+    description: >
+      Raters disagree systematically on what is unsafe, and the disagreement is structured by group
+      rather than random; a single majority label hides which groups the label represents.
+    caught_by: the fully crossed design and per-group reads; a policy must say whose majority it ships
+  - signature: sampling_frame
+    evidence: REPORTED
+    description: >
+      350 conversations and one rater pool; the authors frame the set as a study instrument, not a
+      deployment benchmark, so rates on it do not transfer to a product's traffic.
+    caught_by: UNGUARDED; stated scope
+  - signature: drift
+    evidence: INFERRED
+    description: >
+      With 350 items per rater in one sitting, a rater's standard can move across the session; the
+      timing column makes it readable but the release does not report it.
+    caught_by: UNGUARDED in the source; readable from the clock
+  - signature: inflation
+    evidence: INFERRED
+    description: >
+      A judge validated against the pooled majority inherits the pool's composition; a differently
+      composed pool would move the key. Not a finding of the source, a consequence of its design.
+    caught_by: human-gold-anchor beside the majority; per-group reads
+
+cost_profile:
+  throughput: low — 43,050 ratings for 350 items
+  bottleneck: rater hours; full crossing scales as items x raters
+  human_cost: high per item by design; the design buys attributable disagreement
+
+provenance: >
+  Real program (the DICES-350 release), read as the general shape "fully crossed pool, demographics
+  and timing with every rating, disagreement as the object".

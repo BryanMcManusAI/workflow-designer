@@ -5,6 +5,10 @@
       9
     ],
     [
+      "annotation-audit-summeval-expert-crowd",
+      7
+    ],
+    [
       "instruction-self-instruct",
       6
     ],
@@ -13,32 +17,28 @@
       4
     ],
     [
-      "critique-criticgpt",
-      4
-    ],
-    [
-      "demonstration-instructgpt",
+      "annotation-audit-conllpp-relabel",
       4
     ]
   ],
   "far": [
     [
-      "text-preference-rlhf",
-      [
-        "priming",
-        "inflation",
-        "unanchored",
-        "confounded"
-      ]
-    ],
-    [
       "corpus-ingestion",
       [
         "self_affinity",
         "inflation",
-        "unanchored",
         "confounded",
+        "unanchored",
         "sampling_frame"
+      ]
+    ],
+    [
+      "text-preference-rlhf",
+      [
+        "priming",
+        "inflation",
+        "confounded",
+        "unanchored"
       ]
     ],
     [
@@ -54,8 +54,8 @@
       "crowd-aggregation-dawid-skene",
       [
         "underpowered",
-        "unanchored",
-        "confounded"
+        "confounded",
+        "unanchored"
       ]
     ]
   ],
@@ -64,21 +64,22 @@
   ],
   "interrogate_open": [
     [
-      "sampling_frame",
-      6,
-      [
-        "human-audit-sample",
-        "dedup-merge",
-        "coverage-routing"
-      ]
-    ],
-    [
       "confounded",
       5,
       [
         "cross-family-judges",
         "lock-then-score",
         "order-randomization"
+      ]
+    ],
+    [
+      "sampling_frame",
+      4,
+      [
+        "gold-in-tiers",
+        "human-audit-sample",
+        "dedup-merge",
+        "coverage-routing"
       ]
     ],
     [
@@ -90,23 +91,13 @@
     ],
     [
       "inflation",
-      3,
+      4,
       [
         "gold-honeypots",
         "qualification-calibration",
         "lock-then-score",
         "dedup-merge",
         "engagement-gate"
-      ]
-    ],
-    [
-      "under_specification",
-      3,
-      [
-        "multi-annotator-aggregate",
-        "tiered-adjudication",
-        "inter-annotator-agreement",
-        "edge-case-guidelines"
       ]
     ],
     [
@@ -118,11 +109,22 @@
     ],
     [
       "class_imbalance",
-      1,
+      2,
       [
+        "gold-in-tiers",
         "human-audit-sample",
         "active-learning-loop",
         "coverage-routing"
+      ]
+    ],
+    [
+      "under_specification",
+      2,
+      [
+        "multi-annotator-aggregate",
+        "tiered-adjudication",
+        "inter-annotator-agreement",
+        "edge-case-guidelines"
       ]
     ],
     [
@@ -143,37 +145,37 @@
     ]
   ],
   "backwards_good_means": [
-    "sampling_frame",
     "unanchored",
     "confounded",
+    "sampling_frame",
     "self_affinity",
     "inflation",
-    "under_specification",
     "underpowered",
     "class_imbalance",
+    "under_specification",
     "drift",
     "priming"
   ],
   "backwards_needed": [
     [
-      "human-audit-sample",
-      "sampling_frame"
-    ],
-    [
       "cross-family-judges",
       "confounded"
+    ],
+    [
+      "gold-in-tiers",
+      "sampling_frame"
     ],
     [
       "gold-honeypots",
       "inflation"
     ],
     [
-      "multi-annotator-aggregate",
-      "under_specification"
-    ],
-    [
       "powered-eval-split",
       "underpowered"
+    ],
+    [
+      "multi-annotator-aggregate",
+      "under_specification"
     ],
     [
       "order-randomization",
@@ -181,9 +183,9 @@
     ]
   ],
   "backwards_spec_threats": [
-    "sampling_frame",
     "unanchored",
     "confounded",
+    "sampling_frame",
     "self_affinity",
     "inflation",
     "under_specification",
@@ -191,11 +193,11 @@
   ],
   "workflow_chosen": [
     "human-gold-anchor",
-    "human-audit-sample",
     "cross-family-judges",
+    "gold-in-tiers",
     "gold-honeypots",
-    "multi-annotator-aggregate",
     "powered-eval-split",
+    "multi-annotator-aggregate",
     "order-randomization"
   ],
   "workflow_steps": [
@@ -236,8 +238,8 @@
   ],
   "workflow_audit": [
     "human-gold-anchor",
-    "human-audit-sample",
     "cross-family-judges",
+    "gold-in-tiers",
     "gold-honeypots",
     "powered-eval-split"
   ]

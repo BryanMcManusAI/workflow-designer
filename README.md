@@ -11,7 +11,7 @@ the engine runs in reverse — from what good means for your task, to the failur
 the one defense per risk that guarantees it — then stress-tests whether your definition of "good" is itself
 a proxy (length, format, recalled consensus, a lenient label).
 
-It reasons over a corpus of **45 grounded recipes** (annotation, RLHF, eval, red-teaming, synthetic data)
+It reasons over a corpus of **51 grounded recipes** (annotation, RLHF, eval, red-teaming, synthetic data)
 spanning every modality (text, image, video, audio, 3D, code, tabular) and task type, plus **24 reusable
 patterns** distilled from them. Each recipe is built from published methods and carries failure modes that
 were actually *reported* — not invented.

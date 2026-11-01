@@ -1,0 +1,94 @@
+id: annotation-audit-frank-factuality
+title: Typed Factual-Error Annotation of Model Output, Three Raters per Sentence (FRANK)
+modality: text
+task_structure: classification
+annotator_structure: multi_aggregate
+lineage: pagnoni et al. 2021 (FRANK)
+qa_mechanism: [agreement, consensus_threshold]
+failure_signatures: [class_imbalance, sampling_frame, under_specification]
+uses_patterns: [multi-annotator-aggregate, inter-annotator-agreement, gold-in-tiers, edge-case-guidelines]
+distinctive: >
+  Annotators read model-written summaries sentence by sentence and tag each factual error with a
+  TYPE from a fixed typology, three raters per sentence. The typology, not a score, is the output, so
+  the audit question is per error type: which types do raters agree on, and which can a judge see.
+
+provenance_meta:
+  source: "Pagnoni, Balachandran, Tsvetkov, Understanding Factuality in Abstractive Summarization with FRANK: A Benchmark and Typology, NAACL 2021 (arXiv:2104.13346); artidoro/frank (MIT)"
+  extraction_confidence: high
+  provenance: extracted-then-audited
+  dedup_hint: "distinct from rubric-rating recipes: the label is a typed error on a sentence of MODEL output against its source, and the release keeps all three raters"
+
+decision: >
+  Produce per-sentence, typed factual-error labels for machine-written summaries, so that
+  factuality metrics and LLM graders can be validated per error type rather than on one score.
+
+inputs:
+  - source: 2,246 summaries from 9 summarisation models over two source corpora (CNN/DailyMail, XSum)
+    provenance: model outputs, released with the benchmark
+    assumption: the two corpora pose the same task (they do not; XSum summaries are far more often unfaithful)
+  - source: a typology of factual errors (semantic frame, discourse, content verifiability groups)
+    provenance: the benchmark's own taxonomy, with annotator guidelines
+    assumption: an annotator can place an error in one type (adjacent types blur)
+
+actors:
+  - role: annotators (three per sentence)
+    does: read the summary against its source, mark each sentence's errors with a type
+    type: human (crowd, trained on the typology)
+  - role: benchmark owners
+    does: define the typology, aggregate the three readings, release all readings
+    type: human
+
+steps:
+  - fix the typology and the guidelines; train annotators on examples per type
+  - three annotators label every sentence of every summary with zero or more error types
+  - aggregate per sentence (majority) and per summary (any error fails)
+  - release the per-annotator labels, not only the aggregate
+
+quality_gates:
+  - gate: three readings per sentence
+    checks: a type is credited on agreement, and disagreement is visible in the release
+    catches: under_specification [REPORTED]
+  - gate: typology training
+    checks: annotators share the type boundaries before live work
+    catches: under_specification [REPORTED]
+
+output:
+  shape: per summary sentence, three annotators' error-type sets; per summary, a majority verdict
+  consumed_by: factuality-metric validation; LLM-judge validation per error type; gold tiers
+
+failure_modes:
+  - signature: class_imbalance
+    evidence: REPORTED
+    description: >
+      On the XSum half nearly every summary is unfaithful, so the set holds almost no clean
+      negatives there: a judge's false-alarm rate cannot be read, and "catches 95% of failures" is
+      the base rate. Some error types are rare enough that no rate on them is readable.
+    caught_by: UNGUARDED in the release; report per corpus and per type, never pooled
+  - signature: sampling_frame
+    evidence: REPORTED
+    description: >
+      Summaries come from specific model families of 2020; error types and their rates shift with
+      the generator, so a grader validated here may face a different mix on newer systems.
+    caught_by: UNGUARDED; a field read on new traffic is the only check
+  - signature: under_specification
+    evidence: REPORTED
+    description: >
+      Adjacent types (an entity error against a circumstance error, an out-of-article claim against
+      an unverifiable one) split the annotators; agreement on WHETHER a sentence errs is higher than
+      on WHICH type.
+    caught_by: majority per sentence; grouped types as a coarser rubric
+  - signature: unanchored
+    evidence: INFERRED
+    description: >
+      The three raters are anonymous slots in the release, so no rater can be profiled across items
+      and no rater-level drift or deference can be read; agreement is all the audit has.
+    caught_by: UNGUARDED
+
+cost_profile:
+  throughput: medium — crowd annotators, sentence level, three per sentence
+  bottleneck: reading the source document for every sentence; typology training
+  human_cost: moderate per summary, times three
+
+provenance: >
+  Real program (the FRANK benchmark release), read as the general shape "typed error labels on model
+  output, several raters, validate per type".

@@ -44,13 +44,35 @@ patterns:
       Seed known-answer items invisibly into the live stream to score each annotator's accuracy
       continuously and catch bad actors and drift.
     defends: [inflation, drift]
-    pairs_with: [qualification-calibration, inter-annotator-agreement]
+    pairs_with: [qualification-calibration, inter-annotator-agreement, gold-in-tiers]
     conflicts_with: []
     cost: "Authoring + maintaining a fresh honeypot bank (raters memorize stale ones)."
     modality_notes: >
       Trivial for classification/preference; for generative tasks a 'known answer' is fuzzier —
       use rubric-scored references instead of exact match.
     exemplified_by: [text-preference-rlhf, image-bbox-adjudicated]
+
+  - id: gold-in-tiers
+    name: Gold in Tiers
+    phase: audit
+    play: "Keep gold as four tiers that are never pooled: an anchor where every rater agrees, a random slice committed before any label is read, the harvest of audits and reviews the pipeline produces as it runs, and planted errors beside clean twins; report each tier on its own and refuse the combined number."
+    does: >
+      Treat gold as a pipeline, not a set. Four tiers with different costs and different claims:
+      an ANCHOR (items every rater agreed on; cheap to find, leans clean), a RANDOM SLICE (drawn from
+      ids before any label is read; the only tier that estimates prevalence), the HARVEST (every
+      audit and review the live pipeline already pays for, closed as gold), and PLANTED errors beside
+      their clean twins (cheap recall checks that overstate recall on real errors). Each tier is
+      reported apart; a check "sees" an error code only when its recall holds on real errors in the
+      random slice, not on plants alone.
+    defends: [unanchored, class_imbalance, sampling_frame]
+    pairs_with: [human-gold-anchor, tamper-to-ground-truth, gold-honeypots, human-audit-sample, tiered-adjudication]
+    conflicts_with: []
+    cost: "Bookkeeping per tier; the random slice costs full adjudication on items that are mostly clean; the harvest is nearly free because the reviews happen anyway."
+    modality_notes: >
+      Invariant across modalities. What changes is the planter: a flipped label, a cut span, a swapped
+      pronoun, a mislabelled patch. The rule that planted recall does not stand in for real recall
+      holds everywhere a plant is easier to find than a natural error.
+    exemplified_by: [annotation-audit-mqm-wmt, annotation-audit-conllpp-relabel, annotation-audit-summeval-expert-crowd]
 
   - id: qualification-calibration
     name: Qualification + Calibration Test
@@ -260,7 +282,7 @@ patterns:
       Manufacture verifiable gold by deliberately INJECTING known defects (bugs, mislabels, poison) with a
       recorded key, so a detector/critic can be scored on whether it recovers them.
     defends: [unanchored]
-    pairs_with: [human-audit-sample, cross-family-judges, gold-honeypots]
+    pairs_with: [human-audit-sample, cross-family-judges, gold-honeypots, gold-in-tiers]
     conflicts_with: []
     cost: "Planting effort; and the planted distribution may differ from natural errors (overstates real recall)."
     modality_notes: >
