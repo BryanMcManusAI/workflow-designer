@@ -6,7 +6,7 @@ annotator_structure: multi_aggregate
 lineage: freitag et al. 2021 / google WMT MQM releases
 qa_mechanism: [agreement, gold_honeypots, guideline_freeze]
 failure_signatures: [under_specification, unanchored, priming, drift]
-uses_patterns: [multi-annotator-aggregate, inter-annotator-agreement, tamper-to-ground-truth, gold-in-tiers, lock-then-score]
+uses_patterns: [multi-annotator-aggregate, inter-annotator-agreement, tamper-to-ground-truth, gold-in-tiers, lock-then-score, fail-agreement-sizing, convention-change-revalidation]
 distinctive: >
   Three professional raters each mark error SPANS with a category and a severity on the same
   translations, with no reference answer: gold is wherever the raters agree, and the audit layer has

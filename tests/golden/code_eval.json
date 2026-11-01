@@ -101,6 +101,7 @@
         "multi-annotator-aggregate",
         "tiered-adjudication",
         "inter-annotator-agreement",
+        "fail-agreement-sizing",
         "edge-case-guidelines"
       ]
     ],
@@ -118,6 +119,7 @@
       "underpowered",
       1,
       [
+        "fail-agreement-sizing",
         "powered-eval-split"
       ]
     ]
@@ -150,7 +152,7 @@
       "under_specification"
     ],
     [
-      "powered-eval-split",
+      "fail-agreement-sizing",
       "underpowered"
     ]
   ],
@@ -168,7 +170,7 @@
     "split-isolation",
     "cross-family-judges",
     "multi-annotator-aggregate",
-    "powered-eval-split"
+    "fail-agreement-sizing"
   ],
   "workflow_steps": [
     [
@@ -212,6 +214,6 @@
   "workflow_audit": [
     "gold-in-tiers",
     "cross-family-judges",
-    "powered-eval-split"
+    "fail-agreement-sizing"
   ]
 }

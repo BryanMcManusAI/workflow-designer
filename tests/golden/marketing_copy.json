@@ -95,6 +95,7 @@
       [
         "gold-honeypots",
         "qualification-calibration",
+        "fail-agreement-sizing",
         "lock-then-score",
         "dedup-merge",
         "engagement-gate"
@@ -104,6 +105,7 @@
       "underpowered",
       3,
       [
+        "fail-agreement-sizing",
         "powered-eval-split"
       ]
     ],
@@ -124,6 +126,7 @@
         "multi-annotator-aggregate",
         "tiered-adjudication",
         "inter-annotator-agreement",
+        "fail-agreement-sizing",
         "edge-case-guidelines"
       ]
     ],
@@ -133,7 +136,8 @@
       [
         "gold-honeypots",
         "qualification-calibration",
-        "lock-then-score"
+        "lock-then-score",
+        "convention-change-revalidation"
       ]
     ],
     [
@@ -170,7 +174,7 @@
       "inflation"
     ],
     [
-      "powered-eval-split",
+      "fail-agreement-sizing",
       "underpowered"
     ],
     [
@@ -196,7 +200,7 @@
     "cross-family-judges",
     "gold-in-tiers",
     "gold-honeypots",
-    "powered-eval-split",
+    "fail-agreement-sizing",
     "multi-annotator-aggregate",
     "order-randomization"
   ],
@@ -241,6 +245,6 @@
     "cross-family-judges",
     "gold-in-tiers",
     "gold-honeypots",
-    "powered-eval-split"
+    "fail-agreement-sizing"
   ]
 }

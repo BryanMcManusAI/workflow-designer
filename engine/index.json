@@ -92,7 +92,9 @@
     "human-gold-anchor",
     "tiered-adjudication",
     "gold-in-tiers",
-    "lock-then-score"
+    "lock-then-score",
+    "fail-agreement-sizing",
+    "convention-change-revalidation"
    ],
    "decision": "Decide how much of a released expert annotation can be trusted, code by code, by re-annotating it and adjudicating every disagreement, so that the corrections become a gold the original labels (and any judge of them) are measured against.",
    "failure_modes": [
@@ -263,7 +265,8 @@
     "multi-annotator-aggregate",
     "inter-annotator-agreement",
     "human-gold-anchor",
-    "order-randomization"
+    "order-randomization",
+    "fail-agreement-sizing"
    ],
    "decision": "Produce safety labels for model conversations in a design where rater disagreement can be read and attributed (to the item, to a rater, to a demographic group) rather than averaged out, so that a safety judge or an aggregation policy can be validated against it.",
    "failure_modes": [
@@ -430,7 +433,9 @@
     "inter-annotator-agreement",
     "tamper-to-ground-truth",
     "gold-in-tiers",
-    "lock-then-score"
+    "lock-then-score",
+    "fail-agreement-sizing",
+    "convention-change-revalidation"
    ],
    "decision": "Produce error-span annotations of machine translations that can rank systems and train or validate automatic graders, where no reference answer exists and the quality of the annotation itself has to be read from how far the raters agree.",
    "failure_modes": [
@@ -4194,6 +4199,32 @@
     "judge-eval-study"
    ]
   },
+  "fail-agreement-sizing": {
+   "id": "fail-agreement-sizing",
+   "name": "Fail Agreement, Sized in Fails",
+   "phase": "audit",
+   "play": "When almost everything passes, headline fail agreement (p_pos = 2a / (2a + b + c)) with an interval, report kappa beside it, never raw agreement or AC1; and size the double-audit overlap by the number of fails each auditor pair will see (50 to 100), with a fail-enriched stratum beside a random one.",
+   "does": "Make inter-annotator agreement a sized recommendation instead of a checkbox. At a 98% pass rate two auditors with no skill agree on 96% of items, so raw agreement measures how easy the passes are. The figure that carries information is agreement on the fails; its precision comes from the number of fails both auditors saw, not from the item count, so the overlap is planned in fails: about 2,000 random items for 40 fails per auditor at a 2% fail rate, fewer with a selector that concentrates fails. `engine/iaa_sizing.py` computes the figures and the overlap.",
+   "defends": [
+    "under_specification",
+    "underpowered",
+    "inflation"
+   ],
+   "pairs_with": [
+    "inter-annotator-agreement",
+    "multi-annotator-aggregate",
+    "gold-in-tiers",
+    "human-gold-anchor"
+   ],
+   "conflicts_with": [],
+   "cost": "A standing double-audit share (the 5 to 25% band is the precedent) plus a fail-enriched stratum; the statistic itself is free.",
+   "modality_notes": "Invariant for any pass/fail verdict. Severity scales take ordinal alpha or weighted kappa; multi-code items take one binary table per code; spans take pairwise span-F1 with a stated overlap rule. The rule that precision lives in the fails holds for all of them.",
+   "exemplified_by": [
+    "annotation-audit-conllpp-relabel",
+    "annotation-audit-mqm-wmt",
+    "annotation-audit-dices-safety"
+   ]
+  },
   "human-gold-anchor": {
    "id": "human-gold-anchor",
    "name": "Human-Gold Anchor",
@@ -4283,6 +4314,30 @@
    "modality_notes": "Invariant. The tension with active learning is the interesting design choice.",
    "exemplified_by": [
     "judge-eval-study"
+   ]
+  },
+  "convention-change-revalidation": {
+   "id": "convention-change-revalidation",
+   "name": "Convention Change, Re-Validated by Scope",
+   "phase": "convention",
+   "play": "When the guideline changes, state the change as a typed rule (merge, split, retire, threshold), rebuild the gold under it, predict which items move, and re-validate only the codes the change touched; name any item that moved outside the prediction.",
+   "does": "Treat a rubric or guideline change as a declared edit with a scope, not a reason to start over. A typed rule over every annotation pass rebuilds the gold exactly; the items it moves are a prediction to check, not a surprise; checks and judges on untouched codes keep their authority and only the touched codes are re-validated. A change that moves items the declaration did not predict is a hidden change, and the page says so. Rules carried silently between campaigns are the failure this prevents.",
+   "defends": [
+    "drift",
+    "over_specification",
+    "unanchored"
+   ],
+   "pairs_with": [
+    "lock-then-score",
+    "gold-in-tiers",
+    "qualification-calibration"
+   ],
+   "conflicts_with": [],
+   "cost": "Writing each change as a rule before applying it; a re-validation run on the touched codes; a gold that can be rebuilt from passes rather than edited in place.",
+   "modality_notes": "Invariant. The rule's vocabulary changes with the task: codes merged or split for span annotation, a severity threshold for graded errors, a retired entity type for extraction, a rescaled rubric for ratings. Rating the same outputs under two rubrics (MQM against ESA on the same translations) shows how far a rubric change alone moves the gold.",
+   "exemplified_by": [
+    "annotation-audit-mqm-wmt",
+    "annotation-audit-conllpp-relabel"
    ]
   },
   "active-learning-loop": {

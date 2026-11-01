@@ -6,7 +6,7 @@ annotator_structure: crowd
 lineage: aroyo et al. 2023 (DICES)
 qa_mechanism: [agreement, audit_sampling]
 failure_signatures: [under_specification, sampling_frame, drift]
-uses_patterns: [multi-annotator-aggregate, inter-annotator-agreement, human-gold-anchor, order-randomization]
+uses_patterns: [multi-annotator-aggregate, inter-annotator-agreement, human-gold-anchor, order-randomization, fail-agreement-sizing]
 distinctive: >
   Every rater rates every item: 123 raters on 350 conversations, so every pair of raters is
   measurable on the full set, and rater demographics travel with each rating. Disagreement is the

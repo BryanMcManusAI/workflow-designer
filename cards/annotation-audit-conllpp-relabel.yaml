@@ -6,7 +6,7 @@ annotator_structure: tiered_review
 lineage: wang et al. 2019 (CrossWeigh / CoNLL++)
 qa_mechanism: [adjudication, agreement, audit_sampling]
 failure_signatures: [unanchored, under_specification, class_imbalance]
-uses_patterns: [human-gold-anchor, tiered-adjudication, gold-in-tiers, lock-then-score]
+uses_patterns: [human-gold-anchor, tiered-adjudication, gold-in-tiers, lock-then-score, fail-agreement-sizing, convention-change-revalidation]
 distinctive: >
   The annotation-QA shape: the work already exists (a released expert dataset), and the job is to
   AUDIT it. A second pass re-annotates under the same guidelines, disagreements are adjudicated, and

@@ -28,6 +28,7 @@ it. A recombination engine that free-associates produces confident nonsense; thi
 # CLI — stdlib only, no dependencies, no API key
 python3 engine/engine.py list
 python3 engine/engine.py workflow                         # assemble the sample workflow: steps · fields · conventions · audit
+python3 engine/iaa_sizing.py size --pass-rate 0.98 --target-fails 50 --catch 0.75   # how big a double-audit overlap has to be
 python3 engine/engine.py backwards                        # backwards-from-good: derive the workflow + stress-test the spec
 python3 engine/engine.py interrogate                      # mode 3 on the example workflow stub
 python3 engine/engine.py modality-shift --to video

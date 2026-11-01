@@ -127,6 +127,7 @@
       "over_specification",
       1,
       [
+        "convention-change-revalidation",
         "edge-case-guidelines"
       ]
     ]
@@ -162,7 +163,7 @@
       "bottleneck"
     ],
     [
-      "edge-case-guidelines",
+      "convention-change-revalidation",
       "over_specification"
     ]
   ],
@@ -183,7 +184,7 @@
     "cross-family-judges",
     "order-randomization",
     "tiered-adjudication",
-    "edge-case-guidelines"
+    "convention-change-revalidation"
   ],
   "workflow_steps": [
     [
@@ -223,7 +224,7 @@
   ],
   "workflow_conventions": [
     "order-randomization",
-    "edge-case-guidelines"
+    "convention-change-revalidation"
   ],
   "workflow_audit": [
     "gold-honeypots",
