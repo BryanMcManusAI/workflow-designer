@@ -9,9 +9,9 @@ uses_patterns: [tamper-to-ground-truth, human-audit-sample, cross-family-judges]
 # tamper-to-ground-truth: 2nd exemplar (after critique-criticgpt) → PROMOTE
 
 provenance_meta:
-  source: "Bryan's PUBLIC detector-demo (github.com/BryanMcManusAI/detector-demo) — stdlib, synthetic, MIT — plus the general planted-mislabel evaluation technique"
-  extraction_confidence: high (own public artifact; internal/proprietary specifics deliberately excluded)
-  provenance: own-work (public, scrubbed)
+  source: "The general planted-mislabel evaluation technique (tamper-to-ground-truth), as practised in Bryan's own synthetic, stdlib experiments"
+  extraction_confidence: high (own work; internal/proprietary specifics deliberately excluded)
+  provenance: own-work (scrubbed)
   dedup_hint: "shares tamper-to-ground-truth with critique-criticgpt and the audit skeleton with synthetic-with-audit; distinct as a DETECTOR-evaluation workflow (measure recovery of known-bad labels)"
 
 decision: >
@@ -80,7 +80,6 @@ cost_profile:
   human_cost: low; the skill is in making planted errors resemble real ones
 
 provenance: >
-  Distilled from Bryan's PUBLIC detector-demo (synthetic, stdlib, MIT; recovers 4/4 planted lenient mislabels;
-  --max-bad-rate CI gate) + the general planted-mislabel technique. Internal/proprietary specifics excluded.
-  2nd `tamper-to-ground-truth` exemplar → promoting the pattern. First own-work card; links the corpus to the
-  bad-data-detector portfolio thread.
+  Distilled from the general planted-mislabel technique as practised in Bryan's own synthetic, stdlib
+  experiments (planted lenient mislabels, a max-bad-rate CI gate). Internal/proprietary specifics excluded.
+  2nd `tamper-to-ground-truth` exemplar → promoting the pattern. First own-work card.
